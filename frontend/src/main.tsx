@@ -1,24 +1,27 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@fontsource-variable/nunito-sans';
+import '@fontsource-variable/playfair-display';
+import './index.css';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
-import './index.css';
+import { RouterProvider } from 'react-router/dom';
+import { Toaster } from 'sonner';
+import { router } from './app/router';
+import { queryClient } from './lib/query-client';
+import { initTheme } from './lib/theme';
+
+initTheme();
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {
   throw new Error('No se encontró el elemento #root');
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
-  },
-});
-
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <RouterProvider router={router} />
+      <Toaster position="top-center" richColors closeButton />
     </QueryClientProvider>
   </StrictMode>,
 );

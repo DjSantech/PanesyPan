@@ -1,6 +1,10 @@
 import type { DatabaseHealthResponse, HealthResponse } from '@panesypan/shared';
 import { formatTimeCO } from '@panesypan/shared';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
+import { PageHeader } from '@/components/feedback';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/surface';
 import { formatUptime } from '@/lib/format';
 import { fetchApiHealth, fetchDatabaseHealth } from './health.api';
 
@@ -102,48 +106,28 @@ export function SystemStatusPage() {
   };
 
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
-      <section
-        aria-labelledby="status-title"
-        className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8"
-      >
-        <header className="flex flex-col items-center gap-4 text-center">
-          <img
-            src="/logo-panesypan-320.webp"
-            alt="Logo de la panadería"
-            width={160}
-            height={160}
-            className="size-40 rounded-full"
-          />
-          <div>
-            <h1 id="status-title" className="text-2xl font-bold tracking-tight">
-              Sistema PanesYPan
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">Estado de la plataforma</p>
-          </div>
-        </header>
-
-        <ul className="mt-8 space-y-3" aria-live="polite">
+    <div className="mx-auto max-w-2xl">
+      <PageHeader
+        title="Estado del sistema"
+        description="Se verifica automáticamente cada 30 segundos."
+        actions={
+          <Button variant="outline" onClick={checkNow} disabled={isChecking}>
+            <RefreshCw className={isChecking ? 'animate-spin' : undefined} aria-hidden="true" />
+            {isChecking ? 'Verificando…' : 'Verificar ahora'}
+          </Button>
+        }
+      />
+      <Card className="p-4 sm:p-5">
+        <ul className="space-y-3" aria-live="polite">
           <StatusRow title="API" view={describeApi(apiHealth)} />
           <StatusRow title="Base de datos" view={describeDatabase(databaseHealth)} />
         </ul>
-
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            {lastCheckedAt > 0
-              ? `Última verificación: ${formatTimeCO(new Date(lastCheckedAt))}`
-              : 'Verificando…'}
-          </p>
-          <button
-            type="button"
-            onClick={checkNow}
-            disabled={isChecking}
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-wait disabled:opacity-60"
-          >
-            {isChecking ? 'Verificando…' : 'Verificar ahora'}
-          </button>
-        </div>
-      </section>
-    </main>
+        <p className="mt-4 text-xs text-muted-foreground">
+          {lastCheckedAt > 0
+            ? `Última verificación: ${formatTimeCO(new Date(lastCheckedAt))}`
+            : 'Verificando…'}
+        </p>
+      </Card>
+    </div>
   );
 }

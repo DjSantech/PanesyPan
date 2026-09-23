@@ -1,0 +1,78 @@
+import { createBrowserRouter } from 'react-router';
+import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
+import { LoginPage } from '@/features/auth/LoginPage';
+import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth';
+import { SetPinPage } from '@/features/auth/SetPinPage';
+import { NotFoundPage } from '@/features/errors/NotFoundPage';
+import { HomePage } from '@/features/home/HomePage';
+import { AppLayout } from '@/features/layout/AppLayout';
+
+/**
+ * Rutas en español (son visibles para el usuario). Las páginas de administración se cargan
+ * bajo demanda para que la tablet del POS descargue lo mínimo.
+ */
+export const router = createBrowserRouter([
+  { path: '/ingresar', element: <LoginPage /> },
+  {
+    path: '/',
+    element: <RequireAuth />,
+    children: [
+      { path: 'cambiar-clave', element: <ChangePasswordPage /> },
+      { path: 'crear-pin', element: <SetPinPage /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { index: true, element: <HomePage /> },
+          {
+            path: 'usuarios',
+            lazy: async () => {
+              const { UsersPage } = await import('@/features/users/UsersPage');
+              return {
+                element: (
+                  <RequirePermission permission="users:manage">
+                    <UsersPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'auditoria',
+            lazy: async () => {
+              const { AuditPage } = await import('@/features/audit/AuditPage');
+              return {
+                element: (
+                  <RequirePermission permission="audit:read">
+                    <AuditPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'estado',
+            lazy: async () => {
+              const { SystemStatusPage } =
+                await import('@/features/system-status/SystemStatusPage');
+              return {
+                element: (
+                  <RequirePermission permission="system:status">
+                    <SystemStatusPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'mi-cuenta',
+            lazy: async () => {
+              const { AccountPage } = await import('@/features/account/AccountPage');
+              return { element: <AccountPage /> };
+            },
+          },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
+    ],
+  },
+]);
