@@ -18,6 +18,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat(BUSINESS_LOCALE, {
   timeStyle: 'short',
 });
 
+const longDateFormatter = new Intl.DateTimeFormat(BUSINESS_LOCALE, {
+  timeZone: BUSINESS_TIME_ZONE,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
 const timeFormatter = new Intl.DateTimeFormat(BUSINESS_LOCALE, {
   timeZone: BUSINESS_TIME_ZONE,
   timeStyle: 'short',
@@ -41,14 +48,40 @@ export function toBusinessDate(date: Date = new Date()): BusinessDate {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
-export function isBusinessDate(value: string): value is BusinessDate {
+export function isBusinessDate(value: string): boolean {
   return BUSINESS_DATE_PATTERN.test(value);
+}
+
+/** Colombia no usa horario de verano: su desfase con UTC es siempre −05:00. */
+const BUSINESS_UTC_OFFSET = '-05:00';
+
+/**
+ * Rango UTC [start, end) que cubre un día de negocio completo en hora de Colombia.
+ * Ejemplo: "2026-09-23" → 2026-09-23T05:00Z hasta 2026-09-24T05:00Z.
+ */
+export function businessDateRangeUtc(date: BusinessDate): { start: Date; end: Date } {
+  if (!isBusinessDate(date)) {
+    throw new RangeError(`Fecha de negocio inválida: ${date}`);
+  }
+  const start = new Date(`${date}T00:00:00${BUSINESS_UTC_OFFSET}`);
+  // Date convierte fechas imposibles (31 de febrero → 3 de marzo): se exige que no cambie.
+  if (Number.isNaN(start.getTime()) || toBusinessDate(start) !== date) {
+    throw new RangeError(`Fecha de negocio inválida: ${date}`);
+  }
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }
 
 /** Fecha y hora legible en Colombia: "23/09/2026, 10:30 a. m." */
 export function formatDateTimeCO(date: Date): string {
   assertValidDate(date);
   return dateTimeFormatter.format(date);
+}
+
+/** Fecha larga en Colombia con mayúscula inicial: "Miércoles, 23 de septiembre". */
+export function formatLongDateCO(date: Date): string {
+  assertValidDate(date);
+  const text = longDateFormatter.format(date);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Hora legible en Colombia: "10:30 a. m." */
