@@ -1,6 +1,6 @@
-# PanesYPan · Sistema POS y plataforma web
+# Panes & Panes · Sistema POS y plataforma web
 
-Punto de venta, panel administrativo y (próximamente) web pública con domicilios para **PanesYPan**, panadería en Dosquebradas, Risaralda (Colombia).
+Punto de venta, panel administrativo y (próximamente) web pública con domicilios para **Panes & Panes**, panadería en Dosquebradas, Risaralda (Colombia).
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -32,7 +32,7 @@ Punto de venta, panel administrativo y (próximamente) web pública con domicili
 
 ## El negocio y el problema
 
-PanesYPan vende panadería y repostería (pan, pandebonos, buñuelos, tortas), bebidas (café, chocolate, jugos, gaseosas), almuerzos (menú del día y ejecutivo) y caldos en la mañana. Cuenta con **8 mesas** además de la venta en mostrador y para llevar.
+Panes & Panes vende panadería y repostería (pan, pandebonos, buñuelos, tortas), bebidas (café, chocolate, jugos, gaseosas), almuerzos (menú del día y ejecutivo) y caldos en la mañana. Cuenta con **8 mesas** además de la venta en mostrador y para llevar.
 
 El negocio necesita:
 
@@ -177,11 +177,13 @@ Si prefieres un único comando desde la raíz que levante la API y el POS juntos
 
 Luego abre:
 
-| Qué                                   | URL                                 |
-| ------------------------------------- | ----------------------------------- |
-| POS (pantalla de estado en la Fase 0) | http://localhost:5173               |
-| Salud de la API                       | http://localhost:4000/api/health    |
-| Salud de la base de datos             | http://localhost:4000/api/health/db |
+| Qué                       | URL                                 |
+| ------------------------- | ----------------------------------- |
+| Sistema (login y panel)   | http://localhost:5173               |
+| Salud de la API           | http://localhost:4000/api/health    |
+| Salud de la base de datos | http://localhost:4000/api/health/db |
+
+**Primer ingreso local:** la API crea el administrador inicial con las variables `SEED_ADMIN_*` de `backend/.env` (usuario `admin` en el ejemplo). En el primer ingreso pide cambiar la contraseña y crear el PIN de 6 números. Si prefieres crearlo sin levantar la API: `cd backend` y `npm run seed:admin`.
 
 **Sobre la base de datos local (`pnpm dev:db`):**
 
@@ -208,6 +210,13 @@ Los archivos `.env` **nunca** se suben al repositorio. Cada app tiene su `.env.e
 | `ORIGIN_VERIFY_SECRET` | Secreto del header `X-Origin-Verify` que agrega Cloudflare. Obligatorio en producción, mínimo 32 caracteres | `(generado, ver abajo)`                                 |
 | `RATE_LIMIT_WINDOW_MS` | Ventana del límite general, en ms                                                                           | `60000`                                                 |
 | `RATE_LIMIT_MAX`       | Peticiones por IP en esa ventana                                                                            | `600`                                                   |
+| `AUTH_RATE_LIMIT_MAX`  | Intentos fallidos de login o PIN por IP cada 15 minutos                                                     | `30`                                                    |
+| `JWT_ACCESS_SECRET`    | Secreto para firmar la sesión. Obligatorio, mínimo 32 caracteres, distinto de `CSRF_SECRET`                 | `(generado)`                                            |
+| `CSRF_SECRET`          | Secreto para el token anti-CSRF. Obligatorio, mínimo 32 caracteres                                          | `(generado)`                                            |
+| `SEED_ADMIN_USERNAME`  | Usuario del primer administrador (solo se usa si no existe ninguno)                                         | `admin`                                                 |
+| `SEED_ADMIN_PASSWORD`  | Contraseña inicial del primer administrador; se cambia en el primer ingreso. Bórrala después                | `(una frase larga)`                                     |
+| `SEED_ADMIN_NAME`      | Nombre visible del primer administrador (opcional)                                                          | `Administrador`                                         |
+| `SEED_ADMIN_EMAIL`     | Correo del primer administrador (opcional)                                                                  | `duena@correo.com`                                      |
 
 Para generar un secreto seguro:
 
@@ -262,7 +271,8 @@ Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `t
 ### 2. Render (API)
 
 1. En Render: **New → Blueprint** y elige este repositorio. Render lee `render.yaml`.
-2. Ingresa los secretos que el blueprint marca como `sync: false`: `MONGODB_URI` y `ORIGIN_VERIFY_SECRET`.
+2. Ingresa los valores que el blueprint marca como `sync: false`: `MONGODB_URI`, `ORIGIN_VERIFY_SECRET` y las variables `SEED_ADMIN_*` del primer administrador. `JWT_ACCESS_SECRET` y `CSRF_SECRET` los genera Render solo.
+   - Después de tu primer ingreso (en el que cambias la contraseña), **borra `SEED_ADMIN_PASSWORD`** en Render.
 3. En **Settings → Custom Domains**, agrega `api.panesypan.com`.
 4. Comandos configurados en `render.yaml`:
    - Build: `npm install -g pnpm@12.5.1 && NODE_ENV=development pnpm install --frozen-lockfile && pnpm --filter @panesypan/backend build`
@@ -387,13 +397,23 @@ Implementado desde la Fase 0:
 - **Sin secretos en el repositorio:** `.env` ignorados y un `.env.example` por app.
 - **Dependencias:** pnpm solo permite scripts de instalación de paquetes aprobados y rechaza versiones publicadas hace menos de un día.
 
-Planeado para la Fase 1A:
+Implementado en la Fase 1A (autenticación):
 
-- Contraseñas con argon2id.
-- Access token corto y refresh token rotativo con detección de reuso, en cookies `__Host-` `httpOnly`/`Secure`/`SameSite=Lax`.
-- Protección CSRF con token sincronizador y verificación de `Origin`.
-- Bloqueo temporal por intentos fallidos.
-- RBAC validado en el backend y auditoría de acciones sensibles.
+- **Contraseñas y PIN** cifrados con argon2id (parámetros de OWASP). Nunca se guardan ni se registran en texto plano.
+- **Política de contraseñas:** mínimo 8 caracteres, se rechazan las comunes y las que contienen el usuario. PIN de 6 números sin secuencias ni repeticiones.
+- **Sesión en cookies** `httpOnly`, `Secure` y `SameSite=Lax`, solo para `api.panesypan.com` (prefijos `__Host-` / `__Secure-`):
+  - Token de acceso de 10 minutos.
+  - Token de refresco rotativo que solo viaja a `/api/v1/auth`.
+- **Detección de robo de sesión:** si se reutiliza un token de refresco viejo, se cierra la sesión y queda una alerta en la auditoría.
+- **La sesión se valida en la base de datos en cada petición:** cerrar sesión, desactivar un usuario o cambiarle la contraseña tiene efecto inmediato.
+- **CSRF:** token ligado a la sesión en el header `X-CSRF-Token`, más verificación de `Origin` en toda petición que modifica datos.
+- **Bloqueo de cuenta** tras 5 contraseñas incorrectas durante 15 minutos (el administrador puede desbloquearla), más un límite de intentos por IP.
+- **Mensajes que no revelan información:** usuario inexistente y contraseña incorrecta reciben el mismo mensaje y tardan lo mismo.
+- **Bloqueo de pantalla** tras 10 minutos sin uso. Se desbloquea con el PIN; tras 5 PIN incorrectos se cierra la sesión.
+- **Duración de la sesión:** 16 horas para cajeras (un turno) y 30 días para el administrador.
+- **Contraseñas temporales** al crear o restablecer usuarios: se muestran una sola vez y obligan a cambiarlas.
+- **RBAC** validado en el backend: las cajeras no pueden gestionar usuarios ni ver la auditoría. Siempre debe quedar al menos un administrador activo.
+- **Auditoría de solo inserción:** ingresos, intentos fallidos, bloqueos, cambios de contraseña/PIN y cambios de usuarios, con IP y hora.
 
 Al cierre de cada fase se hace una revisión de seguridad.
 
@@ -402,7 +422,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | Fase | Alcance                                                                                                        | Estado |
 | ---- | -------------------------------------------------------------------------------------------------------------- | ------ |
 | 0    | Monorepo, tooling, paquete compartido, API con health checks, MongoDB, keep-alive, configuración de despliegue | ✅     |
-| 1A   | Autenticación, RBAC, usuarios, primer administrador, auditoría                                                 | ⏳     |
+| 1A   | Autenticación, RBAC, usuarios, primer administrador, auditoría                                                 | ✅     |
 | 1B   | Catálogo, impuestos, configuración y menú del día                                                              | ⏳     |
 | 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ⏳     |
 | 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ⏳     |
@@ -428,4 +448,4 @@ Antes de cada commit: `pnpm check`.
 
 ## Licencia
 
-Copyright © 2026 PanesYPan. **Todos los derechos reservados.** Software privado; consulta el archivo [LICENSE](LICENSE).
+Copyright © 2026 Panes & Panes. **Todos los derechos reservados.** Software privado; consulta el archivo [LICENSE](LICENSE).
