@@ -1,0 +1,41 @@
+{
+  "name": "panesypan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema POS, panel administrativo y web pública de PanesYPan (Dosquebradas, Risaralda).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @panesypan/backend --filter @panesypan/frontend dev",
+    "dev:db": "tsx scripts/dev-db.ts",
+    "dev:db:stop": "tsx scripts/dev-db-stop.ts",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck && tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r test",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "db:keepalive": "tsx scripts/db-keepalive.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.6",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
+    "mongodb": "~7.6.0",
+    "mongodb-memory-server": "^11.3.0",
+    "prettier": "^3.9.8",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1"
+  }
+}

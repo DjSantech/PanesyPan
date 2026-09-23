@@ -1,0 +1,18 @@
+packages:
+  - frontend
+  - backend
+  - packages/*
+
+# Protección de la cadena de suministro: no instalar versiones publicadas hace menos de 24 h.
+minimumReleaseAge: 1440
+
+# esbuild < 0.28.1 tiene una vulnerabilidad (GHSA-g7r4-m6w7-qqqr) en su servidor de desarrollo
+# en Windows. tsup aún declara ^0.27; se fuerza la versión corregida (compatible con el build).
+overrides:
+  esbuild: ^0.28.2
+
+# Scripts de instalación permitidos. mongodb-memory-server descarga MongoDB solo cuando se usa
+# (pruebas y "pnpm dev:db"), así no se descarga en cada instalación ni en Render.
+allowBuilds:
+  esbuild: true
+  mongodb-memory-server: false

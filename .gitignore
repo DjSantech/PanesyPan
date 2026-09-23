@@ -1,0 +1,60 @@
+# ── Dependencias y builds ─────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+build/
+.next/
+out/
+.turbo/
+.vercel/
+coverage/
+*.tsbuildinfo
+.eslintcache
+*.tgz
+
+# ── Entorno y secretos ────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+credentials*.json
+serviceAccount*.json
+
+# ── Logs y temporales ─────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+tmp/
+.cache/
+
+# ── Datos locales de desarrollo (MongoDB local) ───────
+.local/
+
+# ── Sistema operativo y editores ──────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ── Herramientas locales del editor (no se versionan) ─
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+.claudeignore
+prompts/
+ai-notes/
+
+# ── Backups y datos locales ───────────────────────────
+*.sqlite
+dump/
+backups/
+*.bson
