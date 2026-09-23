@@ -1,0 +1,14 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/server.ts'],
+  format: ['esm'],
+  platform: 'node',
+  target: 'node24',
+  outDir: 'dist',
+  clean: true,
+  sourcemap: true,
+  splitting: false,
+  // El paquete compartido se publica como código TypeScript: se incluye dentro del bundle.
+  noExternal: ['@panesypan/shared'],
+});
