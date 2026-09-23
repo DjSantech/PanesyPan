@@ -1,4 +1,4 @@
-# Blueprint de Render para la API de PanesYPan.
+# Blueprint de Render para la API de Panes & Panes.
 # Documentación: https://render.com/docs/blueprint-spec
 # Los valores marcados con "sync: false" se ingresan a mano en el panel de Render (son secretos).
 services:
@@ -44,3 +44,19 @@ services:
         value: '60000'
       - key: RATE_LIMIT_MAX
         value: '600'
+      - key: AUTH_RATE_LIMIT_MAX
+        value: '30'
+      # Secretos de sesión: Render los genera (aleatorios y distintos entre sí).
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: CSRF_SECRET
+        generateValue: true
+      # Primer administrador: se ingresan a mano y SEED_ADMIN_PASSWORD se borra tras el primer ingreso.
+      - key: SEED_ADMIN_NAME
+        sync: false
+      - key: SEED_ADMIN_USERNAME
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
