@@ -1,0 +1,79 @@
+@import 'tailwindcss';
+
+/*
+ * Paleta provisional tomada del logo (crema, terracota, café y dorado).
+ * La paleta y la tipografía definitivas se eligen al iniciar la Fase 1A.
+ */
+:root {
+  color-scheme: light;
+  --background: #f7ecdf;
+  --foreground: #3a1d0a;
+  --card: #fffaf4;
+  --muted: #f1e2d0;
+  --muted-foreground: #6b4a33;
+  --border: #e5ccb4;
+  --primary: #a1452e;
+  --primary-foreground: #fffaf4;
+  --ring: #a1452e;
+  --success: #2e6b3a;
+  --success-soft: #e2f0e3;
+  --danger: #9f2d20;
+  --danger-soft: #fbe3dd;
+  --pending: #7a5a1e;
+  --pending-soft: #f6ead0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #1c120c;
+    --foreground: #f5e2cb;
+    --card: #2a1b12;
+    --muted: #3a271b;
+    --muted-foreground: #cdb49a;
+    --border: #4a3222;
+    --primary: #e58866;
+    --primary-foreground: #1c120c;
+    --ring: #e58866;
+    --success: #8fd19b;
+    --success-soft: #1f3524;
+    --danger: #f59a86;
+    --danger-soft: #3f1d17;
+    --pending: #e9c46a;
+    --pending-soft: #3a2e14;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
