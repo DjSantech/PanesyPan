@@ -1,5 +1,6 @@
+import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
-import { defineConfig, globalIgnores } from 'eslint/config';
+import { defineConfig, globalIgnores, includeIgnoreFile } from 'eslint/config';
 import prettierConfig from 'eslint-config-prettier/flat';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
@@ -7,14 +8,9 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  globalIgnores([
-    '**/node_modules/',
-    '**/dist/',
-    '**/coverage/',
-    '.local/',
-    '.claude/',
-    'frontend/public/',
-  ]),
+  // Todo lo que git ignora (dependencias, builds, datos locales…) tampoco se revisa.
+  includeIgnoreFile(fileURLToPath(new URL('.gitignore', import.meta.url))),
+  globalIgnores(['frontend/public/']),
 
   // Archivos JavaScript (configuraciones)
   {
@@ -67,7 +63,7 @@ export default defineConfig([
   },
   {
     // Los scripts de consola sí imprimen en la terminal.
-    files: ['scripts/**/*.ts'],
+    files: ['scripts/**/*.ts', 'backend/scripts/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
 

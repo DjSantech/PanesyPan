@@ -1,7 +1,3 @@
-node_modules
-dist
-coverage
-.local
-.claude
+# Prettier también respeta .gitignore (dependencias, builds, datos locales…).
 pnpm-lock.yaml
 frontend/public
