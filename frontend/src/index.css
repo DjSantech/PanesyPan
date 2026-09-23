@@ -1,19 +1,27 @@
 @import 'tailwindcss';
 
 /*
- * Paleta provisional tomada del logo (crema, terracota, café y dorado).
- * La paleta y la tipografía definitivas se eligen al iniciar la Fase 1A.
+ * Paleta "Horno clásico" (tomada del logo): crema, terracota, café y dorado.
+ * Todas las combinaciones de texto cumplen WCAG AA (contraste mínimo 5,9:1).
+ * Modo claro/oscuro: sigue al sistema, o se fuerza con la clase .light / .dark en <html>.
  */
 :root {
   color-scheme: light;
   --background: #f7ecdf;
   --foreground: #3a1d0a;
   --card: #fffaf4;
+  --card-foreground: #3a1d0a;
   --muted: #f1e2d0;
   --muted-foreground: #6b4a33;
   --border: #e5ccb4;
+  --input: #d9bea2;
   --primary: #a1452e;
   --primary-foreground: #fffaf4;
+  --accent: #e0b25c;
+  --accent-foreground: #3a1d0a;
+  /* Dorado suave para etiquetas e íconos (texto 7,7:1). */
+  --accent-soft: #f5e1b8;
+  --accent-soft-foreground: #5c3d0e;
   --ring: #a1452e;
   --success: #2e6b3a;
   --success-soft: #e2f0e3;
@@ -23,17 +31,48 @@
   --pending-soft: #f6ead0;
 }
 
+:root.dark {
+  color-scheme: dark;
+  --background: #1c120c;
+  --foreground: #f5e2cb;
+  --card: #2a1b12;
+  --card-foreground: #f5e2cb;
+  --muted: #3a271b;
+  --muted-foreground: #cdb49a;
+  --border: #4a3222;
+  --input: #5c4030;
+  --primary: #e58866;
+  --primary-foreground: #1c120c;
+  --accent: #e0b25c;
+  --accent-foreground: #1c120c;
+  --accent-soft: #3b2d14;
+  --accent-soft-foreground: #ecc877;
+  --ring: #e58866;
+  --success: #8fd19b;
+  --success-soft: #1f3524;
+  --danger: #f59a86;
+  --danger-soft: #3f1d17;
+  --pending: #e9c46a;
+  --pending-soft: #3a2e14;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     color-scheme: dark;
     --background: #1c120c;
     --foreground: #f5e2cb;
     --card: #2a1b12;
+    --card-foreground: #f5e2cb;
     --muted: #3a271b;
     --muted-foreground: #cdb49a;
     --border: #4a3222;
+    --input: #5c4030;
     --primary: #e58866;
     --primary-foreground: #1c120c;
+    --accent: #e0b25c;
+    --accent-foreground: #1c120c;
+    --accent-soft: #3b2d14;
+    --accent-soft-foreground: #ecc877;
     --ring: #e58866;
     --success: #8fd19b;
     --success-soft: #1f3524;
@@ -45,14 +84,23 @@
 }
 
 @theme inline {
+  --font-sans: 'Nunito Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Playfair Display Variable', Georgia, 'Times New Roman', serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
@@ -63,8 +111,17 @@
 }
 
 @layer base {
+  * {
+    @apply border-border;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
+    /* Nunito Sans tiene dígitos de ancho fijo: los precios quedan alineados. */
+    font-variant-numeric: tabular-nums;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
   }
 }
 
@@ -75,5 +132,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
