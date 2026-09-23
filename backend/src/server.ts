@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { EnvValidationError, loadEnv, type Env } from './config/env';
 import { createLogger } from './config/logger';
+import { ensureInitialAdmin } from './modules/auth/bootstrap-admin';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -29,6 +30,16 @@ try {
   if (env.NODE_ENV === 'development') {
     logger.fatal('¿Está corriendo la base de datos local? Ejecuta "pnpm dev:db" en otra terminal.');
   }
+  process.exit(1);
+}
+
+try {
+  await ensureInitialAdmin(env, logger);
+} catch (error) {
+  logger.fatal(
+    { reason: error instanceof Error ? error.message : String(error) },
+    'Administrador inicial inválido',
+  );
   process.exit(1);
 }
 

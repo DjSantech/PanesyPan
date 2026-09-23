@@ -37,6 +37,22 @@ const envSchema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),
+  /** Intentos de login/PIN por IP cada 15 minutos (todo el local comparte una IP). */
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
+
+  // Secretos de sesión: cadenas aleatorias largas, distintas entre sí y entre ambientes.
+  JWT_ACCESS_SECRET: z
+    .string('JWT_ACCESS_SECRET es obligatorio')
+    .min(32, 'JWT_ACCESS_SECRET debe tener al menos 32 caracteres'),
+  CSRF_SECRET: z
+    .string('CSRF_SECRET es obligatorio')
+    .min(32, 'CSRF_SECRET debe tener al menos 32 caracteres'),
+
+  // Primer administrador: se crea al arrancar solo si todavía no existe ninguno.
+  SEED_ADMIN_NAME: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(80).optional()),
+  SEED_ADMIN_USERNAME: z.preprocess(emptyToUndefined, z.string().optional()),
+  SEED_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
+  SEED_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
 
   // Render inyecta automáticamente el commit desplegado.
   RENDER_GIT_COMMIT: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -64,6 +80,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   }
 
   const env = result.data;
+  if (env.JWT_ACCESS_SECRET === env.CSRF_SECRET) {
+    throw new EnvValidationError('JWT_ACCESS_SECRET y CSRF_SECRET deben ser diferentes');
+  }
+  const seedVars = [env.SEED_ADMIN_USERNAME, env.SEED_ADMIN_PASSWORD];
+  if (
+    seedVars.some((value) => value !== undefined) &&
+    seedVars.some((value) => value === undefined)
+  ) {
+    throw new EnvValidationError(
+      'Para crear el primer administrador define SEED_ADMIN_USERNAME y SEED_ADMIN_PASSWORD juntos',
+    );
+  }
+
   if (env.NODE_ENV === 'production') {
     const problems: string[] = [];
     if (emptyToUndefined(source.CORS_ORIGINS) === undefined) {

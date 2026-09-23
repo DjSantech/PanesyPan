@@ -1,8 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { EnvValidationError, loadEnv } from './env';
 
-const BASE = { MONGODB_URI: 'mongodb://127.0.0.1:27017/?replicaSet=rs0' };
+const BASE = {
+  MONGODB_URI: 'mongodb://127.0.0.1:27017/?replicaSet=rs0',
+  JWT_ACCESS_SECRET: 'a'.repeat(40),
+  CSRF_SECRET: 'b'.repeat(40),
+};
 const SECRET = 'k'.repeat(40);
+
+describe('secretos de sesión y administrador inicial', () => {
+  it('exige los secretos de sesión, largos y distintos entre sí', () => {
+    expect(() => loadEnv({ ...BASE, JWT_ACCESS_SECRET: undefined })).toThrow(/JWT_ACCESS_SECRET/);
+    expect(() => loadEnv({ ...BASE, CSRF_SECRET: 'corto' })).toThrow(/CSRF_SECRET/);
+    expect(() => loadEnv({ ...BASE, CSRF_SECRET: BASE.JWT_ACCESS_SECRET })).toThrow(/diferentes/);
+  });
+
+  it('exige usuario y contraseña del administrador inicial juntos', () => {
+    expect(() => loadEnv({ ...BASE, SEED_ADMIN_USERNAME: 'duena' })).toThrow(/SEED_ADMIN_PASSWORD/);
+    expect(() =>
+      loadEnv({
+        ...BASE,
+        SEED_ADMIN_USERNAME: 'duena',
+        SEED_ADMIN_PASSWORD: 'buñuelos de la mañana',
+      }),
+    ).not.toThrow();
+  });
+});
 
 describe('loadEnv', () => {
   it('aplica valores por defecto seguros', () => {

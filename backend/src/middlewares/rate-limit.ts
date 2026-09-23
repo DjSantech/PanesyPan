@@ -7,6 +7,8 @@ export interface RateLimiterOptions {
   windowMs: number;
   limit: number;
   trustCloudflareHeader: boolean;
+  /** Solo cuenta respuestas con error (útil para login: los ingresos correctos no gastan cupo). */
+  onlyCountFailures?: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ export function createRateLimiter(options: RateLimiterOptions): RequestHandler {
     limit: options.limit,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
+    skipSuccessfulRequests: options.onlyCountFailures ?? false,
     keyGenerator: (req) => ipKeyGenerator(getClientIp(req, options.trustCloudflareHeader)),
     handler: (_req, _res, next) => {
       next(
