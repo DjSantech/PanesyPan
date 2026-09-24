@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { TAX_CODES } from '../einvoice/tax';
 import { PRICE_LIMITS } from '../money/money';
+import { EINVOICE_PROVIDERS } from './einvoice';
 
 /** Ancho del papel de la impresora térmica en milímetros. */
 export const TICKET_WIDTHS = ['58', '80'] as const;
@@ -20,6 +22,21 @@ export const businessSettingsSchema = z.object({
   maxCashierDiscountPercent: z.int(),
   /** Egreso máximo (en pesos) que la cajera saca de la caja sin el PIN de un administrador. */
   maxCashierExpense: z.int(),
+  /** Facturación electrónica: cada venta cobrada genera su factura (ver schemas/einvoice). */
+  einvoiceEnabled: z.boolean(),
+  einvoiceProvider: z.enum(EINVOICE_PROVIDERS),
+  /** Rango de numeración autorizado por la DIAN, tal como lo identifica el proveedor. */
+  einvoiceNumberingRangeId: z.int().nullable(),
+  einvoiceCreditNoteRangeId: z.int().nullable(),
+  /** El proveedor envía la factura al correo del cliente cuando lo da. */
+  einvoiceSendEmail: z.boolean(),
+  /**
+   * Texto legal de la factura impresa: resolución de numeración de la DIAN (número, fecha,
+   * prefijo, rango y vigencia) y el proveedor tecnológico. Lo entrega el proveedor.
+   */
+  einvoiceLegend: z.string(),
+  /** Impuesto de los productos que no tienen uno propio. */
+  defaultTax: z.enum(TAX_CODES).nullable(),
   updatedAt: z.iso.datetime().nullable(),
 });
 export type BusinessSettings = z.infer<typeof businessSettingsSchema>;
@@ -35,6 +52,13 @@ export const DEFAULT_BUSINESS_SETTINGS: Omit<BusinessSettings, 'updatedAt'> = {
   tableCount: 8,
   maxCashierDiscountPercent: 10,
   maxCashierExpense: 50_000,
+  einvoiceEnabled: false,
+  einvoiceProvider: 'SIMULATED',
+  einvoiceNumberingRangeId: null,
+  einvoiceCreditNoteRangeId: null,
+  einvoiceSendEmail: true,
+  einvoiceLegend: '',
+  defaultTax: null,
 };
 
 export const businessSettingsResponseSchema = z.object({ settings: businessSettingsSchema });
@@ -44,6 +68,11 @@ const text = (max: number) =>
     .string()
     .trim()
     .max(max, `Máximo ${String(max)} caracteres`);
+
+const rangeIdSchema = z
+  .int('El rango de numeración es un número entero')
+  .positive('El rango de numeración es un número entero')
+  .nullable();
 
 export const updateBusinessSettingsRequestSchema = z
   .strictObject({
@@ -70,6 +99,13 @@ export const updateBusinessSettingsRequestSchema = z
       .min(0, 'Mínimo $ 0')
       .max(PRICE_LIMITS.max, 'El valor es demasiado alto')
       .optional(),
+    einvoiceEnabled: z.boolean().optional(),
+    einvoiceProvider: z.enum(EINVOICE_PROVIDERS).optional(),
+    einvoiceNumberingRangeId: rangeIdSchema.optional(),
+    einvoiceCreditNoteRangeId: rangeIdSchema.optional(),
+    einvoiceSendEmail: z.boolean().optional(),
+    einvoiceLegend: text(400).optional(),
+    defaultTax: z.enum(TAX_CODES).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
 export type UpdateBusinessSettingsRequest = z.infer<typeof updateBusinessSettingsRequestSchema>;

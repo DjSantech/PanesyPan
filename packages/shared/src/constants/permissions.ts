@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   'reports:read',
   'sales:void:approve',
   'settings:manage',
+  'einvoice:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -4,6 +4,7 @@ import { PRICE_LIMITS } from '../money/money';
 import { DISCOUNT_MODES } from '../sales/sale-math';
 import { SETTINGS_LIMITS } from './settings';
 import { businessDateSchema, moneySchema, objectIdSchema } from './common';
+import { customerInputSchema, saleCustomerSchema, saleEInvoiceSchema } from './einvoice';
 
 /**
  * Una venta nace de dos formas:
@@ -99,6 +100,10 @@ export const saleSchema = z.object({
   paidAt: z.iso.datetime().nullable(),
   businessDate: businessDateSchema.nullable(),
   closure: saleClosureSchema.nullable(),
+  /** Cliente que pidió la factura a su nombre (null = consumidor final). */
+  customer: saleCustomerSchema.nullable(),
+  /** Factura electrónica de la venta (null si la facturación electrónica estaba apagada). */
+  einvoice: saleEInvoiceSchema.nullable(),
   updatedAt: z.iso.datetime(),
 });
 export type Sale = z.infer<typeof saleSchema>;
@@ -155,6 +160,7 @@ const checkoutShape = {
   payments: z.array(paymentInputSchema).min(1).max(PAYMENT_METHODS.length),
   cashReceived: moneySchema.max(PRICE_LIMITS.max).nullable().default(null),
   approverPin: approverPinSchema.optional(),
+  customer: customerInputSchema.nullable().default(null),
 };
 
 export const counterCheckoutRequestSchema = z.strictObject({

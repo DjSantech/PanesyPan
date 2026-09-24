@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { businessDateSchema, objectIdSchema } from './common';
+import { TAX_CODES } from '../einvoice/tax';
 import { PRICE_LIMITS } from '../money/money';
 
 // ── Categorías ─────────────────────────────────────────────────────
@@ -70,6 +71,8 @@ export const productSchema = z.object({
   isAvailable: z.boolean(),
   isFavorite: z.boolean(),
   trackStock: z.boolean(),
+  /** Impuesto del producto; null = el impuesto general de Ajustes. */
+  tax: z.enum(TAX_CODES).nullable(),
   isActive: z.boolean(),
   sortOrder: z.int(),
   updatedAt: z.iso.datetime(),
@@ -93,6 +96,7 @@ export const createProductRequestSchema = z.strictObject({
   isAvailable: z.boolean().default(true),
   isFavorite: z.boolean().default(false),
   trackStock: z.boolean().default(false),
+  tax: z.enum(TAX_CODES).nullable().default(null),
 });
 export type CreateProductRequest = z.input<typeof createProductRequestSchema>;
 
@@ -103,6 +107,7 @@ export const updateProductRequestSchema = z
     price: priceSchema.optional(),
     isFavorite: z.boolean().optional(),
     trackStock: z.boolean().optional(),
+    tax: z.enum(TAX_CODES).nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
