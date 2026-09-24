@@ -6,9 +6,8 @@
  * Está pensado para ejecutarse desde un cron (ver README, sección "Mantener el servicio despierto").
  * Sale con código 0 si todo salió bien y 1 si falló, para que el cron pueda alertar.
  */
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { MongoClient } from 'mongodb';
+import { errorMessage, readDatabaseEnv } from './db-env';
 
 interface KeepAliveDocument {
   _id: string;
@@ -16,18 +15,7 @@ interface KeepAliveDocument {
   count: number;
 }
 
-const apiEnvFile = fileURLToPath(new URL('../backend/.env', import.meta.url));
-if (process.env.MONGODB_URI === undefined && existsSync(apiEnvFile)) {
-  process.loadEnvFile(apiEnvFile);
-}
-
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_DB_NAME ?? 'panesypan';
-
-if (uri === undefined || uri === '') {
-  console.error('[keepalive] Falta la variable MONGODB_URI');
-  process.exit(1);
-}
+const { uri, dbName } = readDatabaseEnv('keepalive');
 
 const client = new MongoClient(uri, {
   appName: 'panesypan-keepalive',
@@ -48,7 +36,7 @@ try {
   console.log(`[keepalive] OK · ${new Date().toISOString()} · base de datos "${dbName}"`);
 } catch (error) {
   // Solo el mensaje: nunca se imprime la cadena de conexión.
-  console.error('[keepalive] Falló:', error instanceof Error ? error.message : String(error));
+  console.error('[keepalive] Falló:', errorMessage(error));
   process.exitCode = 1;
 } finally {
   await client.close();

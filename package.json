@@ -20,8 +20,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @panesypan/e2e e2e",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
-    "db:keepalive": "tsx scripts/db-keepalive.ts"
+    "db:keepalive": "tsx scripts/db-keepalive.ts",
+    "db:backup": "tsx scripts/db-backup.ts",
+    "db:restore": "tsx scripts/db-restore.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
