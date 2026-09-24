@@ -226,6 +226,11 @@ Los archivos `.env` **nunca** se suben al repositorio. Cada app tiene su `.env.e
 | `SEED_ADMIN_PASSWORD`  | Contraseña inicial del primer administrador; se cambia en el primer ingreso. Bórrala después                | `(una frase larga)`                                     |
 | `SEED_ADMIN_NAME`      | Nombre visible del primer administrador (opcional)                                                          | `Administrador`                                         |
 | `SEED_ADMIN_EMAIL`     | Correo del primer administrador (opcional)                                                                  | `duena@correo.com`                                      |
+| `FACTUS_ENV`           | Ambiente de Factus: `sandbox` (habilitación) o `production`                                                 | `sandbox`                                               |
+| `FACTUS_CLIENT_ID`     | Credencial de la API de Factus (opcional; sin las cuatro solo hay proveedor simulado)                       | `(panel de Factus)`                                     |
+| `FACTUS_CLIENT_SECRET` | Credencial de la API de Factus                                                                              | `(panel de Factus)`                                     |
+| `FACTUS_USERNAME`      | Usuario (correo) de la cuenta de Factus                                                                     | `facturacion@panesypan.com`                             |
+| `FACTUS_PASSWORD`      | Contraseña de la cuenta de Factus                                                                           | `(panel de Factus)`                                     |
 
 Para generar un secreto seguro:
 
@@ -352,7 +357,56 @@ El tiquete se imprime con el diálogo de impresión del navegador:
 2. En **Ajustes** elige el ancho del papel y completa los datos del tiquete (razón social, NIT, dirección, teléfono y mensaje final). Hay una vista previa.
 3. Al imprimir por primera vez elige la impresora térmica, márgenes **Ninguno** y desactiva "Encabezados y pies de página". El navegador recuerda la elección.
 
-El tiquete dice "Precios con impuestos incluidos". **No es una factura electrónica ni un documento equivalente POS de la DIAN.** Si el negocio está obligado, habrá que integrar un proveedor tecnológico autorizado (pendiente de confirmar con el contador).
+El tiquete dice "Precios con impuestos incluidos". Sin facturación electrónica activa, el tiquete **no** es una factura electrónica. Con ella activa, el tiquete incluye la representación impresa de la factura (ver abajo).
+
+### Facturación electrónica (DIAN)
+
+**Rutas:** `/configuracion` (sección "Facturación electrónica") y `/facturacion` (documentos y reenvíos). Ambas son solo del administrador.
+
+**Cómo funciona**
+
+1. **Cada venta cobrada genera su factura electrónica de venta**, en mostrador o en mesa. Se factura a "Consumidor final" o, si el cliente la pide, a su nombre: en el cobro se toca **Factura a nombre del cliente** y se escriben el documento (el dígito de verificación del NIT se calcula solo), el nombre y, si quiere recibirla, el correo.
+2. **La venta nunca se frena por la DIAN.** La factura queda en cola en la misma operación que la venta, así que si la venta se guardó, su factura también. Un proceso de la API la envía al proveedor en segundos.
+3. **El tiquete sale con la factura.** Al cobrar, el sistema espera unos segundos la validación y el tiquete impreso trae el número, el CUFE, el código QR de consulta en la DIAN y el texto legal de Ajustes. Si la DIAN tarda, el tiquete lo dice y se puede reimprimir desde `/ventas` cuando quede validada.
+4. **Si el proveedor o la red fallan**, la factura se reintenta sola durante unas horas (30 s, 1, 2, 5, 10 y 30 minutos, 1 hora). Si no sale, queda **Sin enviar** y el administrador la reenvía desde `/facturacion`.
+5. **Si la DIAN la rechaza** (rango vencido, dato inválido, cuenta sin saldo…), queda **Rechazada** con el motivo. Corrige la causa en Ajustes o en el catálogo y toca **Reenviar**: se vuelve a armar con la configuración corregida.
+6. **Anular una venta facturada genera la nota crédito** que la anula ante la DIAN. Si la factura nunca se intentó enviar, simplemente ya no se envía. Si hubo algún intento, la nota crédito espera a que la factura se valide y luego la anula, porque una falla de red puede ocultar que la factura sí llegó.
+7. Una misma venta nunca se factura dos veces. Cada documento lleva un código de referencia único ante el proveedor y, si una respuesta se pierde, se recupera el documento ya emitido.
+
+**Impuestos.** Los precios siguen incluyendo impuestos. Para la factura se separan base e impuesto según el impuesto de cada producto (catálogo → editar producto) o, si no tiene, el **impuesto general** de Ajustes: IVA 19 %, IVA 5 %, IVA 0 %, impuesto al consumo 8 % o sin impuesto. **Qué tarifa corresponde a cada producto lo define el contador**, según el régimen del negocio. La facturación no se puede activar sin definir el impuesto general.
+
+**Proveedores**
+
+| Proveedor | Para qué                                                                                                 | Validez tributaria                            |
+| --------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Simulado  | Conocer el flujo y capacitar al equipo. Responde como si la DIAN validara, sin enviar nada.              | Ninguna: el tiquete dice "DOCUMENTO SIMULADO" |
+| Factus    | Proveedor tecnológico autorizado por la DIAN, con API y ambiente de pruebas (https://www.factus.com.co). | Sí, en ambiente de producción                 |
+
+El sistema usa un adaptador por proveedor (`backend/src/modules/einvoice/providers`). Si el negocio prefiere otro proveedor, se agrega su adaptador sin tocar ventas ni tiquetes.
+
+**Pasos para facturar de verdad**
+
+1. **Con el contador:** confirmar el régimen tributario, la tarifa de cada producto y si el negocio emite factura electrónica de venta para todas sus operaciones. La DIAN lo permite como alternativa al documento equivalente POS electrónico, y este sistema usa esa opción.
+2. **En la DIAN (portal de facturación electrónica):**
+   - Registrarse como facturador electrónico.
+   - Elegir la modalidad "a través de proveedor tecnológico" con Factus.
+   - Solicitar la **resolución de numeración** para facturas (y la de notas crédito, si el proveedor la pide aparte).
+3. **En Factus:**
+   - Crear la cuenta y asociar la resolución: Factus entrega el **ID del rango de numeración** de facturas y el de notas crédito.
+   - Copiar las credenciales de la API (client id, client secret, usuario y contraseña).
+4. **En Render:** cargar `FACTUS_CLIENT_ID`, `FACTUS_CLIENT_SECRET`, `FACTUS_USERNAME` y `FACTUS_PASSWORD` con `FACTUS_ENV=sandbox`, y redesplegar.
+5. **En Ajustes → Facturación electrónica:**
+   - Proveedor **Factus**, los dos rangos de numeración y el impuesto general.
+   - En "Texto legal de la factura impresa", la resolución (número, fecha, prefijo, rango y vigencia) y el proveedor tecnológico.
+   - Activar **Facturar electrónicamente cada venta**.
+6. **Habilitación:** hacer las ventas de prueba que exige la DIAN (el set de pruebas) en el ambiente de pruebas. Revisar en `/facturacion` que queden **Validadas** y que el tiquete muestre el CUFE y el QR. Probar también una anulación con nota crédito y una factura a nombre de un cliente con NIT.
+7. **Paso a producción:** cuando la DIAN habilite el software, cambiar `FACTUS_ENV=production` en Render. Si Factus entrega rangos distintos para producción, actualizarlos en Ajustes.
+
+> El adaptador de Factus sigue su documentación pública (API v2). Los detalles que solo se confirman con una cuenta real (formato exacto de las respuestas, redondeos de centavos, códigos de consumidor final) se validan en el paso 6, antes de facturar en producción.
+
+**Credenciales.** Las de Factus viven solo en las variables de entorno del servidor: nunca se guardan en la base de datos, no se muestran en pantalla y no se escriben en los logs. Sin ellas, el sistema solo ofrece el proveedor simulado.
+
+**Exporte para el contador.** El CSV de ventas incluye el número de la factura electrónica, su estado, el CUFE, la nota crédito y el cliente.
 
 ## Despliegue
 
@@ -624,6 +678,14 @@ Implementado en la Fase 1G (revisión de seguridad):
 - **Revisión de dependencias:** `pnpm audit` sin vulnerabilidades conocidas.
 - **Respaldos y restauración** con confirmación explícita del nombre de la base (ver "Respaldos").
 
+Implementado en la Fase 1H (facturación electrónica):
+
+- **Credenciales del proveedor solo en el servidor:** variables `FACTUS_*`, validadas al arrancar (las cuatro juntas). Nunca van a la base de datos, a la pantalla ni a los logs.
+- **Permiso propio** `einvoice:manage` (solo administrador) para ver documentos y reenviarlos; los reenvíos quedan en la auditoría (`EINVOICE_RETRIED`).
+- **Sin pérdidas ni duplicados:** la factura se encola en la misma transacción que la venta, y cada documento tiene un código de referencia único ante el proveedor.
+- **Datos del proveedor tratados como no confiables:** los enlaces públicos solo se aceptan si son `https://`, y los mensajes de error se acortan antes de guardarlos.
+- **Datos del cliente validados** con Zod (tipo y número de documento, dígito de verificación del NIT y correo).
+
 Al cierre de cada fase se hace una revisión de seguridad.
 
 ## Roadmap
@@ -638,7 +700,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ✅     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ✅     |
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ✅     |
-| 1H   | Facturación electrónica DIAN (documento equivalente POS electrónico)                                           | ⏳     |
+| 1H   | Facturación electrónica DIAN (factura de venta y nota crédito, proveedor Factus)                               | ✅     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
 
 ## Convención de commits
