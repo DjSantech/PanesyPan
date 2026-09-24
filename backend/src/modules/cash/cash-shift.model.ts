@@ -1,5 +1,17 @@
-import { CASH_SHIFT_STATUSES, type CashShiftStatus } from '@panesypan/shared';
+import {
+  CASH_SHIFT_STATUSES,
+  type CashShiftStatus,
+  type DenominationCount,
+} from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
+
+export interface CashShiftClosingAttrs {
+  countedCash: number;
+  expectedCash: number;
+  difference: number;
+  counts: DenominationCount[];
+  note: string;
+}
 
 export interface CashShiftAttrs {
   userId: Types.ObjectId;
@@ -12,6 +24,8 @@ export interface CashShiftAttrs {
   openingNote: string;
   openedAt: Date;
   closedAt: Date | null;
+  /** Arqueo al cerrar (null mientras la caja siga abierta). */
+  closing: CashShiftClosingAttrs | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +45,30 @@ const cashShiftSchema = new Schema<CashShiftAttrs>(
     openingNote: { type: String, default: '' },
     openedAt: { type: Date, required: true },
     closedAt: { type: Date, default: null },
+    closing: {
+      type: new Schema<CashShiftClosingAttrs>(
+        {
+          countedCash: { type: Number, required: true, min: 0 },
+          expectedCash: { type: Number, required: true },
+          difference: { type: Number, required: true },
+          counts: {
+            type: [
+              new Schema(
+                {
+                  denomination: { type: Number, required: true },
+                  quantity: { type: Number, required: true, min: 0 },
+                },
+                { _id: false },
+              ),
+            ],
+            default: [],
+          },
+          note: { type: String, default: '' },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
   },
   { timestamps: true, strict: 'throw' },
 );

@@ -22,6 +22,7 @@ const EDITABLE_FIELDS: readonly EditableField[] = [
   'ticketWidth',
   'tableCount',
   'maxCashierDiscountPercent',
+  'maxCashierExpense',
 ];
 
 function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
@@ -35,6 +36,7 @@ function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
     ticketWidth: settings.ticketWidth,
     tableCount: settings.tableCount,
     maxCashierDiscountPercent: settings.maxCashierDiscountPercent,
+    maxCashierExpense: settings.maxCashierExpense,
     updatedAt: settings.updatedAt.toISOString(),
   };
 }

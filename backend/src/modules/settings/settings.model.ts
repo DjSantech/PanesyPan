@@ -14,6 +14,7 @@ export interface SettingsAttrs {
   ticketWidth: TicketWidth;
   tableCount: number;
   maxCashierDiscountPercent: number;
+  maxCashierExpense: number;
   updatedBy: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +31,7 @@ const settingsSchema = new Schema<SettingsAttrs>(
     ticketWidth: { type: String, enum: TICKET_WIDTHS, default: '80' },
     tableCount: { type: Number, min: 0, default: 8 },
     maxCashierDiscountPercent: { type: Number, min: 0, max: 100, default: 10 },
+    maxCashierExpense: { type: Number, min: 0, default: 50_000 },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true, strict: 'throw' },

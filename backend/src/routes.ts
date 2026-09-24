@@ -36,7 +36,10 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   router.use('/audit-logs', createAuditRouter(guards));
   router.use(createCatalogRouter(withLogger({ config: authConfig, guards })));
   router.use('/settings', createSettingsRouter(withLogger({ config: authConfig, guards })));
-  router.use('/cash-shifts', createCashRouter(withLogger({ config: authConfig, guards })));
+  router.use(
+    '/cash-shifts',
+    createCashRouter(withLogger({ config: authConfig, guards, approvalLimiter })),
+  );
   router.use(createSalesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
   return router;
 }
