@@ -309,6 +309,31 @@ No necesitan `pnpm dev:db` ni `.env`: levantan su propia base de datos en memori
 7. **Anulaciones.** Desde `/ventas`, con motivo y PIN de administrador. Solo mientras la caja de esa venta siga abierta. La venta anulada deja de contar en la caja y devuelve las porciones de almuerzo.
 8. **PIN de autorización.** Cinco PIN equivocados seguidos cierran la sesión de la cajera, y cada intento fallido queda como alerta en la auditoría.
 
+### Catálogo y menú del día
+
+**Productos** (`/catalogo`, administrador). Cada producto tiene:
+
+- Nombre, categoría y **precio final** (ya incluye impuestos).
+- **Foto:** se elige desde el computador o el celular. El navegador la reduce a máximo 1200 px antes de subirla (queda de unos 100 KB). Las meseras la ven en las fichas de Vender y la web pública la va a usar en la Fase 2. Solo se aceptan JPG, PNG y WebP: el servidor revisa el tipo real del archivo.
+- **Descripción** (hasta 300 caracteres): qué lleva, tamaño, sabor. También es para la web.
+- **Mostrar en la web:** si sale o no en la página pública.
+- **Favorito:** aparece en los accesos rápidos de Vender.
+- **Controlar inventario:** descuenta unidades al vender. Al crear el producto se escriben las **unidades disponibles ahora**, que quedan como un ajuste en el libro de inventario.
+- **Impuesto:** solo se usa con la facturación electrónica activa.
+
+Las imágenes se guardan en la misma base de datos y se sirven en `/api/v1/public/images/<id>.webp` con caché de un año. Cada foto nueva tiene otro id, así nunca se ve una vieja. Cloudflare las guarda en caché por la extensión.
+
+**Almuerzos y menú del día** (`/menu-del-dia`). Los almuerzos funcionan distinto al resto:
+
+1. En el catálogo, crea una categoría de tipo **Almuerzos (menú del día)** y dentro los productos que se venden, por ejemplo "Almuerzo corriente" y "Almuerzo ejecutivo", con su precio. **No** les actives "Controlar inventario": sus porciones se controlan en el menú.
+2. Cada día, en **Menú del día**:
+   - Escribe la sopa, el principio, las proteínas (la cajera elige una al vender), los acompañamientos y el jugo.
+   - En **Almuerzos a la venta**, elige qué almuerzos se venden hoy y cuántas porciones hay (vacío = sin límite).
+   - Activa **Publicar menú** y guarda.
+3. Solo entonces los almuerzos aparecen en Vender, con las porciones que quedan. Si hay almuerzos en el catálogo pero el menú de hoy no está publicado, Vender muestra un aviso con el enlace para publicarlo.
+
+Los caldos de la mañana y las bebidas son productos normales (categorías de tipo General): se venden todos los días sin menú.
+
 ### Caja: egresos, retiros y cierre
 
 El botón **Caja** del punto de venta muestra el efectivo esperado (base + ventas en efectivo − egresos − retiros) y los movimientos del turno.
