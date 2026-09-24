@@ -8,6 +8,7 @@ import request from 'supertest';
 import { hashSecret } from '../src/lib/password';
 import { AuditLogModel } from '../src/modules/audit/audit-log.model';
 import { SessionModel } from '../src/modules/auth/session.model';
+import { CashMovementModel } from '../src/modules/cash/cash-movement.model';
 import { CashShiftModel } from '../src/modules/cash/cash-shift.model';
 import { CategoryModel, DailyMenuModel, ProductModel } from '../src/modules/catalog/catalog.models';
 import { InventoryItemModel, StockMovementModel } from '../src/modules/inventory/inventory.models';
@@ -98,6 +99,7 @@ export async function resetDatabase(): Promise<void> {
     DailyMenuModel.deleteMany({}),
     SettingsModel.deleteMany({}),
     CashShiftModel.deleteMany({}),
+    CashMovementModel.deleteMany({}),
     SaleModel.deleteMany({}),
     SequenceModel.deleteMany({}),
     InventoryItemModel.deleteMany({}),
@@ -115,6 +117,7 @@ export async function initModels(): Promise<void> {
     DailyMenuModel.init(),
     SettingsModel.init(),
     CashShiftModel.init(),
+    CashMovementModel.init(),
     SaleModel.init(),
     SequenceModel.init(),
     InventoryItemModel.init(),

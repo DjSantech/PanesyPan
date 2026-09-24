@@ -7,6 +7,8 @@ import { createAuthRouter } from './modules/auth/auth.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
+import { notifyDashboardOnChanges } from './modules/realtime/notify-changes';
+import { createReportsRouter } from './modules/reports/reports.routes';
 import { createSalesRouter } from './modules/sales/sales.routes';
 import { createSettingsRouter } from './modules/settings/settings.routes';
 import { createUsersRouter } from './modules/users/users.routes';
@@ -29,6 +31,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
     logger === undefined ? value : { ...value, logger };
 
   const router = Router();
+  router.use(notifyDashboardOnChanges);
   router.use(
     '/auth',
     createAuthRouter(withLogger({ config: authConfig, guards, credentialsLimiter })),
@@ -42,6 +45,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
     createCashRouter(withLogger({ config: authConfig, guards, approvalLimiter })),
   );
   router.use('/inventory', createInventoryRouter(withLogger({ config: authConfig, guards })));
+  router.use('/reports', createReportsRouter(withLogger({ config: authConfig, guards })));
   router.use(createSalesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
   return router;
 }
