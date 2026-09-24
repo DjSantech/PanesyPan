@@ -8,6 +8,7 @@ import type {
 import { mongo, trusted, Types, type QueryFilter } from 'mongoose';
 import type { Logger } from 'pino';
 import { AppError } from '../../lib/errors';
+import { escapeRegex } from '../../lib/regex';
 import { hashSecret } from '../../lib/password';
 import type { RequestMeta } from '../../lib/request-meta';
 import { generateTemporaryPassword } from '../../lib/temporary-password';
@@ -25,7 +26,6 @@ export interface ActorContext {
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
 const userEntity = (user: UserDocument) => ({ type: 'USER', id: user.id, label: user.username });
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function isDuplicateKeyError(error: unknown): boolean {
   return error instanceof mongo.MongoServerError && error.code === 11000;

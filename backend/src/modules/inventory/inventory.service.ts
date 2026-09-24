@@ -15,6 +15,7 @@ import {
 } from '@panesypan/shared';
 import { trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
+import { escapeRegex } from '../../lib/regex';
 import { recordAudit } from '../audit/audit.service';
 import { CategoryModel, ProductModel, type ProductDocument } from '../catalog/catalog.models';
 import { toAuditActor } from '../users/users.mapper';
@@ -27,7 +28,6 @@ import {
 } from './inventory.models';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ── Mapeo a DTO ────────────────────────────────────────────────────
 

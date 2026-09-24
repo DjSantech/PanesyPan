@@ -10,6 +10,7 @@ import {
 } from '@panesypan/shared';
 import { mongo, trusted, Types, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
+import { escapeRegex } from '../../lib/regex';
 import { recordAudit } from '../audit/audit.service';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
@@ -24,7 +25,6 @@ import {
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
 const notFound = (what: string): AppError =>
   new AppError(404, 'NOT_FOUND', `${what} no encontrado`);
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const isDuplicateKey = (error: unknown): boolean =>
   error instanceof mongo.MongoServerError && error.code === 11000;
