@@ -22,8 +22,10 @@ Punto de venta, panel administrativo y (próximamente) web pública con domicili
 - [Instalación y ejecución local](#instalación-y-ejecución-local)
 - [Variables de entorno](#variables-de-entorno)
 - [Scripts disponibles](#scripts-disponibles)
+- [Pruebas](#pruebas)
 - [Uso del punto de venta](#uso-del-punto-de-venta)
 - [Despliegue](#despliegue)
+- [Operación y soporte](#operación-y-soporte)
 - [Seguridad](#seguridad)
 - [Roadmap](#roadmap)
 - [Convención de commits](#convención-de-commits)
@@ -130,7 +132,9 @@ panesypan/
 ├─ web/                       Web pública (Fase 2, aún no creada)
 ├─ packages/
 │  └─ shared/                 Esquemas Zod, tipos, constantes, dinero y fechas
-├─ scripts/                   Keep-alive de la BD y MongoDB local de desarrollo
+├─ e2e/                       Pruebas de punta a punta (Playwright + axe)
+├─ scripts/                   MongoDB local, keep-alive, respaldo y restauración de la BD
+├─ .github/workflows/ci.yml   Integración continua (revisiones, build y pruebas E2E)
 ├─ render.yaml                Blueprint de la API en Render
 └─ package.json · pnpm-workspace.yaml · tsconfig.base.json · eslint.config.js
 ```
@@ -251,8 +255,11 @@ Desde la raíz del repositorio:
 | `pnpm lint` / `pnpm lint:fix`       | ESLint con reglas que usan la información de tipos                           |
 | `pnpm format` / `pnpm format:check` | Prettier                                                                     |
 | `pnpm test`                         | Todas las pruebas (Vitest + Supertest)                                       |
+| `pnpm test:e2e`                     | Pruebas de punta a punta en un navegador real (ver "Pruebas")                |
 | `pnpm check`                        | typecheck + lint + formato + pruebas (correr antes de cada commit)           |
 | `pnpm db:keepalive`                 | Ping y escritura mínima a MongoDB (keep-alive de Atlas)                      |
+| `pnpm db:backup`                    | Respaldo completo de la base de datos en `backups/` (ver "Respaldos")        |
+| `pnpm db:restore -- <archivo> …`    | Restaura un respaldo (pide confirmar con el nombre de la base)               |
 
 Scripts del backend (desde `backend/`):
 
@@ -263,6 +270,26 @@ Scripts del backend (desde `backend/`):
 | `npm run reset:password -- <usuario>` | Genera una contraseña temporal para un usuario que la olvidó   |
 
 Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `test`. Se pueden correr con `npm run <script>` dentro de la carpeta (`backend`, `frontend` o `packages/shared`), o desde la raíz con `pnpm --filter @panesypan/backend test`.
+
+## Pruebas
+
+| Tipo                    | Herramienta                             | Qué cubre                                                                                          |
+| ----------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Unitarias e integración | Vitest + Supertest + MongoDB en memoria | Reglas de negocio, API completa, permisos y concurrencia (`pnpm test`)                             |
+| Matriz de acceso        | `backend/src/routes.test.ts`            | Cada ruta de la API exige sesión y el permiso correcto; falla si se agrega una ruta sin declararla |
+| Punta a punta           | Playwright (Chromium)                   | Un turno completo en el navegador: primer ingreso, cajera, mostrador, mesa, cierre y panel         |
+| Accesibilidad           | axe-core dentro de las pruebas E2E      | WCAG 2.2 AA en tema claro y oscuro en cada pantalla del recorrido                                  |
+
+**Pruebas de punta a punta.** La primera vez descarga el navegador (unos 150 MB, solo en tu equipo):
+
+```bash
+pnpm --filter @panesypan/e2e exec playwright install chromium
+pnpm test:e2e
+```
+
+No necesitan `pnpm dev:db` ni `.env`: levantan su propia base de datos en memoria, la API en el puerto 4100 y el POS en el 5174, y los apagan al terminar. Si una prueba falla, el reporte queda en `e2e/test-results/` con captura de pantalla y traza (`npx playwright show-trace <archivo>`).
+
+**Integración continua.** En cada push a `main` y en cada pull request, GitHub Actions corre `pnpm check`, el build de producción y las pruebas de punta a punta (`.github/workflows/ci.yml`). No usa secretos. Si algo falla, el reporte de Playwright queda como artefacto del workflow durante 7 días.
 
 ## Uso del punto de venta
 
@@ -458,6 +485,89 @@ jobs:
           MONGODB_DB_NAME: panesypan
 ```
 
+### 7. Respaldos
+
+El plan gratis de Atlas (M0) **no hace copias automáticas**. Los respaldos se hacen con `pnpm db:backup`:
+
+```bash
+pnpm db:backup                   # guarda en backups/ y conserva los 10 más recientes
+pnpm db:backup -- --keep 20      # conserva otra cantidad
+pnpm db:backup -- --out D:/respaldos
+```
+
+- Genera un archivo `panesypan-AAAA-MM-DD-HHMM.ndjson.gz` con todas las colecciones y sus índices, leídas en un mismo instante: el respaldo es consistente aunque se esté vendiendo.
+- Conserva los tipos de MongoDB (fechas, identificadores, enteros), así que restaurar deja la base exactamente igual.
+- La carpeta `backups/` está en `.gitignore`. Copia los respaldos a otro lugar (una memoria USB o la nube personal del negocio): contienen datos del negocio y hashes de contraseñas.
+- **Frecuencia recomendada:** una vez por semana y antes de cualquier cambio grande (subir de versión, cargar catálogo, etc.).
+
+**Cómo correrlo contra producción.** Atlas solo acepta las IPs de Render, así que:
+
+1. En Atlas → _Network Access_ → _Add IP Address_ → **Add current IP address**, y marca _This entry is temporary_ (6 horas).
+2. Pon la cadena de producción solo en la terminal, nunca en un archivo del repositorio:
+   ```bash
+   # Git Bash
+   MONGODB_URI="mongodb+srv://…" MONGODB_DB_NAME=panesypan pnpm db:backup
+   ```
+   ```powershell
+   # PowerShell
+   $env:MONGODB_URI = "mongodb+srv://…"; $env:MONGODB_DB_NAME = "panesypan"; pnpm db:backup
+   ```
+3. Cierra la terminal al terminar. La entrada temporal de Atlas se borra sola.
+
+**Restaurar.** Detén la API primero (Render → _Suspend_) para que nadie venda mientras tanto:
+
+```bash
+pnpm db:restore -- backups/panesypan-2026-09-24-2130.ndjson.gz --confirm panesypan
+pnpm db:restore -- <archivo> --confirm panesypan --replace   # si la base ya tiene datos
+```
+
+- `--confirm` debe llevar el nombre exacto de la base de destino: evita restaurar sobre la base equivocada.
+- Sin `--replace`, se detiene si alguna colección ya tiene datos. Con `--replace` las borra antes de restaurar.
+- Al final compara la cantidad de documentos con la del respaldo y avisa si falta alguno.
+- Para practicar sin riesgo, restaura sobre la base local (`pnpm dev:db` y `MONGODB_DB_NAME=panesypan_prueba`).
+
+### 8. Lista de verificación para salir a producción
+
+**Antes del primer día**
+
+- [ ] Atlas: cluster en us-east-1, usuario solo `readWrite`, Network Access solo con las IPs de Render.
+- [ ] Render: blueprint aplicado, `MONGODB_URI`, `ORIGIN_VERIFY_SECRET` y `SEED_ADMIN_*` cargados; dominio `api.panesypan.com`.
+- [ ] Vercel: root `frontend`, `VITE_API_URL=https://api.panesypan.com`, Node 24, dominio `sistema.panesypan.com`.
+- [ ] Cloudflare: DNS (api con proxy, sistema sin proxy), SSL Full (strict), regla del header `X-Origin-Verify`, excepción del WAF para UptimeRobot.
+- [ ] `https://api.panesypan.com/api/health/db` responde `200`, y `https://<servicio>.onrender.com/api/v1/auth/me` responde `403` (nadie se salta Cloudflare).
+- [ ] UptimeRobot: los dos monitores activos y con contacto de alerta.
+- [ ] Primer ingreso del administrador: cambia la contraseña, crea el PIN y **borra `SEED_ADMIN_PASSWORD` en Render**.
+- [ ] Ajustes: razón social, NIT, dirección, teléfono, ancho del tiquete, número de mesas, topes de descuento y egresos.
+- [ ] Catálogo cargado y revisado (precios, categorías, productos con inventario).
+- [ ] Una cuenta por cajera (nunca compartidas); cada una ingresa, cambia su contraseña y crea su PIN.
+- [ ] Tablet: app instalada (PWA) e impresora térmica probada con un tiquete, márgenes en "Ninguno".
+- [ ] Prueba completa en producción: abrir caja, venta de mostrador, venta en mesa, anulación con PIN y cierre con arqueo. Después anula las ventas de prueba o explica el cierre con una nota.
+- [ ] Primer respaldo con `pnpm db:backup`, guardado fuera del computador.
+- [ ] Facturación electrónica configurada y probada (ver "Facturación electrónica").
+
+**Cada semana**
+
+- [ ] `pnpm db:backup` y copia del archivo fuera del computador.
+- [ ] Revisar en Auditoría los PIN fallidos, bloqueos y anulaciones.
+- [ ] Revisar las cajas con diferencia en el arqueo.
+
+## Operación y soporte
+
+| Situación                                  | Qué hacer                                                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Una cajera olvidó su contraseña            | Administrador → Usuarios → acciones de la persona → restablecer contraseña. Entrega la temporal; al ingresar la cambia y crea un PIN nuevo.                                                                   |
+| Una cuenta quedó bloqueada (5 intentos)    | Se desbloquea sola en 15 minutos, o Usuarios → acciones → desbloquear.                                                                                                                                        |
+| El administrador olvidó su contraseña      | Si hay otro administrador, él la restablece. Si no: `cd backend` y `npm run reset:password -- <usuario>` con la `MONGODB_URI` de producción en la terminal (IP temporal en Atlas, ver "Respaldos").           |
+| Una cajera olvidó su PIN                   | Usuarios → acciones → restablecer PIN: al volver a ingresar crea uno nuevo.                                                                                                                                   |
+| La caja no cuadra                          | Cierra igual con la nota que explique la diferencia: queda en la auditoría y en el exporte "Cajas y arqueos". Revisa las ventas de esa caja en `/ventas`.                                                     |
+| Se cobró mal una venta                     | `/ventas` → anular con motivo y PIN de administrador (solo mientras la caja siga abierta) y volver a cobrar bien.                                                                                             |
+| Se cerró la caja con una venta mal cobrada | Una caja cerrada no se modifica. Registra la corrección en la caja siguiente con una nota clara.                                                                                                              |
+| La impresora no imprime                    | Revisa papel y encendido, que el navegador tenga elegida la impresora térmica y los márgenes en "Ninguno". El tiquete se reimprime desde `/ventas`.                                                           |
+| "Sin conexión en vivo" en el panel         | El panel sigue funcionando y se actualiza cada 30 segundos. Si dura mucho, revisa que WebSockets esté activo en Cloudflare.                                                                                   |
+| El sistema no carga                        | Revisa `/estado`, los monitores de UptimeRobot y los logs de Render.                                                                                                                                          |
+| Se perdieron o dañaron datos               | Suspende la API en Render y restaura el último respaldo (ver "Respaldos").                                                                                                                                    |
+| Sospecha de acceso indebido                | Usuarios → desactiva la cuenta o restablece su contraseña: sus sesiones se cierran al instante. Revisa la Auditoría (ingresos, IP y cambios). Cambia también la contraseña de Atlas si pudo haberse expuesto. |
+
 ## Seguridad
 
 Implementado desde la Fase 0:
@@ -505,6 +615,15 @@ Implementado en la Fase 1F (tiempo real y reportes):
 - **Exportes:** exigen `reports:read`, limitan el rango y las filas, neutralizan fórmulas de Excel y quedan en la auditoría (`REPORT_EXPORTED`).
 - **PWA:** el service worker no guarda respuestas de la API.
 
+Implementado en la Fase 1G (revisión de seguridad):
+
+- **Matriz de acceso probada:** una prueba recorre todas las rutas registradas en Express y verifica que cada una exija sesión y el permiso correcto para cada rol. Si alguien agrega una ruta sin declararla en la matriz, la prueba falla.
+- **Caja sin condiciones de carrera:** cobrar, anular, registrar egresos o retiros y cerrar la caja escriben el mismo documento de la caja dentro de su transacción, así MongoDB serializa las operaciones que chocan. Antes, una venta cobrada justo mientras se cerraba la caja podía quedar fuera del arqueo, y dos retiros simultáneos podían sacar más efectivo del que había. Ahora hay pruebas que reproducen ambos casos.
+- **Consulta de ventas acotada:** una cajera solo puede consultar las ventas de su caja abierta y las cuentas de mesa abiertas, igual que en el listado. El historial completo es del administrador.
+- **Cobro idempotente también en mesas:** reutilizar el identificador de un cobro ya registrado responde `409` en lugar de un error interno.
+- **Revisión de dependencias:** `pnpm audit` sin vulnerabilidades conocidas.
+- **Respaldos y restauración** con confirmación explícita del nombre de la base (ver "Respaldos").
+
 Al cierre de cada fase se hace una revisión de seguridad.
 
 ## Roadmap
@@ -518,7 +637,8 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ✅     |
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ✅     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ✅     |
-| 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ⏳     |
+| 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ✅     |
+| 1H   | Facturación electrónica DIAN (documento equivalente POS electrónico)                                           | ⏳     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
 
 ## Convención de commits
