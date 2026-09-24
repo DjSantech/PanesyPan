@@ -10,10 +10,12 @@ services:
     branch: main
     autoDeploy: true
     # NODE_ENV=production haría que pnpm omita las devDependencies necesarias para compilar.
+    # "npx pnpm" en vez de "npm install -g pnpm": la imagen de Render trae pnpm en una carpeta
+    # de solo lectura, y una instalación global falla con EROFS al intentar reemplazarlo.
+    # npx guarda su caché en una carpeta escribible, así que no choca con nada.
     buildCommand: >-
-      npm install -g pnpm@12.5.1 &&
-      NODE_ENV=development pnpm install --frozen-lockfile &&
-      pnpm --filter @panesypan/backend build
+      NODE_ENV=development npx --yes pnpm@12.5.1 install --frozen-lockfile &&
+      npx --yes pnpm@12.5.1 --filter @panesypan/backend build
     startCommand: node backend/dist/server.js
     healthCheckPath: /api/health
     buildFilter:

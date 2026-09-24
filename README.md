@@ -434,7 +434,7 @@ El sistema usa un adaptador por proveedor (`backend/src/modules/einvoice/provide
    - Después de tu primer ingreso (en el que cambias la contraseña), **borra `SEED_ADMIN_PASSWORD`** en Render.
 3. En **Settings → Custom Domains**, agrega `api.panesypan.com`.
 4. Comandos configurados en `render.yaml`:
-   - Build: `npm install -g pnpm@12.5.1 && NODE_ENV=development pnpm install --frozen-lockfile && pnpm --filter @panesypan/backend build`
+   - Build: `NODE_ENV=development npx --yes pnpm@12.5.1 install --frozen-lockfile && npx --yes pnpm@12.5.1 --filter @panesypan/backend build`
    - Start: `node backend/dist/server.js`
    - Health check: `/api/health`
 5. Plan free:
