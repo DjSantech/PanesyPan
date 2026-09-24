@@ -361,6 +361,8 @@ El tiquete dice "Precios con impuestos incluidos". Sin facturación electrónica
 
 ### Facturación electrónica (DIAN)
 
+> **Estado: implementada y sin activar.** El código está listo y probado con el proveedor simulado, pero la facturación viene **apagada** y el sistema funciona igual que antes (tiquete sin validez de factura). Se activará cuando el contador confirme el régimen y las tarifas, y cuando estén la cuenta de Factus y la resolución de numeración de la DIAN (ver "Pasos para facturar de verdad").
+
 **Rutas:** `/configuracion` (sección "Facturación electrónica") y `/facturacion` (documentos y reenvíos). Ambas son solo del administrador.
 
 **Cómo funciona**
@@ -597,7 +599,7 @@ pnpm db:restore -- <archivo> --confirm panesypan --replace   # si la base ya tie
 - [ ] Tablet: app instalada (PWA) e impresora térmica probada con un tiquete, márgenes en "Ninguno".
 - [ ] Prueba completa en producción: abrir caja, venta de mostrador, venta en mesa, anulación con PIN y cierre con arqueo. Después anula las ventas de prueba o explica el cierre con una nota.
 - [ ] Primer respaldo con `pnpm db:backup`, guardado fuera del computador.
-- [ ] Facturación electrónica configurada y probada (ver "Facturación electrónica").
+- [ ] Facturación electrónica: por ahora queda apagada. Cuando se decida activarla, seguir "Pasos para facturar de verdad".
 
 **Cada semana**
 
@@ -700,7 +702,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ✅     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ✅     |
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ✅     |
-| 1H   | Facturación electrónica DIAN (factura de venta y nota crédito, proveedor Factus)                               | ✅     |
+| 1H   | Facturación electrónica DIAN (factura de venta y nota crédito, proveedor Factus): lista, **sin activar**       | ✅     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
 
 ## Convención de commits
