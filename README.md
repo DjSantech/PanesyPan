@@ -22,6 +22,7 @@ Punto de venta, panel administrativo y (próximamente) web pública con domicili
 - [Instalación y ejecución local](#instalación-y-ejecución-local)
 - [Variables de entorno](#variables-de-entorno)
 - [Scripts disponibles](#scripts-disponibles)
+- [Uso del punto de venta](#uso-del-punto-de-venta)
 - [Despliegue](#despliegue)
 - [Seguridad](#seguridad)
 - [Roadmap](#roadmap)
@@ -185,6 +186,10 @@ Luego abre:
 
 **Primer ingreso local:** la API crea el administrador inicial con las variables `SEED_ADMIN_*` de `backend/.env` (usuario `admin` en el ejemplo). En el primer ingreso pide cambiar la contraseña y crear el PIN de 6 números. Si prefieres crearlo sin levantar la API: `cd backend` y `npm run seed:admin`.
 
+**Catálogo de prueba:** `cd backend` y `npm run seed:catalog` carga las categorías y los productos de la panadería con sus precios. Se puede ejecutar varias veces: solo crea lo que falta y nunca cambia precios que el administrador ya haya editado.
+
+**¿Olvidaste una contraseña?** Las contraseñas se guardan cifradas y no se pueden recuperar. Genera una temporal con `cd backend` y `npm run reset:password -- <usuario>`: la cuenta queda desbloqueada, pide cambiar la contraseña y crear un PIN nuevo, y el cambio queda en la auditoría.
+
 **Sobre la base de datos local (`pnpm dev:db`):**
 
 - Levanta un replica set de un nodo en `127.0.0.1:27017`, que es lo que exigen las transacciones.
@@ -249,7 +254,38 @@ Desde la raíz del repositorio:
 | `pnpm check`                        | typecheck + lint + formato + pruebas (correr antes de cada commit)           |
 | `pnpm db:keepalive`                 | Ping y escritura mínima a MongoDB (keep-alive de Atlas)                      |
 
+Scripts del backend (desde `backend/`):
+
+| Script                                | Qué hace                                                       |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `npm run seed:admin`                  | Crea el primer administrador con las variables `SEED_ADMIN_*`  |
+| `npm run seed:catalog`                | Carga el catálogo inicial (categorías y productos con precios) |
+| `npm run reset:password -- <usuario>` | Genera una contraseña temporal para un usuario que la olvidó   |
+
 Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `test`. Se pueden correr con `npm run <script>` dentro de la carpeta (`backend`, `frontend` o `packages/shared`), o desde la raíz con `pnpm --filter @panesypan/backend test`.
+
+## Uso del punto de venta
+
+**Rutas:** `/vender` (punto de venta), `/ventas` (ventas de la caja o del día) y `/configuracion` (ajustes, solo administrador). La cajera entra directo a `/vender`.
+
+1. **Abrir caja.** Al entrar a vender por primera vez en el turno, la cajera escribe la base en efectivo. Cada cajera tiene como máximo una caja abierta y todas sus ventas quedan en ella. El cierre con arqueo llega en la Fase 1D.
+2. **Mostrador.** Se tocan los productos (o se busca con la tecla `/` y `Enter` agrega el primer resultado) y se cobra. El pedido se conserva si la tablet recarga la página.
+3. **Mesas.** En "Mesas" se toca una mesa libre para abrir su cuenta. Se pueden agregar, subir o bajar cantidades, cambiar la cuenta de mesa o cancelarla. Varias cajeras pueden atender la misma mesa. Quitar productos de una mesa queda en la auditoría.
+4. **Almuerzos.** Solo se venden si están en el menú del día **publicado**. Al tocarlos se elige la proteína, y se descuentan las porciones: nunca se vende más de lo preparado, aunque dos cajeras cobren la última porción al mismo tiempo.
+5. **Cobro.** Efectivo con botones de billetes y cambio en grande, Nequi, Daviplata, tarjetas o transferencia (con referencia opcional), o **pago combinado**. La API recalcula el total con los precios vigentes: si un precio cambió mientras se cobraba, avisa en vez de cobrar mal. Cada cobro lleva un identificador único, de modo que un reintento por mala señal no cobra dos veces.
+6. **Descuentos.** Por porcentaje o valor, siempre con motivo. Hasta el tope configurado (10 % por defecto) los da la cajera; por encima, un administrador digita su PIN en la tablet.
+7. **Anulaciones.** Desde `/ventas`, con motivo y PIN de administrador. Solo mientras la caja de esa venta siga abierta. La venta anulada deja de contar en la caja y devuelve las porciones de almuerzo.
+8. **PIN de autorización.** Cinco PIN equivocados seguidos cierran la sesión de la cajera, y cada intento fallido queda como alerta en la auditoría.
+
+### Impresora térmica
+
+El tiquete se imprime con el diálogo de impresión del navegador:
+
+1. Instala el driver de la impresora (58 u 80 mm) en el equipo o la tablet.
+2. En **Ajustes** elige el ancho del papel y completa los datos del tiquete (razón social, NIT, dirección, teléfono y mensaje final). Hay una vista previa.
+3. Al imprimir por primera vez elige la impresora térmica, márgenes **Ninguno** y desactiva "Encabezados y pies de página". El navegador recuerda la elección.
+
+El tiquete dice "Precios con impuestos incluidos". **No es una factura electrónica ni un documento equivalente POS de la DIAN.** Si el negocio está obligado, habrá que integrar un proveedor tecnológico autorizado (pendiente de confirmar con el contador).
 
 ## Despliegue
 
@@ -423,8 +459,8 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | ---- | -------------------------------------------------------------------------------------------------------------- | ------ |
 | 0    | Monorepo, tooling, paquete compartido, API con health checks, MongoDB, keep-alive, configuración de despliegue | ✅     |
 | 1A   | Autenticación, RBAC, usuarios, primer administrador, auditoría                                                 | ✅     |
-| 1B   | Catálogo, impuestos, configuración y menú del día                                                              | ⏳     |
-| 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ⏳     |
+| 1B   | Catálogo (categorías, productos, precios, agotados) y menú del día                                             | ✅     |
+| 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ✅     |
 | 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ⏳     |
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ⏳     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ⏳     |
