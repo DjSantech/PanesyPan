@@ -8,9 +8,11 @@ import { RouterProvider } from 'react-router/dom';
 import { Toaster } from 'sonner';
 import { router } from './app/router';
 import { queryClient } from './lib/query-client';
+import { setupServiceWorker } from './lib/register-sw';
 import { initTheme } from './lib/theme';
 
 initTheme();
+setupServiceWorker();
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {

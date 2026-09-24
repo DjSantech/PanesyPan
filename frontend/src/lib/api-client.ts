@@ -166,3 +166,26 @@ export function apiGet<T>(path: string, schema: z.ZodType<T>, signal?: AbortSign
 }
 
 export { toApiError };
+
+/**
+ * Descarga un archivo (CSV) con la sesión y la renovación automática. Devuelve el contenido
+ * para que el navegador lo guarde; los errores de la API se convierten en ApiError.
+ */
+export async function apiDownload(path: string): Promise<Blob> {
+  const fetchFile = (): Promise<Response> =>
+    fetch(`${getApiBaseUrl()}${path}`, { credentials: 'include' }).catch(() => {
+      throw new ApiError(
+        0,
+        'NETWORK_ERROR',
+        'No se pudo conectar con el servidor. Revisa la conexión a internet.',
+      );
+    });
+
+  let response = await fetchFile();
+  if (response.status === 401 && (await refreshSession())) response = await fetchFile();
+  if (response.ok) return response.blob();
+
+  const body: unknown = await response.json().catch(() => null);
+  if (response.status === 401) clearSession();
+  throw toApiError(response.status, body, response.headers.get('X-Request-Id') ?? undefined);
+}

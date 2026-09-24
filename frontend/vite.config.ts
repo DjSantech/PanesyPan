@@ -3,9 +3,44 @@ import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      // La actualización la confirma la persona (un aviso en pantalla): recargar sola en medio de
+      // una venta haría perder tiempo en el mostrador.
+      registerType: 'prompt',
+      injectRegister: false,
+      includeAssets: ['favicon-32.png', 'apple-touch-icon.png', 'logo-panesypan-320.webp'],
+      manifest: {
+        name: 'Panes & Panes · Sistema',
+        short_name: 'Panes & Panes',
+        description: 'Punto de venta y panel administrativo de Panes & Panes.',
+        lang: 'es-CO',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#f7ecdf',
+        theme_color: '#a1452e',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // Solo se guarda el "cascarón" de la app (HTML, JS, CSS, fuentes e íconos). La API está
+        // en otro dominio y no se guarda nada de ella: ventas, cajas y sesiones siempre en vivo.
+        globPatterns: ['**/*.{js,css,html,woff2,png,webp,svg}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
+      },
+    }),
+  ],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

@@ -9,12 +9,12 @@ import {
   Settings,
   ShoppingBasket,
   Soup,
-  Store,
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 import { Link, Navigate } from 'react-router';
-import { Badge, Card, CardContent } from '@/components/ui/surface';
+import { Card, CardContent, Skeleton } from '@/components/ui/surface';
 import { firstName } from '@/lib/utils';
 import { useCurrentUser } from '../auth/use-session';
 
@@ -82,7 +82,10 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
   },
 ];
 
-const UPCOMING = ['Cierre de caja y arqueo', 'Egresos y retiros', 'Estadísticas en tiempo real'];
+// Recharts y Socket.IO solo se descargan cuando entra el administrador.
+const DashboardSection = lazy(() =>
+  import('../dashboard/DashboardSection').then((module) => ({ default: module.DashboardSection })),
+);
 
 export function HomePage() {
   const user = useCurrentUser();
@@ -98,6 +101,10 @@ export function HomePage() {
         <p className="text-sm font-bold text-muted-foreground">{today}</p>
         <h1 className="font-display text-3xl font-bold">Hola, {firstName(user.name)}</h1>
       </div>
+
+      <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
+        <DashboardSection />
+      </Suspense>
 
       {isAdmin ? (
         <section aria-labelledby="atajos" className="grid gap-3">
@@ -133,27 +140,6 @@ export function HomePage() {
           </div>
         </section>
       ) : null}
-
-      <Card>
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-soft-foreground">
-            <Store className="size-7" aria-hidden="true" />
-          </span>
-          <div className="grid flex-1 gap-2">
-            <p className="font-extrabold">Lo que viene en el sistema</p>
-            <p className="text-sm text-muted-foreground">
-              El punto de venta ya está listo. Estamos construyendo el resto por etapas:
-            </p>
-            <ul className="flex flex-wrap gap-2">
-              {UPCOMING.map((item) => (
-                <li key={item}>
-                  <Badge tone="accent">{item}</Badge>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
