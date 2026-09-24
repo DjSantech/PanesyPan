@@ -299,6 +299,24 @@ El botón **Caja** del punto de venta muestra el efectivo esperado (base + venta
 
 Las cantidades son unidades enteras (máximo 10.000 por movimiento).
 
+### Dashboard y reportes (administrador)
+
+**Ruta:** `/` (inicio del administrador). La cajera no lo ve: entra directo a `/vender`.
+
+- **Resumen de hoy:** ventas del día (total, cantidad y tiquete promedio), ventas por hora, medios de pago, lo más vendido, cajas abiertas con su efectivo esperado, egresos y retiros, cierres con diferencia, ventas anuladas y descuentos.
+- **Alertas de inventario:** productos en o por debajo de su stock mínimo, más lo producido y las mermas del día.
+- **Tiempo real:** cuando alguien cobra, anula, mueve la caja o registra inventario, el servidor avisa por Socket.IO y el panel se refresca solo. El aviso no lleva datos: el panel vuelve a pedirlos a la API, que valida el permiso. El indicador "En vivo" pasa a "Sin conexión en vivo" si el socket se cae; entonces el panel consulta cada 30 segundos y se reconecta solo.
+- **Exportes CSV:** ventas, cajas con arqueo e inventario, por rango de fechas (máximo 92 días). Usan `;` como separador y UTF-8 con BOM, así que abren directo en Excel con las tildes bien. Los textos que empiezan como fórmula se neutralizan y cada descarga queda en la auditoría.
+- El "día" es el día de negocio en hora de Colombia, igual que en las cajas.
+
+### Instalar como app (PWA)
+
+En producción el sistema se puede instalar en la tablet o el celular desde el navegador ("Instalar app" / "Agregar a pantalla de inicio"). Se abre a pantalla completa con el logo de la panadería.
+
+- Solo se guardan los archivos de la app (pantallas, estilos, fuentes, íconos) para que abra rápido. **No se guarda ningún dato de la API**: ventas, cajas y sesiones siempre se consultan en vivo, y sin internet no se puede vender.
+- Cuando hay una versión nueva aparece un aviso "Hay una versión nueva del sistema". La app no se recarga sola para no interrumpir una venta: se actualiza al tocar **Actualizar**.
+- El service worker solo se activa en producción (`pnpm build`); en desarrollo no interviene.
+
 ### Impresora térmica
 
 El tiquete se imprime con el diálogo de impresión del navegador:
@@ -372,6 +390,12 @@ Ve a _Rules → Transform Rules → Modify Request Header → Create rule_:
 - Acción: **Set static**, header `X-Origin-Verify`, valor igual a `ORIGIN_VERIFY_SECRET` de Render.
 
 Sin esta regla, la API en producción responde `403` a todo, excepto a `/api/health*`.
+
+**WebSockets (dashboard en tiempo real)**
+
+- En _Network_, confirma que **WebSockets** esté activado (lo está por defecto, también en el plan gratis). El dashboard usa `wss://api.panesypan.com/api/realtime`.
+- La regla del header `X-Origin-Verify` también protege el socket: Cloudflare la aplica a la petición de conexión.
+- Si el socket no conecta, el dashboard sigue funcionando: consulta la API cada 30 segundos.
 
 **WAF: permitir a UptimeRobot**
 
@@ -473,6 +497,14 @@ Implementado en la Fase 1A (autenticación):
 - **RBAC** validado en el backend: las cajeras no pueden gestionar usuarios ni ver la auditoría. Siempre debe quedar al menos un administrador activo.
 - **Auditoría de solo inserción:** ingresos, intentos fallidos, bloqueos, cambios de contraseña/PIN y cambios de usuarios, con IP y hora.
 
+Implementado en la Fase 1F (tiempo real y reportes):
+
+- **Socket.IO con las mismas reglas que la API REST**, en `/api/realtime`: solo orígenes de `CORS_ORIGINS` (el WebSocket no lo cubre CORS, así que se verifica el `Origin` a mano), header secreto de Cloudflare y sesión válida en la base de datos.
+- **Solo el administrador** (permiso `reports:read`) puede conectarse. La sesión se revalida cada minuto: cerrar sesión o desactivar al usuario corta el socket.
+- **El socket no transporta datos de negocio**, solo un aviso "algo cambió".
+- **Exportes:** exigen `reports:read`, limitan el rango y las filas, neutralizan fórmulas de Excel y quedan en la auditoría (`REPORT_EXPORTED`).
+- **PWA:** el service worker no guarda respuestas de la API.
+
 Al cierre de cada fase se hace una revisión de seguridad.
 
 ## Roadmap
@@ -485,7 +517,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ✅     |
 | 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ✅     |
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ✅     |
-| 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ⏳     |
+| 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ✅     |
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ⏳     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
 
