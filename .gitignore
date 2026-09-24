@@ -8,6 +8,9 @@ out/
 .turbo/
 .vercel/
 coverage/
+test-results/
+playwright-report/
+blob-report/
 *.tsbuildinfo
 .eslintcache
 *.tgz

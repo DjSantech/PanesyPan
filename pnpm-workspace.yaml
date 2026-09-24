@@ -2,6 +2,7 @@ packages:
   - frontend
   - backend
   - packages/*
+  - e2e
 
 # Protección de la cadena de suministro: no instalar versiones publicadas hace menos de 24 h.
 minimumReleaseAge: 1440
