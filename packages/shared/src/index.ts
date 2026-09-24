@@ -18,6 +18,7 @@ export * from './schemas/catalog';
 export * from './schemas/common';
 export * from './schemas/health';
 export * from './schemas/inventory';
+export * from './schemas/reports';
 export * from './schemas/sales';
 export * from './schemas/settings';
 export * from './schemas/users';
