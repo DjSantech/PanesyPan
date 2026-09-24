@@ -268,7 +268,7 @@ Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `t
 
 **Rutas:** `/vender` (punto de venta), `/ventas` (ventas de la caja o del día) y `/configuracion` (ajustes, solo administrador). La cajera entra directo a `/vender`.
 
-1. **Abrir caja.** Al entrar a vender por primera vez en el turno, la cajera escribe la base en efectivo. Cada cajera tiene como máximo una caja abierta y todas sus ventas quedan en ella. El cierre con arqueo llega en la Fase 1D.
+1. **Abrir caja.** Al entrar a vender por primera vez en el turno, la cajera escribe la base en efectivo. Cada cajera tiene como máximo una caja abierta y todas sus ventas quedan en ella. Al terminar el turno se cierra con el arqueo (ver "Caja: egresos, retiros y cierre").
 2. **Mostrador.** Se tocan los productos (o se busca con la tecla `/` y `Enter` agrega el primer resultado) y se cobra. El pedido se conserva si la tablet recarga la página.
 3. **Mesas.** En "Mesas" se toca una mesa libre para abrir su cuenta. Se pueden agregar, subir o bajar cantidades, cambiar la cuenta de mesa o cancelarla. Varias cajeras pueden atender la misma mesa. Quitar productos de una mesa queda en la auditoría.
 4. **Almuerzos.** Solo se venden si están en el menú del día **publicado**. Al tocarlos se elige la proteína, y se descuentan las porciones: nunca se vende más de lo preparado, aunque dos cajeras cobren la última porción al mismo tiempo.
@@ -276,6 +276,15 @@ Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `t
 6. **Descuentos.** Por porcentaje o valor, siempre con motivo. Hasta el tope configurado (10 % por defecto) los da la cajera; por encima, un administrador digita su PIN en la tablet.
 7. **Anulaciones.** Desde `/ventas`, con motivo y PIN de administrador. Solo mientras la caja de esa venta siga abierta. La venta anulada deja de contar en la caja y devuelve las porciones de almuerzo.
 8. **PIN de autorización.** Cinco PIN equivocados seguidos cierran la sesión de la cajera, y cada intento fallido queda como alerta en la auditoría.
+
+### Caja: egresos, retiros y cierre
+
+El botón **Caja** del punto de venta muestra el efectivo esperado (base + ventas en efectivo − egresos − retiros) y los movimientos del turno.
+
+- **Egresos:** gastos menores pagados con la caja (hielo, gas…), siempre con motivo. Hasta el tope de **Ajustes** ($ 50.000 por defecto) los registra la cajera; por encima, un administrador digita su PIN.
+- **Retiros:** efectivo que se saca para guardarlo. Siempre los autoriza un administrador (su PIN en la tablet, o él mismo si es su caja). Nunca se puede sacar más efectivo del que hay en el cajón.
+- **Cierre con arqueo:** se cuentan billetes y monedas por denominación. El sistema calcula el sobrante o faltante; si no cuadra exacto, la nota es obligatoria. No se puede cerrar con mesas abiertas, y una caja cerrada no admite más ventas, egresos ni anulaciones.
+- Egresos, retiros y cierres (con la diferencia) quedan en la auditoría.
 
 ### Impresora térmica
 
@@ -461,7 +470,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1A   | Autenticación, RBAC, usuarios, primer administrador, auditoría                                                 | ✅     |
 | 1B   | Catálogo (categorías, productos, precios, agotados) y menú del día                                             | ✅     |
 | 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ✅     |
-| 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ⏳     |
+| 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ✅     |
 | 1E   | Inventario básico, producción, mermas y alertas                                                                | ⏳     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ⏳     |
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ⏳     |
