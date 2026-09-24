@@ -13,6 +13,7 @@ import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
 import { ErrorState, PageHeader, Spinner } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
+import { PriceInput } from '@/components/PriceInput';
 import { fieldAria } from '@/components/ui/field-aria';
 import { Field, Input } from '@/components/ui/form';
 import {
@@ -30,7 +31,9 @@ import { Receipt } from '../pos/Receipt';
 import { SETTINGS_QUERY_KEY, updateSettings, useSettings } from './settings.api';
 
 type TextField = 'legalName' | 'taxId' | 'address' | 'phone' | 'ticketFooter';
-type Errors = Partial<Record<TextField | 'tableCount' | 'maxCashierDiscountPercent', string>>;
+type Errors = Partial<
+  Record<TextField | 'tableCount' | 'maxCashierDiscountPercent' | 'maxCashierExpense', string>
+>;
 
 const TEXT_FIELDS: { key: TextField; label: string; placeholder: string; hint?: string }[] = [
   {
@@ -99,6 +102,7 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
   const [draft, setDraft] = useState(settings);
   const [tables, setTables] = useState(String(settings.tableCount));
   const [maxDiscount, setMaxDiscount] = useState(String(settings.maxCashierDiscountPercent));
+  const [maxExpense, setMaxExpense] = useState<number | null>(settings.maxCashierExpense);
   const [errors, setErrors] = useState<Errors>({});
 
   const save = useMutation({
@@ -116,6 +120,7 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
       ticketWidth: draft.ticketWidth,
       tableCount: tables.trim() === '' ? Number.NaN : Number(tables),
       maxCashierDiscountPercent: maxDiscount.trim() === '' ? Number.NaN : Number(maxDiscount),
+      maxCashierExpense: maxExpense ?? Number.NaN,
     };
     const parsed = updateBusinessSettingsRequestSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -242,6 +247,18 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
                 onChange={(event) => {
                   setMaxDiscount(event.target.value.replace(/\D/g, '').slice(0, 3));
                 }}
+              />
+            </Field>
+            <Field
+              id="settings-expense"
+              label="Egreso máximo sin autorización"
+              error={errors.maxCashierExpense}
+              hint="Por encima, la cajera necesita el PIN de un administrador. Los retiros siempre lo piden."
+            >
+              <PriceInput
+                {...fieldAria('settings-expense', errors.maxCashierExpense, true)}
+                value={maxExpense}
+                onValueChange={setMaxExpense}
               />
             </Field>
           </CardContent>

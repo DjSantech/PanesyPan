@@ -1,10 +1,15 @@
 import {
+  cashMovementResponseSchema,
   cashShiftResponseSchema,
   currentCashShiftResponseSchema,
+  listCashMovementsResponseSchema,
   listSalesResponseSchema,
   saleResponseSchema,
+  type CashMovement,
   type CashShift,
+  type CloseCashShiftRequest,
   type CloseSaleRequest,
+  type CreateCashMovementRequest,
   type CounterCheckoutRequest,
   type ListSalesQuery,
   type OpenCashShiftRequest,
@@ -17,6 +22,7 @@ import { apiJson } from '@/lib/api-client';
 export const posKeys = {
   all: ['pos'] as const,
   shift: ['pos', 'shift'] as const,
+  movements: ['pos', 'shift', 'movements'] as const,
   tabs: ['pos', 'tabs'] as const,
   sales: (query: Partial<ListSalesQuery>) => ['pos', 'sales', query] as const,
 };
@@ -32,6 +38,32 @@ export async function getCurrentShift(signal?: AbortSignal): Promise<CashShift |
 
 export async function openShift(input: OpenCashShiftRequest): Promise<CashShift> {
   const { shift } = await apiJson('/api/v1/cash-shifts', cashShiftResponseSchema, {
+    method: 'POST',
+    body: input,
+  });
+  return shift;
+}
+
+export async function listMovements(signal?: AbortSignal): Promise<CashMovement[]> {
+  const { items } = await apiJson(
+    '/api/v1/cash-shifts/current/movements',
+    listCashMovementsResponseSchema,
+    { signal },
+  );
+  return items;
+}
+
+export async function createMovement(input: CreateCashMovementRequest): Promise<CashMovement> {
+  const { movement } = await apiJson(
+    '/api/v1/cash-shifts/current/movements',
+    cashMovementResponseSchema,
+    { method: 'POST', body: input },
+  );
+  return movement;
+}
+
+export async function closeShift(input: CloseCashShiftRequest): Promise<CashShift> {
+  const { shift } = await apiJson('/api/v1/cash-shifts/current/close', cashShiftResponseSchema, {
     method: 'POST',
     body: input,
   });

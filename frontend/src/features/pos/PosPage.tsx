@@ -7,7 +7,7 @@ import {
   type Sale,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Ban, ShoppingBasket, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Banknote, ShoppingBasket, Wallet } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
@@ -23,6 +23,7 @@ import { useCan, useCurrentUser } from '../auth/use-session';
 import { catalogKeys } from '../catalog/catalog.api';
 import { useSettings } from '../settings/settings.api';
 import { useCartStore } from './cart.store';
+import { CashPanelDialog, CloseShiftDialog, MovementDialog } from './CashDialogs';
 import { CheckoutDialog, type CheckoutPayload } from './CheckoutDialog';
 import { LunchDialog } from './LunchDialog';
 import { OrderPanel, type OrderLineView } from './OrderPanel';
@@ -178,6 +179,9 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
   const [moveOpen, setMoveOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [openingTable, setOpeningTable] = useState<number | null>(null);
+  const [cashPanelOpen, setCashPanelOpen] = useState(false);
+  const [movementOpen, setMovementOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
 
   // Si otra cajera cobró o canceló la mesa, deja de estar seleccionada.
   const selectedTab =
@@ -417,18 +421,29 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
               </button>
             ))}
           </div>
-          <Link
-            to="/ventas"
-            className="text-sm font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Caja abierta desde las {formatTimeCO(new Date(shift.openedAt))} · Ver ventas
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Link
+              to="/ventas"
+              className="text-sm font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Caja abierta desde las {formatTimeCO(new Date(shift.openedAt))} · Ver ventas
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCashPanelOpen(true);
+              }}
+            >
+              <Banknote aria-hidden="true" /> Caja
+            </Button>
+          </div>
         </div>
 
         {staleShift ? (
           <Alert tone="pending">
-            Esta caja se abrió el {formatLongDateCO(new Date(shift.openedAt)).toLowerCase()}. El
-            cierre de caja llega en la próxima etapa del sistema.
+            Esta caja se abrió el {formatLongDateCO(new Date(shift.openedAt)).toLowerCase()}.
+            Ciérrala desde el botón Caja y abre una nueva.
           </Alert>
         ) : null}
 
@@ -521,6 +536,30 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
         />
       )}
 
+      <CashPanelDialog
+        open={cashPanelOpen}
+        onOpenChange={setCashPanelOpen}
+        shift={shift}
+        onRegister={() => {
+          setCashPanelOpen(false);
+          setMovementOpen(true);
+        }}
+        onClose={() => {
+          setCashPanelOpen(false);
+          setCloseOpen(true);
+        }}
+      />
+      <MovementDialog open={movementOpen} onOpenChange={setMovementOpen} />
+      <CloseShiftDialog
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
+        shift={shift}
+        onClosed={() => {
+          setCloseOpen(false);
+          queryClient.setQueryData(posKeys.shift, null);
+          void queryClient.invalidateQueries({ queryKey: ['pos', 'sales'] });
+        }}
+      />
       <CheckoutDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
