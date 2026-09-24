@@ -1,4 +1,11 @@
-import { CATEGORY_KINDS, TAX_CODES, type CategoryKind, type TaxCode } from '@panesypan/shared';
+import {
+  CATEGORY_KINDS,
+  PRODUCT_IMAGE_TYPES,
+  TAX_CODES,
+  type CategoryKind,
+  type ProductImageType,
+  type TaxCode,
+} from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
 
 // ── Categoría ──────────────────────────────────────────────────────
@@ -47,6 +54,10 @@ export interface ProductAttrs {
   trackStock: boolean;
   /** Impuesto para la factura electrónica; null = el impuesto general de Ajustes. */
   tax: TaxCode | null;
+  description: string;
+  /** Imagen actual (se guarda aparte, en ProductImage); cambia de id con cada subida. */
+  image: { id: Types.ObjectId; contentType: ProductImageType } | null;
+  isVisibleOnline: boolean;
   isActive: boolean;
   sortOrder: number;
   createdAt: Date;
@@ -68,6 +79,18 @@ const productSchema = new Schema<ProductAttrs>(
     isFavorite: { type: Boolean, default: false },
     trackStock: { type: Boolean, default: false },
     tax: { type: String, enum: [...TAX_CODES, null], default: null },
+    description: { type: String, default: '', maxlength: 300 },
+    image: {
+      type: new Schema(
+        {
+          id: { type: Schema.Types.ObjectId, required: true },
+          contentType: { type: String, enum: PRODUCT_IMAGE_TYPES, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+    isVisibleOnline: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
     sortOrder: { type: Number, default: 0 },
   },
@@ -78,6 +101,33 @@ productSchema.index({ categoryId: 1, isActive: 1, sortOrder: 1, name: 1 });
 
 export const ProductModel = model<ProductAttrs>('Product', productSchema);
 export type ProductDocument = HydratedDocument<ProductAttrs>;
+
+// ── Imágenes de producto ───────────────────────────────────────────
+
+/**
+ * Imágenes guardadas en la misma base (unos 100 KB cada una: el navegador las reduce antes de
+ * subirlas). Cada subida crea un documento nuevo, así la URL cambia y la caché nunca sirve una vieja.
+ */
+export interface ProductImageAttrs {
+  productId: Types.ObjectId;
+  contentType: ProductImageType;
+  data: Buffer;
+  size: number;
+  createdAt: Date;
+}
+
+const productImageSchema = new Schema<ProductImageAttrs>(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    contentType: { type: String, enum: PRODUCT_IMAGE_TYPES, required: true },
+    data: { type: Buffer, required: true },
+    size: { type: Number, required: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false }, strict: 'throw' },
+);
+productImageSchema.index({ productId: 1 });
+
+export const ProductImageModel = model<ProductImageAttrs>('ProductImage', productImageSchema);
 
 // ── Menú del día ───────────────────────────────────────────────────
 

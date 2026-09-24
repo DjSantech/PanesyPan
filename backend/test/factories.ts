@@ -10,7 +10,12 @@ import { AuditLogModel } from '../src/modules/audit/audit-log.model';
 import { SessionModel } from '../src/modules/auth/session.model';
 import { CashMovementModel } from '../src/modules/cash/cash-movement.model';
 import { CashShiftModel } from '../src/modules/cash/cash-shift.model';
-import { CategoryModel, DailyMenuModel, ProductModel } from '../src/modules/catalog/catalog.models';
+import {
+  CategoryModel,
+  DailyMenuModel,
+  ProductImageModel,
+  ProductModel,
+} from '../src/modules/catalog/catalog.models';
 import { InventoryItemModel, StockMovementModel } from '../src/modules/inventory/inventory.models';
 import { SaleModel, SequenceModel } from '../src/modules/sales/sale.model';
 import { SettingsModel } from '../src/modules/settings/settings.model';
@@ -96,6 +101,7 @@ export async function resetDatabase(): Promise<void> {
     AuditLogModel.collection.deleteMany({}),
     CategoryModel.deleteMany({}),
     ProductModel.deleteMany({}),
+    ProductImageModel.deleteMany({}),
     DailyMenuModel.deleteMany({}),
     SettingsModel.deleteMany({}),
     CashShiftModel.deleteMany({}),
@@ -114,6 +120,7 @@ export async function initModels(): Promise<void> {
     AuditLogModel.init(),
     CategoryModel.init(),
     ProductModel.init(),
+    ProductImageModel.init(),
     DailyMenuModel.init(),
     SettingsModel.init(),
     CashShiftModel.init(),

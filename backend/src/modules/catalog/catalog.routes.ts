@@ -4,13 +4,14 @@ import {
   createProductRequestSchema,
   hasPermission,
   listProductsQuerySchema,
+  PRODUCT_IMAGE_TYPES,
   reorderCategoriesRequestSchema,
   setAvailabilityRequestSchema,
   updateCategoryRequestSchema,
   updateProductRequestSchema,
   upsertDailyMenuRequestSchema,
 } from '@panesypan/shared';
-import { Router, type Request } from 'express';
+import express, { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
@@ -18,6 +19,7 @@ import { getRequestMeta } from '../../lib/request-meta';
 import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
+import { adjustStock } from '../inventory/inventory.service';
 import type { ActorContext } from '../users/users.service';
 import {
   createCategory,
@@ -25,7 +27,9 @@ import {
   getProduct,
   listCategories,
   listProducts,
+  removeProductImage,
   reorderCategories,
+  setProductImage,
   setProductAvailability,
   updateCategory,
   updateProduct,
@@ -52,6 +56,7 @@ function parseDateParam(req: Request): string {
  *   Categorías: GET /categories · POST /categories · PATCH /categories/:id · PUT /categories/order
  *   Productos:  GET /products · GET /products/:id · POST /products · PATCH /products/:id
  *               PATCH /products/:id/availability (también la cajera)
+ *               POST|DELETE /products/:id/image (cuerpo = la imagen, máximo 2 MB)
  *   Menú:       GET /daily-menus/:date · PUT /daily-menus/:date
  */
 export function createCatalogRouter(deps: CatalogRouterDeps): Router {
@@ -100,11 +105,40 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   });
   router.post('/products', ...canManage, async (req, res) => {
     const input = parseBody(req, createProductRequestSchema);
-    res.status(201).json({ product: await createProduct(input, actorContext(req)) });
+    const ctx = actorContext(req);
+    const product = await createProduct(input, ctx);
+    // El stock inicial queda como un ajuste en el libro de inventario (con quién y cuándo).
+    if (product.trackStock && input.initialStock !== null && input.initialStock > 0) {
+      await adjustStock(
+        {
+          productId: product.id,
+          newQuantity: input.initialStock,
+          note: 'Stock inicial al crear el producto',
+        },
+        ctx,
+      );
+    }
+    res.status(201).json({ product });
   });
   router.patch('/products/:id', ...canManage, async (req, res) => {
     const input = parseBody(req, updateProductRequestSchema);
     res.json({ product: await updateProduct(parseIdParam(req), input, actorContext(req)) });
+  });
+  // La imagen llega tal cual en el cuerpo (el navegador ya la redujo); el tipo real se valida.
+  router.post(
+    '/products/:id/image',
+    ...canManage,
+    express.raw({ type: [...PRODUCT_IMAGE_TYPES], limit: '2mb' }),
+    async (req, res) => {
+      const data: unknown = req.body;
+      if (!Buffer.isBuffer(data)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Envía la imagen en formato JPG, PNG o WebP.');
+      }
+      res.json({ product: await setProductImage(parseIdParam(req), data, actorContext(req)) });
+    },
+  );
+  router.delete('/products/:id/image', ...canManage, async (req, res) => {
+    res.json({ product: await removeProductImage(parseIdParam(req), actorContext(req)) });
   });
   router.patch(
     '/products/:id/availability',

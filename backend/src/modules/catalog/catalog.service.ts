@@ -1,10 +1,12 @@
 import {
+  PRODUCT_IMAGE_MAX_BYTES,
   slugify,
   type Category,
   type CreateCategoryRequest,
   type CreateProductRequest,
   type ListProductsQuery,
   type Product,
+  type ProductImageType,
   type UpdateCategoryRequest,
   type UpdateProductRequest,
 } from '@panesypan/shared';
@@ -16,6 +18,7 @@ import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import {
   CategoryModel,
+  ProductImageModel,
   ProductModel,
   type CategoryDocument,
   type ProductAttrs,
@@ -61,6 +64,19 @@ export function toCategoryDto(category: CategoryDocument, productCount = 0): Cat
   };
 }
 
+const IMAGE_EXTENSIONS: Readonly<Record<ProductImageType, string>> = {
+  'image/webp': 'webp',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+
+/**
+ * Ruta pública de la imagen. Lleva la extensión para que Cloudflare la guarde en caché, y el id
+ * cambia con cada subida, así nunca se sirve una imagen vieja.
+ */
+export const productImagePath = (image: { id: Types.ObjectId; contentType: ProductImageType }) =>
+  `/api/v1/public/images/${image.id.toString()}.${IMAGE_EXTENSIONS[image.contentType]}`;
+
 export function toProductDto(product: ProductDocument): Product {
   return {
     id: product.id,
@@ -72,6 +88,9 @@ export function toProductDto(product: ProductDocument): Product {
     isFavorite: product.isFavorite,
     trackStock: product.trackStock,
     tax: product.tax ?? null,
+    description: product.description,
+    imagePath: product.image === null ? null : productImagePath(product.image),
+    isVisibleOnline: product.isVisibleOnline,
     isActive: product.isActive,
     sortOrder: product.sortOrder,
     updatedAt: product.updatedAt.toISOString(),
@@ -242,6 +261,8 @@ export async function createProduct(
       isFavorite: input.isFavorite ?? false,
       trackStock: input.trackStock ?? false,
       tax: input.tax ?? null,
+      description: input.description ?? '',
+      isVisibleOnline: input.isVisibleOnline ?? true,
     });
   } catch (error) {
     if (isDuplicateKey(error)) throw conflict('Ya existe un producto con ese nombre');
@@ -279,12 +300,16 @@ export async function updateProduct(
   if (input.price !== undefined && input.price !== product.price) {
     product.price = input.price;
   }
-  for (const field of ['isFavorite', 'trackStock', 'isActive'] as const) {
+  for (const field of ['isFavorite', 'trackStock', 'isActive', 'isVisibleOnline'] as const) {
     const value = input[field];
     if (value !== undefined && value !== product[field]) {
       changes[field] = { from: product[field], to: value };
       product[field] = value;
     }
+  }
+  if (input.description !== undefined && input.description !== product.description) {
+    changes.description = { from: product.description, to: input.description };
+    product.description = input.description;
   }
   if (input.tax !== undefined && input.tax !== (product.tax ?? null)) {
     changes.tax = { from: product.tax ?? null, to: input.tax };
@@ -335,4 +360,82 @@ export async function setProductAvailability(
     metadata: { isAvailable },
   });
   return toProductDto(product);
+}
+
+// ── Imágenes ───────────────────────────────────────────────────────
+
+/**
+ * Tipo real de la imagen según sus primeros bytes (nunca se confía en el Content-Type que
+ * manda el navegador). Solo WebP, JPEG y PNG: nada de SVG, que puede llevar código.
+ */
+export function detectImageType(data: Buffer): ProductImageType | null {
+  if (data.length >= 12 && data.toString('ascii', 0, 4) === 'RIFF') {
+    return data.toString('ascii', 8, 12) === 'WEBP' ? 'image/webp' : null;
+  }
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (data.length >= 8 && png.every((byte, index) => data[index] === byte)) return 'image/png';
+  return null;
+}
+
+/** Guarda la imagen nueva del producto y borra la anterior. */
+export async function setProductImage(
+  id: string,
+  data: Buffer,
+  ctx: ActorContext,
+): Promise<Product> {
+  const product = await findProductOrThrow(id);
+  if (data.length === 0 || data.length > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'La imagen debe pesar máximo 2 MB.');
+  }
+  const contentType = detectImageType(data);
+  if (contentType === null) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'La imagen debe ser JPG, PNG o WebP.');
+  }
+  const previous = product.image;
+  const image = await ProductImageModel.create({
+    productId: product._id,
+    contentType,
+    data,
+    size: data.length,
+  });
+  product.image = { id: image._id, contentType };
+  await product.save();
+  if (previous !== null) await ProductImageModel.deleteOne({ _id: previous.id });
+
+  await audit(ctx, {
+    action: 'PRODUCT_UPDATED',
+    entity: productEntity(product),
+    metadata: {
+      changes: { image: { from: previous === null ? 'sin imagen' : 'imagen', to: 'nueva imagen' } },
+    },
+  });
+  return toProductDto(product);
+}
+
+export async function removeProductImage(id: string, ctx: ActorContext): Promise<Product> {
+  const product = await findProductOrThrow(id);
+  const previous = product.image;
+  if (previous === null) return toProductDto(product);
+  product.image = null;
+  await product.save();
+  await ProductImageModel.deleteOne({ _id: previous.id });
+  await audit(ctx, {
+    action: 'PRODUCT_UPDATED',
+    entity: productEntity(product),
+    metadata: { changes: { image: { from: 'imagen', to: 'sin imagen' } } },
+  });
+  return toProductDto(product);
+}
+
+/** Imagen pública por su nombre de archivo ("<id>.webp"); null si no existe. */
+export async function findPublicImage(
+  file: string,
+): Promise<{ contentType: ProductImageType; data: Buffer } | null> {
+  const match = /^([a-f\d]{24})\.(webp|jpg|png)$/.exec(file);
+  if (match?.[1] === undefined) return null;
+  const image = await ProductImageModel.findById(match[1]).select('contentType data');
+  return image === null ? null : { contentType: image.contentType, data: image.data };
 }

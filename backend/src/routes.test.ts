@@ -58,6 +58,9 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['post', '/products', 'catalog:manage'],
   ['patch', '/products/:id', 'catalog:manage'],
   ['patch', '/products/:id/availability', 'catalog:availability'],
+  ['post', '/products/:id/image', 'catalog:manage'],
+  ['delete', '/products/:id/image', 'catalog:manage'],
+  ['get', '/public/images/:file', 'public'],
   ['get', '/daily-menus/:date', 'catalog:read'],
   ['put', '/daily-menus/:date', 'catalog:manage'],
 
@@ -104,6 +107,7 @@ const SAMPLE_PARAMS: Record<string, string> = {
   productId: '64b000000000000000000003',
   date: '2026-01-15',
   kind: 'sales',
+  file: '64b000000000000000000004.webp',
 };
 
 const concretePath = (pattern: string): string =>

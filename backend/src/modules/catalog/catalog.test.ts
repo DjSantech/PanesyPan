@@ -19,7 +19,9 @@ import {
 import { createTestEnv, silentLogger } from '../../../test/helpers';
 import { createApp } from '../../app';
 import { AuditLogModel } from '../audit/audit-log.model';
-import { CategoryModel, DailyMenuModel, ProductModel } from './catalog.models';
+import request from 'supertest';
+import { InventoryItemModel, StockMovementModel } from '../inventory/inventory.models';
+import { CategoryModel, DailyMenuModel, ProductImageModel, ProductModel } from './catalog.models';
 import { CATALOG_SEED, seedCatalog } from './catalog.seed';
 
 const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
@@ -196,6 +198,107 @@ describe('productos', () => {
     );
     expect(archived.items.map((item) => item.name)).toEqual(['Pan Coco']);
     expect(await ProductModel.countDocuments()).toBe(1);
+  });
+});
+
+describe('ficha del producto: descripción, web, stock inicial e imagen', () => {
+  // PNG de 1×1 píxel.
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const upload = (who: LoggedIn, id: string, data: Buffer, type = 'image/png') =>
+    who.agent
+      .post(`/api/v1/products/${id}/image`)
+      .set('X-CSRF-Token', who.csrfToken)
+      .set('Content-Type', type)
+      .send(data);
+
+  it('crea con descripción, visibilidad en la web y stock inicial', async () => {
+    const bakery = await createCategory('Panadería');
+    const response = await send(admin, 'post', '/products', {
+      name: 'Pan de bono',
+      categoryId: bakery.id,
+      price: 2_000,
+      description: 'Horneado con queso costeño, sale caliente a las 6 a. m.',
+      isVisibleOnline: false,
+      trackStock: true,
+      initialStock: 40,
+    });
+    expect(response.status).toBe(201);
+    const product = productResponseSchema.parse(response.body).product;
+    expect(product).toMatchObject({
+      description: 'Horneado con queso costeño, sale caliente a las 6 a. m.',
+      isVisibleOnline: false,
+      imagePath: null,
+    });
+    expect((await InventoryItemModel.findOne({ productId: product.id }))?.quantity).toBe(40);
+    expect(
+      await StockMovementModel.countDocuments({ productId: product.id, type: 'ADJUSTMENT' }),
+    ).toBe(1);
+
+    const edited = await send(admin, 'patch', `/products/${product.id}`, {
+      description: '',
+      isVisibleOnline: true,
+    });
+    expect(productResponseSchema.parse(edited.body).product).toMatchObject({
+      description: '',
+      isVisibleOnline: true,
+    });
+  });
+
+  it('sin controlar inventario el stock inicial se ignora', async () => {
+    const drinks = await createCategory('Bebidas');
+    await send(admin, 'post', '/products', {
+      name: 'Tinto',
+      categoryId: drinks.id,
+      price: 1_500,
+      initialStock: 10,
+    }).expect(201);
+    expect(await InventoryItemModel.countDocuments()).toBe(0);
+  });
+
+  it('sube, reemplaza y quita la imagen; la imagen es pública y con caché larga', async () => {
+    const bakery = await createCategory('Panadería');
+    const product = await createProduct('Croissant', bakery.id);
+
+    const first = productResponseSchema.parse((await upload(admin, product.id, PNG)).body).product;
+    expect(first.imagePath).toMatch(/^\/api\/v1\/public\/images\/[a-f\d]{24}\.png$/);
+    const served = await request(app).get(first.imagePath ?? '');
+    expect(served.status).toBe(200);
+    expect(served.headers['content-type']).toBe('image/png');
+    expect(served.headers['cache-control']).toContain('immutable');
+    expect(served.headers['cross-origin-resource-policy']).toBe('cross-origin');
+
+    const second = productResponseSchema.parse((await upload(admin, product.id, PNG)).body).product;
+    expect(second.imagePath).not.toBe(first.imagePath);
+    expect(await ProductImageModel.countDocuments()).toBe(1);
+    await request(app)
+      .get(first.imagePath ?? '')
+      .expect(404);
+
+    const removed = await admin.agent
+      .delete(`/api/v1/products/${product.id}/image`)
+      .set('X-CSRF-Token', admin.csrfToken);
+    expect(productResponseSchema.parse(removed.body).product.imagePath).toBeNull();
+    expect(await ProductImageModel.countDocuments()).toBe(0);
+  });
+
+  it('rechaza lo que no es una imagen real (el tipo se lee de los bytes)', async () => {
+    const bakery = await createCategory('Panadería');
+    const product = await createProduct('Achira', bakery.id);
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    );
+    const fake = await upload(admin, product.id, svg, 'image/png');
+    expect(fake.status).toBe(400);
+    expect(await ProductImageModel.countDocuments()).toBe(0);
+
+    const wrongType = await upload(admin, product.id, PNG, 'image/svg+xml');
+    expect(wrongType.status).toBe(400);
+
+    const byCashier = await upload(cashier, product.id, PNG);
+    expect(byCashier.status).toBe(403);
   });
 });
 

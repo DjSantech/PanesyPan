@@ -6,6 +6,7 @@ import type { AuthGuards } from './modules/auth/auth.middleware';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
+import { createPublicRouter } from './modules/catalog/public.routes';
 import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
 import { notifyDashboardOnChanges } from './modules/realtime/notify-changes';
@@ -33,6 +34,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
 
   const router = Router();
   router.use(notifyDashboardOnChanges);
+  router.use('/public', createPublicRouter());
   router.use(
     '/auth',
     createAuthRouter(withLogger({ config: authConfig, guards, credentialsLimiter })),
