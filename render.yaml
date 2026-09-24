@@ -60,3 +60,15 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      # Facturación electrónica con Factus: credenciales del panel de Factus (se ingresan a mano).
+      # FACTUS_ENV: sandbox para la habilitación; production solo cuando la DIAN habilite el software.
+      - key: FACTUS_ENV
+        value: sandbox
+      - key: FACTUS_CLIENT_ID
+        sync: false
+      - key: FACTUS_CLIENT_SECRET
+        sync: false
+      - key: FACTUS_USERNAME
+        sync: false
+      - key: FACTUS_PASSWORD
+        sync: false
