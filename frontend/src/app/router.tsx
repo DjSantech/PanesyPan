@@ -142,6 +142,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'facturacion',
+            lazy: async () => {
+              const { EInvoicesPage } = await import('@/features/einvoice/EInvoicesPage');
+              return {
+                element: (
+                  <RequirePermission permission="einvoice:manage">
+                    <EInvoicesPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'mi-cuenta',
             lazy: async () => {
               const { AccountPage } = await import('@/features/account/AccountPage');

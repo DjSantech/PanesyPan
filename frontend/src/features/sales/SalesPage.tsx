@@ -27,6 +27,7 @@ import { useCan } from '../auth/use-session';
 import { catalogKeys } from '../catalog/catalog.api';
 import { ApprovalDialog } from '../pos/ApprovalDialog';
 import { getCurrentShift, listSales, posKeys, voidSale } from '../pos/pos.api';
+import { EInvoiceBadge } from '../einvoice/EInvoiceBadge';
 import { printReceipt } from '../pos/print-receipt';
 import { formatSaleNumber } from '../pos/receipt-format';
 import { useApprovedAction } from '../pos/use-approved-action';
@@ -146,6 +147,9 @@ function SaleRow({ sale, onOpen }: { sale: Sale; onOpen: () => void }) {
           {sale.payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method]).join(' + ') || '—'}
           {sale.paidBy === null ? '' : ` · ${sale.paidBy.name}`}
         </span>
+        {sale.einvoice === null ? null : (
+          <EInvoiceBadge status={sale.einvoice.status} prefix="FE" />
+        )}
         <Badge tone={STATUS_TONE[sale.status]}>{SALE_STATUS_LABELS[sale.status]}</Badge>
         <span
           className={cn(
@@ -248,6 +252,44 @@ function SaleDetailDialog({
                   </p>
                 )}
               </div>
+              {sale.einvoice === null ? null : (
+                <div className="grid gap-1.5 rounded-xl border border-border p-3 text-sm">
+                  <p className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold">Factura electrónica</span>
+                    <EInvoiceBadge status={sale.einvoice.status} />
+                    {sale.einvoice.number === null ? null : (
+                      <span className="font-bold">{sale.einvoice.number}</span>
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {sale.customer === null
+                      ? 'Consumidor final'
+                      : `${sale.customer.name} · ${sale.customer.idType} ${sale.customer.idNumber}`}
+                  </p>
+                  {sale.einvoice.message === null ? null : (
+                    <p className="text-danger">{sale.einvoice.message}</p>
+                  )}
+                  {sale.einvoice.creditNote === null ? null : (
+                    <p className="flex flex-wrap items-center gap-2">
+                      <EInvoiceBadge
+                        status={sale.einvoice.creditNote.status}
+                        prefix="Nota crédito"
+                      />
+                      {sale.einvoice.creditNote.number ?? ''}
+                    </p>
+                  )}
+                  {sale.einvoice.publicUrl === null ? null : (
+                    <a
+                      href={sale.einvoice.publicUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="font-bold text-primary underline"
+                    >
+                      Ver la factura en el proveedor
+                    </a>
+                  )}
+                </div>
+              )}
               {sale.closure === null ? null : (
                 <Alert tone={sale.status === 'VOIDED' ? 'danger' : 'info'}>
                   <span>

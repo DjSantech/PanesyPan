@@ -570,6 +570,7 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
         }
         subtotal={total}
         maxDiscountPercent={settings.data?.maxCashierDiscountPercent ?? 0}
+        einvoiceEnabled={settings.data?.einvoiceEnabled ?? false}
         canApprove={canApprove}
         submit={submitCheckout}
         onPaid={handlePaid}

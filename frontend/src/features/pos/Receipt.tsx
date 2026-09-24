@@ -8,6 +8,7 @@ import {
 } from '@panesypan/shared';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { ReceiptEInvoice } from '../einvoice/ReceiptEInvoice';
 import { formatSaleNumber, PRINTABLE_WIDTH_MM } from './receipt-format';
 
 function Row({
@@ -105,6 +106,17 @@ export function Receipt({
         </>
       )}
       <Divider />
+      {sale.einvoice === null ? null : (
+        <>
+          <ReceiptEInvoice
+            sale={sale}
+            einvoice={sale.einvoice}
+            legend={settings.einvoiceLegend}
+            qrSizeMm={is58 ? 26 : 32}
+          />
+          <Divider />
+        </>
+      )}
       <p className="text-center">Precios con impuestos incluidos</p>
       {settings.ticketFooter === '' ? null : (
         <p className="mt-1 text-center font-bold">{settings.ticketFooter}</p>

@@ -1,9 +1,12 @@
 import {
   createProductRequestSchema,
   PRICE_LIMITS,
+  TAX_CODE_LABELS,
+  TAX_CODES,
   type Category,
   type CreateProductRequest,
   type Product,
+  type TaxCode,
   type UpdateProductRequest,
 } from '@panesypan/shared';
 import { useState, type SubmitEvent } from 'react';
@@ -50,6 +53,7 @@ export function ProductFormDialog({
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
   const [isFavorite, setIsFavorite] = useState(product?.isFavorite ?? false);
   const [trackStock, setTrackStock] = useState(product?.trackStock ?? false);
+  const [tax, setTax] = useState<TaxCode | null>(product?.tax ?? null);
   const [errors, setErrors] = useState<Errors>({});
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
@@ -60,6 +64,7 @@ export function ProductFormDialog({
       price: price ?? Number.NaN,
       isFavorite,
       trackStock,
+      tax,
     });
     if (!parsed.success) {
       const next: Errors = {};
@@ -86,6 +91,7 @@ export function ProductFormDialog({
     if (parsed.data.price !== product.price) changes.price = parsed.data.price;
     if (parsed.data.isFavorite !== product.isFavorite) changes.isFavorite = parsed.data.isFavorite;
     if (parsed.data.trackStock !== product.trackStock) changes.trackStock = parsed.data.trackStock;
+    if (parsed.data.tax !== product.tax) changes.tax = parsed.data.tax;
     if (Object.keys(changes).length === 0) {
       onOpenChange(false);
       return;
@@ -139,6 +145,26 @@ export function ProductFormDialog({
               />
             </Field>
           </div>
+          <Field
+            id="product-tax"
+            label="Impuesto (factura electrónica)"
+            hint="Lo define el contador. Sin elegir, se usa el impuesto general de Ajustes."
+          >
+            <NativeSelect
+              {...fieldAria('product-tax', null, true)}
+              value={tax ?? ''}
+              onChange={(event) => {
+                setTax(event.target.value === '' ? null : (event.target.value as TaxCode));
+              }}
+            >
+              <option value="">Usar el impuesto general</option>
+              {TAX_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {TAX_CODE_LABELS[code]}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
           <CheckboxField
             id="product-favorite"
             label="Favorito"

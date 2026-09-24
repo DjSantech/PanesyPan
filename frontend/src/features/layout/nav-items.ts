@@ -2,6 +2,7 @@ import type { Permission } from '@panesypan/shared';
 import {
   Boxes,
   Croissant,
+  FileText,
   House,
   ReceiptText,
   ScrollText,
@@ -45,6 +46,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: 'Auditoría',
     icon: ScrollText,
     permission: 'audit:read',
+    mobile: false,
+  },
+  {
+    to: '/facturacion',
+    label: 'Facturación',
+    icon: FileText,
+    permission: 'einvoice:manage',
     mobile: false,
   },
   {

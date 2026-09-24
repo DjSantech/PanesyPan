@@ -25,6 +25,7 @@ export const posKeys = {
   movements: ['pos', 'shift', 'movements'] as const,
   tabs: ['pos', 'tabs'] as const,
   sales: (query: Partial<ListSalesQuery>) => ['pos', 'sales', query] as const,
+  sale: (id: string) => ['pos', 'sale', id] as const,
 };
 
 // ── Caja ───────────────────────────────────────────────────────────
@@ -96,6 +97,11 @@ export async function listSales(
   const suffix = params.size > 0 ? `?${params.toString()}` : '';
   const { items } = await apiJson(`/api/v1/sales${suffix}`, listSalesResponseSchema, { signal });
   return items;
+}
+
+export async function getSale(id: string, signal?: AbortSignal): Promise<Sale> {
+  const { sale } = await apiJson(`/api/v1/sales/${id}`, saleResponseSchema, { signal });
+  return sale;
 }
 
 export function voidSale(id: string, input: CloseSaleRequest): Promise<Sale> {

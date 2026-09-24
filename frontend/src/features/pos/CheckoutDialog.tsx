@@ -8,12 +8,13 @@ import {
   SALE_LIMITS,
   settlePayments,
   suggestedCashAmounts,
+  type CustomerInput,
   type DiscountInput,
   type DiscountMode,
   type PaymentMethod,
   type Sale,
 } from '@panesypan/shared';
-import { BadgePercent, Split } from 'lucide-react';
+import { BadgePercent, FileText, Split } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { Spinner } from '@/components/feedback';
 import { PriceInput } from '@/components/PriceInput';
@@ -24,6 +25,8 @@ import { Alert } from '@/components/ui/surface';
 import { ApiError, errorMessage } from '@/lib/api-errors';
 import { newRequestId } from '@/lib/request-id';
 import { cn } from '@/lib/utils';
+import { CustomerFields } from '../einvoice/CustomerFields';
+import { EMPTY_CUSTOMER, parseCustomer, type CustomerDraft } from '../einvoice/einvoice-logic';
 import { ApprovalDialog } from './ApprovalDialog';
 import { useApprovedAction } from './use-approved-action';
 
@@ -34,6 +37,8 @@ export interface CheckoutPayload {
   payments: { method: PaymentMethod; amount: number; reference: string }[];
   cashReceived: number | null;
   approverPin?: string;
+  /** Cliente que pide la factura electrónica a su nombre. */
+  customer?: CustomerInput;
 }
 
 interface CheckoutDialogProps {
@@ -48,6 +53,8 @@ interface CheckoutDialogProps {
   onPaid: (sale: Sale) => void;
   /** El pedido cambió (precio, agotado…): se cierra el cobro para revisarlo. */
   onStale: (message: string) => void;
+  /** Con facturación electrónica activa se puede facturar a nombre del cliente. */
+  einvoiceEnabled?: boolean;
 }
 
 /** Errores que significan "revisa el pedido" y no "reintenta el cobro". */
@@ -73,6 +80,7 @@ function CheckoutForm({
   submit,
   onPaid,
   onStale,
+  einvoiceEnabled = false,
 }: CheckoutDialogProps) {
   const [requestId] = useState(newRequestId);
   const [discountOn, setDiscountOn] = useState(false);
@@ -87,6 +95,9 @@ function CheckoutForm({
     {},
   );
   const [error, setError] = useState<string | null>(null);
+  const [customerOn, setCustomerOn] = useState(false);
+  const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(EMPTY_CUSTOMER);
+  const [customerError, setCustomerError] = useState<string | null>(null);
 
   const discount =
     discountOn && discountValue !== null && discountValue > 0
@@ -113,9 +124,12 @@ function CheckoutForm({
   const reasonMissing = discount !== null && discountReason.trim().length < SALE_LIMITS.reasonMin;
   const canSubmit = totals.total > 0 && discountError === null && !reasonMissing && settlement.ok;
 
+  const customer = customerOn ? parseCustomer(customerDraft) : null;
+
   const action = useApprovedAction<Sale>({
     run: (pin) =>
       submit({
+        ...(customer?.ok === true ? { customer: customer.value } : {}),
         clientRequestId: requestId,
         expectedTotal: totals.total,
         discount: discount === null ? null : { ...discount, reason: discountReason.trim() },
@@ -136,6 +150,11 @@ function CheckoutForm({
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit || action.pending) return;
+    if (customer !== null && !customer.ok) {
+      setCustomerError(customer.message);
+      return;
+    }
+    setCustomerError(null);
     setError(null);
     if (needsApproval) action.askForPin();
     else action.execute();
@@ -405,7 +424,25 @@ function CheckoutForm({
           >
             <Split aria-hidden="true" /> {split ? 'Un solo medio de pago' : 'Pago combinado'}
           </Button>
+          {einvoiceEnabled ? (
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={customerOn}
+              onClick={() => {
+                setCustomerOn(!customerOn);
+                setCustomerError(null);
+              }}
+            >
+              <FileText aria-hidden="true" />{' '}
+              {customerOn ? 'Consumidor final' : 'Factura a nombre del cliente'}
+            </Button>
+          ) : null}
         </div>
+
+        {customerOn ? (
+          <CustomerFields value={customerDraft} onChange={setCustomerDraft} error={customerError} />
+        ) : null}
 
         {error === null ? null : <Alert tone="danger">{error}</Alert>}
 

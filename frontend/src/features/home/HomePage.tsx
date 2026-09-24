@@ -4,6 +4,7 @@ import {
   Boxes,
   ChevronRight,
   Croissant,
+  FileText,
   ReceiptText,
   ScrollText,
   Settings,
@@ -67,6 +68,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     title: 'Auditoría',
     description: 'Quién hizo qué y cuándo: ingresos, cambios y alertas.',
     icon: ScrollText,
+  },
+  {
+    to: '/facturacion',
+    title: 'Facturación electrónica',
+    description: 'Facturas y notas crédito ante la DIAN, y reenvío de las que fallaron.',
+    icon: FileText,
   },
   {
     to: '/configuracion',

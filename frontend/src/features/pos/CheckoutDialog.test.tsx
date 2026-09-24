@@ -99,6 +99,37 @@ describe('CheckoutDialog', () => {
     });
   });
 
+  it('sin facturación electrónica no ofrece facturar a nombre del cliente', () => {
+    renderCheckout();
+    expect(screen.queryByRole('button', { name: /Factura a nombre/ })).not.toBeInTheDocument();
+  });
+
+  it('factura a nombre del cliente con sus datos validados', async () => {
+    const { submit, user } = renderCheckout({ einvoiceEnabled: true });
+    await user.click(screen.getByRole('button', { name: /Factura a nombre del cliente/ }));
+    await user.selectOptions(screen.getByLabelText('Tipo de documento'), 'NIT');
+    await user.type(screen.getByLabelText('Número'), '900.123.456');
+    expect(screen.getByText('Dígito de verificación: 8')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: `Cobrar ${formatCOP(12_500)}` }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Escribe el nombre o la razón social');
+    expect(submit).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Nombre o razón social'), 'Cafetería La Esquina');
+    await user.type(screen.getByLabelText('Correo (opcional)'), 'Compras@LaEsquina.co');
+    await user.click(screen.getByRole('button', { name: `Cobrar ${formatCOP(12_500)}` }));
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledTimes(1);
+    });
+    expect(submit.mock.calls[0]?.[0].customer).toEqual({
+      idType: 'NIT',
+      idNumber: '900123456',
+      checkDigit: null,
+      name: 'Cafetería La Esquina',
+      email: 'compras@laesquina.co',
+    });
+  });
+
   it('si el pedido cambió avisa para revisarlo en vez de reintentar', async () => {
     const submit = vi.fn(() =>
       Promise.reject(

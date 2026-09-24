@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
+import { EInvoiceSettingsCard } from '../einvoice/EInvoiceSettingsCard';
 import { Receipt } from '../pos/Receipt';
 import { SETTINGS_QUERY_KEY, updateSettings, useSettings } from './settings.api';
 
@@ -94,8 +95,26 @@ const SAMPLE_SALE: Sale = {
   paidAt: new Date().toISOString(),
   businessDate: null,
   closure: null,
+  customer: null,
+  einvoice: null,
   updatedAt: new Date().toISOString(),
 };
+
+/** Así se ve la factura electrónica validada en el tiquete de ejemplo. */
+function sampleEInvoice(settings: BusinessSettings): Sale['einvoice'] {
+  if (!settings.einvoiceEnabled) return null;
+  return {
+    status: 'ACCEPTED',
+    environment: settings.einvoiceProvider === 'SIMULATED' ? 'SIMULATED' : 'PRODUCTION',
+    number: 'PAN123',
+    cufe: 'ejemplo0f3a9c1d7b2e4f6a8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b',
+    qrData: null,
+    publicUrl: null,
+    validatedAt: new Date().toISOString(),
+    message: null,
+    creditNote: null,
+  };
+}
 
 function SettingsForm({ settings }: { settings: BusinessSettings }) {
   const queryClient = useQueryClient();
@@ -273,7 +292,11 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
       <aside className="grid content-start gap-2" aria-label="Vista previa del tiquete">
         <p className="text-sm font-bold text-muted-foreground">Vista previa del tiquete</p>
         <div className="overflow-x-auto rounded-2xl border border-border bg-white p-4 shadow-xs">
-          <Receipt sale={SAMPLE_SALE} settings={preview} className="mx-auto" />
+          <Receipt
+            sale={{ ...SAMPLE_SALE, einvoice: sampleEInvoice(preview) }}
+            settings={preview}
+            className="mx-auto"
+          />
         </div>
       </aside>
     </div>
@@ -296,7 +319,13 @@ export function SettingsPage() {
           onRetry={() => void settings.refetch()}
         />
       ) : (
-        <SettingsForm key={settings.data.updatedAt ?? 'nuevo'} settings={settings.data} />
+        <div className="grid gap-5">
+          <SettingsForm key={settings.data.updatedAt ?? 'nuevo'} settings={settings.data} />
+          <EInvoiceSettingsCard
+            key={`einvoice-${settings.data.updatedAt ?? 'nuevo'}`}
+            settings={settings.data}
+          />
+        </div>
       )}
     </div>
   );
