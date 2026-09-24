@@ -11,6 +11,8 @@ export interface PosProduct {
   isAvailable: boolean;
   isFavorite: boolean;
   isLunch: boolean;
+  /** Foto de referencia para quien vende (null = sin foto). */
+  imagePath: string | null;
   /** Porciones que quedan hoy (solo almuerzos con límite). */
   portionsLeft: number | null;
   sortOrder: number;
@@ -44,8 +46,26 @@ export function usePosCatalog() {
     return buildPosCatalog(categories.data, products.data, menu.data);
   }, [categories.data, products.data, menu.data]);
 
+  // Hay almuerzos en el catálogo pero ninguno está a la venta hoy: casi siempre es que el menú
+  // del día no se ha publicado (o no se eligieron sus almuerzos).
+  const lunchesHidden = useMemo(() => {
+    if (categories.data === undefined || products.data === undefined || data === undefined) {
+      return false;
+    }
+    const lunchCategories = new Set(
+      categories.data
+        .filter((category) => category.isActive && category.kind === 'LUNCH')
+        .map((category) => category.id),
+    );
+    const hasLunchProducts = products.data.some((product) =>
+      lunchCategories.has(product.categoryId),
+    );
+    return hasLunchProducts && !data.products.some((product) => product.isLunch);
+  }, [categories.data, products.data, data]);
+
   return {
     data,
+    lunchesHidden,
     menu: menu.data,
     isPending: categories.isPending || products.isPending || menu.isPending,
     error: categories.error ?? products.error ?? menu.error,
@@ -71,6 +91,7 @@ export function buildPosCatalog(
     categoryId: string;
     isAvailable: boolean;
     isFavorite: boolean;
+    imagePath: string | null;
     sortOrder: number;
   }[],
   menu: DailyMenu,
@@ -96,6 +117,7 @@ export function buildPosCatalog(
         isAvailable: product.isAvailable,
         isFavorite: product.isFavorite,
         isLunch,
+        imagePath: product.imagePath,
         portionsLeft: portionsLeftOf(offering),
         sortOrder: product.sortOrder,
       },

@@ -11,6 +11,8 @@ type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface RequestOptions {
   method?: Method;
   body?: unknown;
+  /** Archivo que viaja tal cual (p. ej. una imagen), con su propio Content-Type. */
+  rawBody?: Blob;
   signal?: AbortSignal | undefined;
   /** No intentar renovar la sesión ante un 401 (login, refresh, logout). */
   skipRefresh?: boolean;
@@ -43,14 +45,16 @@ export function getApiBaseUrl(): string {
 async function send(path: string, options: RequestOptions): Promise<RawApiResponse> {
   const method = options.method ?? 'GET';
   const headers = new Headers({ Accept: 'application/json' });
-  if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+  if (options.rawBody !== undefined) headers.set('Content-Type', options.rawBody.type);
+  else if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   const csrfToken = useSessionStore.getState().csrfToken;
   if (method !== 'GET' && csrfToken !== null) headers.set('X-CSRF-Token', csrfToken);
 
   let response: Response;
   try {
     const init: RequestInit = { method, headers, credentials: 'include' };
-    if (options.body !== undefined) init.body = JSON.stringify(options.body);
+    if (options.rawBody !== undefined) init.body = options.rawBody;
+    else if (options.body !== undefined) init.body = JSON.stringify(options.body);
     if (options.signal !== undefined) init.signal = options.signal;
     response = await fetch(`${getApiBaseUrl()}${path}`, init);
   } catch (error) {

@@ -21,6 +21,7 @@ const product = (id: string, categoryId: string) => ({
   categoryId,
   isAvailable: true,
   isFavorite: false,
+  imagePath: null,
   sortOrder: 0,
 });
 

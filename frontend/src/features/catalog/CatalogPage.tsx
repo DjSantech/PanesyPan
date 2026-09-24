@@ -37,13 +37,16 @@ import { useCan } from '../auth/use-session';
 import {
   catalogKeys,
   createProduct,
+  deleteProductImage,
   listCategories,
   listProducts,
   setProductAvailability,
   updateProduct,
+  uploadProductImage,
 } from './catalog.api';
 import { CategoriesDialog } from './CategoriesDialog';
-import { ProductFormDialog } from './ProductFormDialog';
+import { ProductFormDialog, type ImageChange } from './ProductFormDialog';
+import { ProductThumb } from './ProductThumb';
 
 type StatusFilter = 'active' | 'archived';
 
@@ -62,6 +65,7 @@ function ProductRow({
 }) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
+      <ProductThumb imagePath={product.imagePath} name={product.name} className="size-14" />
       <div className="grid min-w-0 flex-1 gap-0.5">
         <p className="flex flex-wrap items-center gap-2">
           <span className={cn('font-extrabold', !product.isAvailable && 'text-muted-foreground')}>
@@ -72,7 +76,11 @@ function ProductRow({
           ) : null}
           {product.isAvailable ? null : <Badge tone="danger">Agotado</Badge>}
           {product.isActive ? null : <Badge>Archivado</Badge>}
+          {product.isVisibleOnline ? null : <Badge>No sale en la web</Badge>}
         </p>
+        {product.description === '' ? null : (
+          <p className="line-clamp-1 text-sm text-muted-foreground">{product.description}</p>
+        )}
         <p className="text-lg font-extrabold text-primary">{formatCOP(product.price)}</p>
       </div>
       {product.isActive ? (
@@ -143,8 +151,23 @@ export function CatalogPage() {
 
   const saveProduct = useMutation({
     mutationFn: async (
-      input: { create: CreateProductRequest } | { id: string; update: UpdateProductRequest },
-    ) => ('create' in input ? createProduct(input.create) : updateProduct(input.id, input.update)),
+      input: (
+        | { create: CreateProductRequest }
+        | { id: string; update: UpdateProductRequest; current: Product }
+      ) & { image: ImageChange },
+    ) => {
+      let product =
+        'create' in input
+          ? await createProduct(input.create)
+          : Object.keys(input.update).length > 0
+            ? await updateProduct(input.id, input.update)
+            : input.current;
+      // La foto va aparte (necesita el producto creado); si falla, el producto ya quedó guardado.
+      if (input.image.kind === 'set')
+        product = await uploadProductImage(product.id, input.image.image);
+      if (input.image.kind === 'remove') product = await deleteProductImage(product.id);
+      return product;
+    },
     onSuccess: async (product) => {
       setForm({ open: false });
       await refresh();
@@ -396,14 +419,19 @@ export function CatalogPage() {
           {...(categoryId === undefined ? {} : { defaultCategoryId: categoryId })}
           pending={saveProduct.isPending}
           error={formError}
-          onCreate={(input) => {
+          onCreate={(input, image) => {
             setFormError(null);
-            saveProduct.mutate({ create: input });
+            saveProduct.mutate({ create: input, image });
           }}
-          onUpdate={(input) => {
+          onUpdate={(input, image) => {
             if (form.product === undefined) return;
             setFormError(null);
-            saveProduct.mutate({ id: form.product.id, update: input });
+            saveProduct.mutate({
+              id: form.product.id,
+              update: input,
+              current: form.product,
+              image,
+            });
           }}
         />
       ) : null}

@@ -157,6 +157,7 @@ function upsertTab(tabs: Sale[] | undefined, sale: Sale): Sale[] {
 function PosWorkspace({ shift }: { shift: CashShift }) {
   const queryClient = useQueryClient();
   const canApprove = useCan('sales:void:approve');
+  const canManageMenu = useCan('catalog:manage');
   const settings = useSettings();
   const catalog = usePosCatalog();
   const tabs = useQuery({
@@ -483,6 +484,21 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
                 </p>
               </div>
             )}
+            {catalog.lunchesHidden ? (
+              <Alert tone="pending" className="mb-3">
+                <span>
+                  Los almuerzos no aparecen porque el <strong>menú de hoy no está publicado</strong>
+                  .{' '}
+                  {canManageMenu ? (
+                    <Link to="/menu-del-dia" className="font-bold underline">
+                      Publicar el menú del día
+                    </Link>
+                  ) : (
+                    'Pídele al administrador que lo publique.'
+                  )}
+                </span>
+              </Alert>
+            ) : null}
             <ProductPicker
               categories={catalog.data.categories}
               products={catalog.data.products}

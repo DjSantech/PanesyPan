@@ -1,4 +1,5 @@
 import { formatCOP, slugify, type Category } from '@panesypan/shared';
+import { productImageUrl } from '../catalog/catalog.api';
 import { Search, Star } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from '@/components/feedback';
@@ -142,23 +143,36 @@ export function ProductPicker({
                   }}
                   aria-label={`${product.name}, ${formatCOP(product.price)}${soldOut ? ', agotado' : ''}`}
                   className={cn(
-                    'flex h-full min-h-24 w-full flex-col justify-between gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-xs transition-colors',
+                    'flex h-full min-h-24 w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-xs transition-colors',
                     'hover:border-primary/50 active:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
                     'disabled:cursor-not-allowed disabled:opacity-55',
                   )}
                 >
-                  <span className="line-clamp-2 leading-tight font-bold">{product.name}</span>
-                  <span className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="font-extrabold text-primary">{formatCOP(product.price)}</span>
-                    {soldOut ? (
-                      <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-bold text-danger">
-                        Agotado
+                  {product.imagePath === null ? null : (
+                    <img
+                      src={productImageUrl(product.imagePath) ?? ''}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="size-16 shrink-0 rounded-xl object-cover"
+                    />
+                  )}
+                  <span className="flex h-full min-w-0 flex-1 flex-col justify-between gap-2">
+                    <span className="line-clamp-2 leading-tight font-bold">{product.name}</span>
+                    <span className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="font-extrabold text-primary">
+                        {formatCOP(product.price)}
                       </span>
-                    ) : product.portionsLeft === null ? null : (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-accent-soft-foreground">
-                        Quedan {product.portionsLeft}
-                      </span>
-                    )}
+                      {soldOut ? (
+                        <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-bold text-danger">
+                          Agotado
+                        </span>
+                      ) : product.portionsLeft === null ? null : (
+                        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-accent-soft-foreground">
+                          Quedan {product.portionsLeft}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </button>
               </li>

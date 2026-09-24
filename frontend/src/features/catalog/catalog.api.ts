@@ -14,7 +14,7 @@ import {
   type UpdateProductRequest,
   type UpsertDailyMenuRequest,
 } from '@panesypan/shared';
-import { apiJson } from '@/lib/api-client';
+import { apiJson, getApiBaseUrl } from '@/lib/api-client';
 
 export const catalogKeys = {
   all: ['catalog'] as const,
@@ -86,6 +86,27 @@ export async function updateProduct(id: string, input: UpdateProductRequest): Pr
     body: input,
   });
   return product;
+}
+
+/** Sube la imagen del producto (ya reducida en el navegador). */
+export async function uploadProductImage(id: string, image: Blob): Promise<Product> {
+  const { product } = await apiJson(`/api/v1/products/${id}/image`, productResponseSchema, {
+    method: 'POST',
+    rawBody: image,
+  });
+  return product;
+}
+
+export async function deleteProductImage(id: string): Promise<Product> {
+  const { product } = await apiJson(`/api/v1/products/${id}/image`, productResponseSchema, {
+    method: 'DELETE',
+  });
+  return product;
+}
+
+/** URL completa de la imagen de un producto (la API devuelve solo la ruta). */
+export function productImageUrl(imagePath: string | null): string | null {
+  return imagePath === null ? null : `${getApiBaseUrl()}${imagePath}`;
 }
 
 export async function setProductAvailability(id: string, isAvailable: boolean): Promise<Product> {
