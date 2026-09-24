@@ -1,5 +1,5 @@
-import type { Sale, SalePerson } from '@panesypan/shared';
-import type { PersonRef, SaleDocument } from './sale.model';
+import type { Sale, SaleEInvoice, SalePerson } from '@panesypan/shared';
+import type { PersonRef, SaleDocument, SaleEInvoiceAttrs } from './sale.model';
 
 const toPerson = (person: PersonRef): SalePerson => ({
   id: person.id.toString(),
@@ -58,6 +58,35 @@ export function toSaleDto(sale: SaleDocument): Sale {
             approvedBy: sale.closure.approvedBy === null ? null : toPerson(sale.closure.approvedBy),
             reason: sale.closure.reason,
           },
+    customer:
+      sale.customer === null
+        ? null
+        : {
+            idType: sale.customer.idType,
+            idNumber: sale.customer.idNumber,
+            checkDigit: sale.customer.checkDigit,
+            name: sale.customer.name,
+            email: sale.customer.email,
+          },
+    einvoice: toSaleEInvoiceDto(sale.einvoice ?? null),
     updatedAt: sale.updatedAt.toISOString(),
+  };
+}
+
+function toSaleEInvoiceDto(einvoice: SaleEInvoiceAttrs | null): SaleEInvoice | null {
+  if (einvoice === null) return null;
+  return {
+    status: einvoice.status,
+    environment: einvoice.environment,
+    number: einvoice.number,
+    cufe: einvoice.cufe,
+    qrData: einvoice.qrData,
+    publicUrl: einvoice.publicUrl,
+    validatedAt: einvoice.validatedAt?.toISOString() ?? null,
+    message: einvoice.message,
+    creditNote:
+      einvoice.creditNote === null
+        ? null
+        : { status: einvoice.creditNote.status, number: einvoice.creditNote.number },
   };
 }

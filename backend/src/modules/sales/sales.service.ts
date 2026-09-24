@@ -5,6 +5,7 @@ import {
   discountProblem,
   formatCOP,
   hasPermission,
+  nitCheckDigit,
   settlePayments,
   type tabCheckoutRequestSchema,
   toBusinessDate,
@@ -20,6 +21,8 @@ import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { CashShiftModel, type CashShiftDocument } from '../cash/cash-shift.model';
 import { claimOpenShift, findOpenShift, requireOpenShift } from '../cash/cash.service';
+import { enqueueInvoice, handleSaleVoided } from '../einvoice/einvoice.service';
+import { kickEInvoiceWorker } from '../einvoice/einvoice.worker';
 import { applySaleStock } from '../inventory/inventory.service';
 import { getSettings } from '../settings/settings.service';
 import type { UserDocument } from '../users/user.model';
@@ -31,6 +34,7 @@ import {
   SaleModel,
   type PersonRef,
   type SaleAttrs,
+  type SaleCustomerAttrs,
   type SaleDocument,
 } from './sale.model';
 import {
@@ -122,6 +126,19 @@ interface PaymentContext {
   session: ClientSession;
 }
 
+/** Cliente que pidió la factura a su nombre; al NIT se le calcula el dígito de verificación. */
+function toSaleCustomer(customer: CheckoutFields['customer']): SaleCustomerAttrs | null {
+  if (customer === null) return null;
+  return {
+    idType: customer.idType,
+    idNumber: customer.idNumber,
+    checkDigit:
+      customer.idType === 'NIT' ? (customer.checkDigit ?? nitCheckDigit(customer.idNumber)) : null,
+    name: customer.name,
+    email: customer.email,
+  };
+}
+
 async function applyCheckout(
   sale: SaleDocument,
   prepared: PreparedCheckout,
@@ -161,6 +178,7 @@ async function applyCheckout(
   sale.paidAt = now;
   sale.businessDate = toBusinessDate(now);
   sale.clientRequestId = input.clientRequestId;
+  sale.customer = toSaleCustomer(input.customer);
   sale.number = await nextSequence(SALE_SEQUENCE, session);
   sale.status = 'PAID';
 }
@@ -241,6 +259,7 @@ export async function checkoutCounter(
       });
       await applyCheckout(created, prepared, input, { actor: ctx.actor, approver, shift, session });
       await applySaleStock(lines, 1, personOf(ctx.actor), created._id, session);
+      await enqueueInvoice(created, settings, session);
       await created.save({ session });
       return created;
     });
@@ -252,6 +271,7 @@ export async function checkoutCounter(
     throw error;
   }
 
+  kickEInvoiceWorker();
   await auditDiscountApproval(sale, approver, ctx);
   return { sale: toSaleDto(sale), created: true };
 }
@@ -293,6 +313,7 @@ export async function checkoutTab(
       const prepared = prepareCheckout(tab.lines, input, settings.maxCashierDiscountPercent);
       await applyCheckout(tab, prepared, input, { actor: ctx.actor, approver, shift, session });
       await applySaleStock(tab.lines, 1, personOf(ctx.actor), tab._id, session);
+      await enqueueInvoice(tab, settings, session);
       await tab.save({ session });
       return tab;
     });
@@ -302,6 +323,7 @@ export async function checkoutTab(
     throw error;
   }
 
+  kickEInvoiceWorker();
   await auditDiscountApproval(sale, approver, ctx);
   return toSaleDto(sale);
 }
@@ -342,9 +364,11 @@ export async function voidSale(
     };
     await adjustPortions(portionChangesOf(doc.lines, -1), session);
     await applySaleStock(doc.lines, -1, personOf(ctx.actor), doc._id, session);
+    await handleSaleVoided(doc, input.reason, session);
     await doc.save({ session });
     return doc;
   });
+  kickEInvoiceWorker();
 
   await recordAudit(
     {

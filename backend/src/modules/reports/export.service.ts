@@ -1,4 +1,5 @@
 import {
+  EINVOICE_STATUS_LABELS,
   formatTimeCO,
   PAYMENT_METHOD_LABELS,
   SALE_STATUS_LABELS,
@@ -32,6 +33,9 @@ export interface ExportFile {
   content: string;
 }
 
+/** Normaliza campos opcionales de documentos leídos con lean (pueden no existir). */
+const orNull = <T>(value: T | null | undefined): T | null => value ?? null;
+
 const dayRange = ({ from, to }: ExportQuery) => trusted({ $gte: from, $lte: to });
 
 async function salesRows(query: ExportQuery): Promise<{ headers: string[]; rows: CsvCell[][] }> {
@@ -55,24 +59,40 @@ async function salesRows(query: ExportQuery): Promise<{ headers: string[]; rows:
       'Total',
       'Medios de pago',
       'Motivo de anulación',
+      'Factura electrónica',
+      'Estado de la factura',
+      'CUFE',
+      'Nota crédito',
+      'Cliente',
     ],
-    rows: sales.map((sale) => [
-      sale.number,
-      sale.businessDate,
-      sale.paidAt === null ? null : formatTimeCO(sale.paidAt),
-      SALE_TYPE_LABELS[sale.type],
-      sale.tableNumber,
-      SALE_STATUS_LABELS[sale.status],
-      sale.paidBy?.name ?? null,
-      sale.lines.reduce((sum, line) => sum + line.quantity, 0),
-      sale.subtotal,
-      sale.discount?.amount ?? 0,
-      sale.total,
-      sale.payments
-        .map((payment) => `${PAYMENT_METHOD_LABELS[payment.method]} ${String(payment.amount)}`)
-        .join(' + '),
-      sale.closure?.reason ?? null,
-    ]),
+    rows: sales.map((sale) => {
+      // Las ventas anteriores a la facturación electrónica no tienen estos campos (lean no
+      // aplica valores por defecto).
+      const einvoice = orNull(sale.einvoice);
+      const customer = orNull(sale.customer);
+      return [
+        sale.number,
+        sale.businessDate,
+        sale.paidAt === null ? null : formatTimeCO(sale.paidAt),
+        SALE_TYPE_LABELS[sale.type],
+        sale.tableNumber,
+        SALE_STATUS_LABELS[sale.status],
+        sale.paidBy?.name ?? null,
+        sale.lines.reduce((sum, line) => sum + line.quantity, 0),
+        sale.subtotal,
+        sale.discount?.amount ?? 0,
+        sale.total,
+        sale.payments
+          .map((payment) => `${PAYMENT_METHOD_LABELS[payment.method]} ${String(payment.amount)}`)
+          .join(' + '),
+        sale.closure?.reason ?? null,
+        einvoice?.number ?? null,
+        einvoice === null ? null : EINVOICE_STATUS_LABELS[einvoice.status],
+        einvoice?.cufe ?? null,
+        einvoice?.creditNote?.number ?? null,
+        customer === null ? null : `${customer.name} (${customer.idType} ${customer.idNumber})`,
+      ];
+    }),
   };
 }
 

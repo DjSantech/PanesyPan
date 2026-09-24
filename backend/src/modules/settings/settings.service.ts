@@ -6,6 +6,7 @@ import {
 import { trusted, Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
+import { isProviderAvailable } from '../einvoice/einvoice.config';
 import { SaleModel } from '../sales/sale.model';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
@@ -23,6 +24,13 @@ const EDITABLE_FIELDS: readonly EditableField[] = [
   'tableCount',
   'maxCashierDiscountPercent',
   'maxCashierExpense',
+  'einvoiceEnabled',
+  'einvoiceProvider',
+  'einvoiceNumberingRangeId',
+  'einvoiceCreditNoteRangeId',
+  'einvoiceSendEmail',
+  'einvoiceLegend',
+  'defaultTax',
 ];
 
 function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
@@ -37,8 +45,36 @@ function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
     tableCount: settings.tableCount,
     maxCashierDiscountPercent: settings.maxCashierDiscountPercent,
     maxCashierExpense: settings.maxCashierExpense,
+    einvoiceEnabled: settings.einvoiceEnabled,
+    einvoiceProvider: settings.einvoiceProvider,
+    einvoiceNumberingRangeId: settings.einvoiceNumberingRangeId ?? null,
+    einvoiceCreditNoteRangeId: settings.einvoiceCreditNoteRangeId ?? null,
+    einvoiceSendEmail: settings.einvoiceSendEmail,
+    einvoiceLegend: settings.einvoiceLegend,
+    defaultTax: settings.defaultTax ?? null,
     updatedAt: settings.updatedAt.toISOString(),
   };
+}
+
+/**
+ * La facturación electrónica solo se activa con lo mínimo para que las facturas salgan bien:
+ * impuesto general definido y, con un proveedor real, sus credenciales y rangos de numeración.
+ */
+function assertEInvoiceReady(settings: Omit<BusinessSettings, 'updatedAt'>): void {
+  if (!settings.einvoiceEnabled) return;
+  const invalid = (message: string): AppError => new AppError(400, 'VALIDATION_ERROR', message);
+  if (settings.defaultTax === null) {
+    throw invalid('Elige el impuesto general antes de activar la facturación electrónica.');
+  }
+  if (settings.einvoiceProvider === 'SIMULATED') return;
+  if (!isProviderAvailable(settings.einvoiceProvider)) {
+    throw invalid(
+      'Factus no está configurado en el servidor: faltan las variables FACTUS_* (ver README).',
+    );
+  }
+  if (settings.einvoiceNumberingRangeId === null || settings.einvoiceCreditNoteRangeId === null) {
+    throw invalid('Escribe los rangos de numeración de facturas y de notas crédito del proveedor.');
+  }
 }
 
 export async function getSettings(): Promise<BusinessSettings> {
@@ -76,9 +112,14 @@ export async function updateSettings(
   }
 
   // Se guardan todos los campos: la primera vez el documento nace con los valores por defecto.
+  // (`null` es un valor válido: quitar el impuesto general o el rango de numeración.)
   const next = Object.fromEntries(
-    EDITABLE_FIELDS.map((field) => [field, input[field] ?? current[field]]),
-  );
+    EDITABLE_FIELDS.map((field) => [
+      field,
+      input[field] === undefined ? current[field] : input[field],
+    ]),
+  ) as Omit<BusinessSettings, 'updatedAt'>;
+  assertEInvoiceReady(next);
   const settings = await SettingsModel.findOneAndUpdate(
     { _id: BUSINESS_SETTINGS_ID },
     { $set: { ...next, updatedBy: new Types.ObjectId(ctx.actor.id) } },

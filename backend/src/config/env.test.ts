@@ -27,6 +27,26 @@ describe('secretos de sesión y administrador inicial', () => {
   });
 });
 
+describe('credenciales de Factus', () => {
+  const factus = {
+    FACTUS_CLIENT_ID: 'cliente',
+    FACTUS_CLIENT_SECRET: 'secreto',
+    FACTUS_USERNAME: 'panaderia@example.com',
+    FACTUS_PASSWORD: 'clave',
+  };
+
+  it('son opcionales, pero van las cuatro juntas', () => {
+    expect(loadEnv(BASE).FACTUS_CLIENT_ID).toBeUndefined();
+    expect(() => loadEnv({ ...BASE, FACTUS_CLIENT_ID: 'cliente' })).toThrow(/FACTUS_PASSWORD/);
+    expect(loadEnv({ ...BASE, ...factus }).FACTUS_ENV).toBe('sandbox');
+  });
+
+  it('solo acepta los ambientes de Factus', () => {
+    expect(() => loadEnv({ ...BASE, ...factus, FACTUS_ENV: 'pruebas' })).toThrow(/FACTUS_ENV/);
+    expect(loadEnv({ ...BASE, ...factus, FACTUS_ENV: 'production' }).FACTUS_ENV).toBe('production');
+  });
+});
+
 describe('loadEnv', () => {
   it('aplica valores por defecto seguros', () => {
     const env = loadEnv(BASE);

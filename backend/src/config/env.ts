@@ -54,6 +54,14 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
   SEED_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
 
+  // Facturación electrónica con Factus (proveedor tecnológico). Las cuatro credenciales van
+  // juntas; sin ellas solo está disponible el proveedor simulado.
+  FACTUS_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  FACTUS_CLIENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  FACTUS_CLIENT_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  FACTUS_USERNAME: z.preprocess(emptyToUndefined, z.string().optional()),
+  FACTUS_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+
   // Render inyecta automáticamente el commit desplegado.
   RENDER_GIT_COMMIT: z.preprocess(emptyToUndefined, z.string().optional()),
 });
@@ -90,6 +98,21 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   ) {
     throw new EnvValidationError(
       'Para crear el primer administrador define SEED_ADMIN_USERNAME y SEED_ADMIN_PASSWORD juntos',
+    );
+  }
+
+  const factusVars = [
+    env.FACTUS_CLIENT_ID,
+    env.FACTUS_CLIENT_SECRET,
+    env.FACTUS_USERNAME,
+    env.FACTUS_PASSWORD,
+  ];
+  if (
+    factusVars.some((value) => value !== undefined) &&
+    factusVars.some((value) => value === undefined)
+  ) {
+    throw new EnvValidationError(
+      'Para usar Factus define FACTUS_CLIENT_ID, FACTUS_CLIENT_SECRET, FACTUS_USERNAME y FACTUS_PASSWORD juntos',
     );
   }
 

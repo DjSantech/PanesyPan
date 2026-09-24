@@ -1,9 +1,15 @@
 import {
+  BUYER_ID_TYPES,
   DISCOUNT_MODES,
+  EINVOICE_ENVIRONMENTS,
+  EINVOICE_STATUSES,
   PAYMENT_METHODS,
   SALE_STATUSES,
   SALE_TYPES,
+  type BuyerIdType,
   type DiscountMode,
+  type EInvoiceEnvironment,
+  type EInvoiceStatus,
   type PaymentMethod,
   type SaleStatus,
   type SaleType,
@@ -27,6 +33,29 @@ export interface SaleLineAttrs {
   isLunch: boolean;
   /** Día del menú del que se descontó la porción (solo almuerzos). */
   menuDate: string | null;
+}
+
+/** Cliente que pidió la factura a su nombre. */
+export interface SaleCustomerAttrs {
+  idType: BuyerIdType;
+  idNumber: string;
+  checkDigit: number | null;
+  name: string;
+  email: string;
+}
+
+/** Copia del estado de la factura electrónica, para mostrarla con la venta sin otra consulta. */
+export interface SaleEInvoiceAttrs {
+  documentId: Types.ObjectId;
+  status: EInvoiceStatus;
+  environment: EInvoiceEnvironment;
+  number: string | null;
+  cufe: string | null;
+  qrData: string | null;
+  publicUrl: string | null;
+  validatedAt: Date | null;
+  message: string | null;
+  creditNote: { documentId: Types.ObjectId; status: EInvoiceStatus; number: string | null } | null;
 }
 
 export interface SaleAttrs {
@@ -55,6 +84,8 @@ export interface SaleAttrs {
   businessDate: string | null;
   closure: { at: Date; by: PersonRef; approvedBy: PersonRef | null; reason: string } | null;
   clientRequestId: string | null;
+  customer: SaleCustomerAttrs | null;
+  einvoice: SaleEInvoiceAttrs | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -141,6 +172,47 @@ const saleSchema = new Schema<SaleAttrs>(
       default: null,
     },
     clientRequestId: { type: String, default: null },
+    customer: {
+      type: new Schema<SaleCustomerAttrs>(
+        {
+          idType: { type: String, enum: BUYER_ID_TYPES, required: true },
+          idNumber: { type: String, required: true },
+          checkDigit: { type: Number, default: null },
+          name: { type: String, required: true },
+          email: { type: String, default: '' },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+    einvoice: {
+      type: new Schema<SaleEInvoiceAttrs>(
+        {
+          documentId: { type: Schema.Types.ObjectId, ref: 'ElectronicDocument', required: true },
+          status: { type: String, enum: EINVOICE_STATUSES, required: true },
+          environment: { type: String, enum: EINVOICE_ENVIRONMENTS, required: true },
+          number: { type: String, default: null },
+          cufe: { type: String, default: null },
+          qrData: { type: String, default: null },
+          publicUrl: { type: String, default: null },
+          validatedAt: { type: Date, default: null },
+          message: { type: String, default: null },
+          creditNote: {
+            type: new Schema(
+              {
+                documentId: { type: Schema.Types.ObjectId, required: true },
+                status: { type: String, enum: EINVOICE_STATUSES, required: true },
+                number: { type: String, default: null },
+              },
+              { _id: false },
+            ),
+            default: null,
+          },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
   },
   { timestamps: true, strict: 'throw' },
 );

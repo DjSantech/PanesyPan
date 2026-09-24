@@ -71,6 +71,7 @@ export function toProductDto(product: ProductDocument): Product {
     isAvailable: product.isAvailable,
     isFavorite: product.isFavorite,
     trackStock: product.trackStock,
+    tax: product.tax ?? null,
     isActive: product.isActive,
     sortOrder: product.sortOrder,
     updatedAt: product.updatedAt.toISOString(),
@@ -240,6 +241,7 @@ export async function createProduct(
       isAvailable: input.isAvailable ?? true,
       isFavorite: input.isFavorite ?? false,
       trackStock: input.trackStock ?? false,
+      tax: input.tax ?? null,
     });
   } catch (error) {
     if (isDuplicateKey(error)) throw conflict('Ya existe un producto con ese nombre');
@@ -283,6 +285,10 @@ export async function updateProduct(
       changes[field] = { from: product[field], to: value };
       product[field] = value;
     }
+  }
+  if (input.tax !== undefined && input.tax !== (product.tax ?? null)) {
+    changes.tax = { from: product.tax ?? null, to: input.tax };
+    product.tax = input.tax;
   }
 
   const priceChanged = previousPrice !== product.price;

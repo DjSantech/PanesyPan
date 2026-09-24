@@ -14,6 +14,7 @@ import { rejectUnsafeKeys } from './middlewares/reject-unsafe-keys';
 import { createRequestLogger } from './middlewares/request-logger';
 import { authConfigFromEnv } from './modules/auth/auth.config';
 import { createAuthGuards } from './modules/auth/auth.middleware';
+import { configureEInvoicing } from './modules/einvoice/einvoice.config';
 import { createHealthRouter } from './modules/health/health.routes';
 import { createApiRouter } from './routes';
 
@@ -27,6 +28,7 @@ const hasApproverPin = (body: unknown): boolean =>
 export function createApp(env: Env, logger: Logger): Express {
   const app = express();
   const authConfig = authConfigFromEnv(env);
+  configureEInvoicing(env);
 
   app.disable('x-powered-by');
   app.set('trust proxy', env.TRUST_PROXY_HOPS);

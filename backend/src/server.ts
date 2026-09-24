@@ -5,6 +5,7 @@ import { EnvValidationError, loadEnv, type Env } from './config/env';
 import { createLogger } from './config/logger';
 import { authConfigFromEnv } from './modules/auth/auth.config';
 import { ensureInitialAdmin } from './modules/auth/bootstrap-admin';
+import { startEInvoiceWorker } from './modules/einvoice/einvoice.worker';
 import { createRealtime } from './modules/realtime/realtime';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -47,6 +48,7 @@ try {
 
 const server = createServer(createApp(env, logger));
 const realtime = createRealtime(server, { env, authConfig: authConfigFromEnv(env), logger });
+const stopEInvoiceWorker = startEInvoiceWorker(logger);
 
 server.listen(env.PORT, () => {
   logger.info(`API escuchando en http://localhost:${String(env.PORT)} (${env.NODE_ENV})`);
@@ -65,6 +67,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }, SHUTDOWN_TIMEOUT_MS);
   forceExit.unref();
 
+  await stopEInvoiceWorker();
   await realtime.close();
   server.close();
   server.closeIdleConnections();

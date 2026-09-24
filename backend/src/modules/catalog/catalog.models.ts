@@ -1,4 +1,4 @@
-import { CATEGORY_KINDS, type CategoryKind } from '@panesypan/shared';
+import { CATEGORY_KINDS, TAX_CODES, type CategoryKind, type TaxCode } from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
 
 // ── Categoría ──────────────────────────────────────────────────────
@@ -45,6 +45,8 @@ export interface ProductAttrs {
   isFavorite: boolean;
   /** Si descuenta inventario (Fase 1E). */
   trackStock: boolean;
+  /** Impuesto para la factura electrónica; null = el impuesto general de Ajustes. */
+  tax: TaxCode | null;
   isActive: boolean;
   sortOrder: number;
   createdAt: Date;
@@ -65,6 +67,7 @@ const productSchema = new Schema<ProductAttrs>(
     isAvailable: { type: Boolean, default: true },
     isFavorite: { type: Boolean, default: false },
     trackStock: { type: Boolean, default: false },
+    tax: { type: String, enum: [...TAX_CODES, null], default: null },
     isActive: { type: Boolean, default: true },
     sortOrder: { type: Number, default: 0 },
   },

@@ -6,6 +6,7 @@ import type { AuthGuards } from './modules/auth/auth.middleware';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
+import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
 import { notifyDashboardOnChanges } from './modules/realtime/notify-changes';
 import { createReportsRouter } from './modules/reports/reports.routes';
@@ -46,6 +47,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   );
   router.use('/inventory', createInventoryRouter(withLogger({ config: authConfig, guards })));
   router.use('/reports', createReportsRouter(withLogger({ config: authConfig, guards })));
+  router.use('/einvoices', createEInvoiceRouter(withLogger({ config: authConfig, guards })));
   router.use(createSalesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
   return router;
 }
