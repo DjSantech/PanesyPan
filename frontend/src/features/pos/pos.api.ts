@@ -1,0 +1,106 @@
+import {
+  cashShiftResponseSchema,
+  currentCashShiftResponseSchema,
+  listSalesResponseSchema,
+  saleResponseSchema,
+  type CashShift,
+  type CloseSaleRequest,
+  type CounterCheckoutRequest,
+  type ListSalesQuery,
+  type OpenCashShiftRequest,
+  type Sale,
+  type SaleLineInput,
+  type TabCheckoutRequest,
+} from '@panesypan/shared';
+import { apiJson } from '@/lib/api-client';
+
+export const posKeys = {
+  all: ['pos'] as const,
+  shift: ['pos', 'shift'] as const,
+  tabs: ['pos', 'tabs'] as const,
+  sales: (query: Partial<ListSalesQuery>) => ['pos', 'sales', query] as const,
+};
+
+// ── Caja ───────────────────────────────────────────────────────────
+
+export async function getCurrentShift(signal?: AbortSignal): Promise<CashShift | null> {
+  const { shift } = await apiJson('/api/v1/cash-shifts/current', currentCashShiftResponseSchema, {
+    signal,
+  });
+  return shift;
+}
+
+export async function openShift(input: OpenCashShiftRequest): Promise<CashShift> {
+  const { shift } = await apiJson('/api/v1/cash-shifts', cashShiftResponseSchema, {
+    method: 'POST',
+    body: input,
+  });
+  return shift;
+}
+
+// ── Ventas ─────────────────────────────────────────────────────────
+
+const saleRequest = async (
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body?: unknown,
+): Promise<Sale> => {
+  const { sale } = await apiJson(path, saleResponseSchema, { method, body });
+  return sale;
+};
+
+export function checkoutCounter(input: CounterCheckoutRequest): Promise<Sale> {
+  return saleRequest('/api/v1/sales/checkout', 'POST', input);
+}
+
+export async function listSales(
+  query: Partial<ListSalesQuery>,
+  signal?: AbortSignal,
+): Promise<Sale[]> {
+  const params = new URLSearchParams();
+  if (query.date !== undefined) params.set('date', query.date);
+  if (query.shiftId !== undefined) params.set('shiftId', query.shiftId);
+  if (query.status !== undefined) params.set('status', query.status);
+  const suffix = params.size > 0 ? `?${params.toString()}` : '';
+  const { items } = await apiJson(`/api/v1/sales${suffix}`, listSalesResponseSchema, { signal });
+  return items;
+}
+
+export function voidSale(id: string, input: CloseSaleRequest): Promise<Sale> {
+  return saleRequest(`/api/v1/sales/${id}/void`, 'POST', input);
+}
+
+// ── Mesas ──────────────────────────────────────────────────────────
+
+export async function listOpenTabs(signal?: AbortSignal): Promise<Sale[]> {
+  const { items } = await apiJson('/api/v1/tabs', listSalesResponseSchema, { signal });
+  return items;
+}
+
+export function openTab(tableNumber: number): Promise<Sale> {
+  return saleRequest('/api/v1/tabs', 'POST', { tableNumber });
+}
+
+export function moveTab(id: string, tableNumber: number): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}`, 'PATCH', { tableNumber });
+}
+
+export function addTabLine(id: string, input: SaleLineInput): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}/lines`, 'POST', input);
+}
+
+export function updateTabLine(id: string, lineId: string, quantity: number): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}/lines/${lineId}`, 'PATCH', { quantity });
+}
+
+export function removeTabLine(id: string, lineId: string): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}/lines/${lineId}`, 'DELETE');
+}
+
+export function checkoutTab(id: string, input: TabCheckoutRequest): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}/checkout`, 'POST', input);
+}
+
+export function cancelTab(id: string, input: CloseSaleRequest): Promise<Sale> {
+  return saleRequest(`/api/v1/tabs/${id}/cancel`, 'POST', input);
+}

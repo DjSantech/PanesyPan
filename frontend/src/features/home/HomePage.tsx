@@ -1,6 +1,18 @@
 import { formatLongDateCO, hasPermission } from '@panesypan/shared';
-import { Activity, ChevronRight, ScrollText, Store, Users, type LucideIcon } from 'lucide-react';
-import { Link } from 'react-router';
+import {
+  Activity,
+  ChevronRight,
+  Croissant,
+  ReceiptText,
+  ScrollText,
+  Settings,
+  ShoppingBasket,
+  Soup,
+  Store,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
+import { Link, Navigate } from 'react-router';
 import { Badge, Card, CardContent } from '@/components/ui/surface';
 import { firstName } from '@/lib/utils';
 import { useCurrentUser } from '../auth/use-session';
@@ -14,6 +26,30 @@ interface Shortcut {
 
 const ADMIN_SHORTCUTS: readonly Shortcut[] = [
   {
+    to: '/vender',
+    title: 'Vender',
+    description: 'Mostrador y mesas: cobra, da cambio e imprime el tiquete.',
+    icon: ShoppingBasket,
+  },
+  {
+    to: '/ventas',
+    title: 'Ventas del día',
+    description: 'Lo vendido por medio de pago, reimpresiones y anulaciones.',
+    icon: ReceiptText,
+  },
+  {
+    to: '/catalogo',
+    title: 'Catálogo',
+    description: 'Productos, precios, categorías y agotados.',
+    icon: Croissant,
+  },
+  {
+    to: '/menu-del-dia',
+    title: 'Menú del día',
+    description: 'Sopa, principio, proteínas y porciones de almuerzo.',
+    icon: Soup,
+  },
+  {
     to: '/usuarios',
     title: 'Usuarios',
     description: 'Crea cajeras, restablece contraseñas y PIN.',
@@ -26,6 +62,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     icon: ScrollText,
   },
   {
+    to: '/configuracion',
+    title: 'Ajustes',
+    description: 'Datos del tiquete, número de mesas y tope de descuentos.',
+    icon: Settings,
+  },
+  {
     to: '/estado',
     title: 'Estado del sistema',
     description: 'Revisa que la API y la base de datos estén en línea.',
@@ -34,9 +76,8 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
 ];
 
 const UPCOMING = [
-  'Catálogo y menú del día',
-  'Punto de venta y mesas',
-  'Caja y arqueo',
+  'Cierre de caja y arqueo',
+  'Egresos y retiros',
   'Inventario',
   'Estadísticas en tiempo real',
 ];
@@ -45,6 +86,9 @@ export function HomePage() {
   const user = useCurrentUser();
   const isAdmin = hasPermission(user.role, 'users:manage');
   const today = formatLongDateCO(new Date());
+
+  // La cajera empieza directo en el punto de venta.
+  if (!hasPermission(user.role, 'reports:read')) return <Navigate to="/vender" replace />;
 
   return (
     <div className="grid gap-6">
@@ -94,9 +138,9 @@ export function HomePage() {
             <Store className="size-7" aria-hidden="true" />
           </span>
           <div className="grid flex-1 gap-2">
-            <p className="font-extrabold">Muy pronto aquí estará el punto de venta</p>
+            <p className="font-extrabold">Lo que viene en el sistema</p>
             <p className="text-sm text-muted-foreground">
-              Estamos construyendo el sistema por etapas. Lo que viene:
+              El punto de venta ya está listo. Estamos construyendo el resto por etapas:
             </p>
             <ul className="flex flex-wrap gap-2">
               {UPCOMING.map((item) => (

@@ -64,6 +64,71 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'catalogo',
+            lazy: async () => {
+              const { CatalogPage } = await import('@/features/catalog/CatalogPage');
+              return {
+                element: (
+                  <RequirePermission permission="catalog:read">
+                    <CatalogPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'menu-del-dia',
+            lazy: async () => {
+              const { DailyMenuPage } = await import('@/features/catalog/DailyMenuPage');
+              return {
+                element: (
+                  <RequirePermission permission="catalog:manage">
+                    <DailyMenuPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'vender',
+            lazy: async () => {
+              const { PosPage } = await import('@/features/pos/PosPage');
+              return {
+                element: (
+                  <RequirePermission permission="pos:sell">
+                    <PosPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'ventas',
+            lazy: async () => {
+              const { SalesPage } = await import('@/features/sales/SalesPage');
+              return {
+                element: (
+                  <RequirePermission permission="pos:sell">
+                    <SalesPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
+            path: 'configuracion',
+            lazy: async () => {
+              const { SettingsPage } = await import('@/features/settings/SettingsPage');
+              return {
+                element: (
+                  <RequirePermission permission="settings:manage">
+                    <SettingsPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'mi-cuenta',
             lazy: async () => {
               const { AccountPage } = await import('@/features/account/AccountPage');

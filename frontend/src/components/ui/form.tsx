@@ -55,7 +55,7 @@ interface FieldProps {
 /** Etiqueta + control + ayuda + error, con los atributos ARIA conectados. */
 export function Field({ id, label, hint, error, children, className }: FieldProps) {
   return (
-    <div className={cn('grid gap-1.5', className)}>
+    <div className={cn('grid content-start gap-1.5', className)}>
       <Label htmlFor={id}>{label}</Label>
       {children}
       {error !== null && error !== undefined && error.length > 0 ? (

@@ -135,3 +135,21 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Tiquete: al imprimir solo se ve el área del tiquete (el resto de la página se oculta). */
+.print-area {
+  display: none;
+}
+
+@media print {
+  body > :not(.print-area) {
+    display: none !important;
+  }
+  .print-area {
+    display: block;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+}

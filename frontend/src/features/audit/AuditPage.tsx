@@ -1,6 +1,7 @@
 import {
   AUDIT_ACTION_LABELS,
   AUDIT_ACTIONS,
+  formatCOP,
   formatDateTimeCO,
   SECURITY_ALERT_ACTIONS,
   USER_ROLE_LABELS,
@@ -24,7 +25,46 @@ const REASON_LABELS: Record<string, string> = {
   INACTIVE: 'usuario desactivado',
 };
 
-const FIELD_LABELS: Record<string, string> = { name: 'nombre', email: 'correo', role: 'rol' };
+const FIELD_LABELS: Record<string, string> = {
+  name: 'nombre',
+  email: 'correo',
+  role: 'rol',
+  price: 'precio',
+  category: 'categoría',
+  isFavorite: 'favorito',
+  trackStock: 'controla inventario',
+  isActive: 'activo',
+  kind: 'tipo',
+  legalName: 'razón social',
+  taxId: 'NIT',
+  address: 'dirección',
+  phone: 'teléfono',
+  ticketFooter: 'pie del tiquete',
+  ticketWidth: 'ancho del papel',
+  tableCount: 'mesas',
+  maxCashierDiscountPercent: 'descuento máximo sin PIN',
+};
+
+const PURPOSE_LABELS: Record<string, string> = {
+  DISCOUNT: 'para un descuento',
+  VOID: 'para anular una venta',
+  CANCEL_TAB: 'para cancelar una mesa',
+};
+
+/** Formatea el valor de un cambio según el campo (precios en pesos, sí/no, roles…). */
+function formatChangeValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '(vacío)';
+  if (field === 'price' && typeof value === 'number') return formatCOP(value);
+  if (field === 'maxCashierDiscountPercent' && typeof value === 'number')
+    return `${String(value)} %`;
+  if (field === 'ticketWidth' && typeof value === 'string') return `${value} mm`;
+  if (typeof value === 'boolean') return value ? 'sí' : 'no';
+  if (field === 'role' && typeof value === 'string' && value in USER_ROLE_LABELS) {
+    return USER_ROLE_LABELS[value as keyof typeof USER_ROLE_LABELS];
+  }
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return JSON.stringify(value);
+}
 
 /** Resumen legible de los detalles guardados en cada evento. */
 function describeDetails(log: AuditLog): string | null {
@@ -44,18 +84,33 @@ function describeDetails(log: AuditLog): string | null {
     for (const [field, change] of Object.entries(
       metadata.changes as Record<string, { from: unknown; to: unknown }>,
     )) {
-      const format = (value: unknown) =>
-        field === 'role' && typeof value === 'string' && value in USER_ROLE_LABELS
-          ? USER_ROLE_LABELS[value as keyof typeof USER_ROLE_LABELS]
-          : value === null
-            ? '(vacío)'
-            : typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-              ? String(value)
-              : JSON.stringify(value);
-      parts.push(`${FIELD_LABELS[field] ?? field}: ${format(change.from)} → ${format(change.to)}`);
+      parts.push(
+        `${FIELD_LABELS[field] ?? field}: ${formatChangeValue(field, change.from)} → ${formatChangeValue(field, change.to)}`,
+      );
     }
   }
+  if (typeof metadata.isAvailable === 'boolean') {
+    parts.push(metadata.isAvailable ? 'marcado como disponible' : 'marcado como agotado');
+  }
+  if (typeof metadata.price === 'number') parts.push(`precio ${formatCOP(metadata.price)}`);
+  if (typeof metadata.table === 'number') parts.push(`mesa ${String(metadata.table)}`);
+  if (typeof metadata.product === 'string') {
+    const quantity = typeof metadata.quantity === 'number' ? `${String(metadata.quantity)} × ` : '';
+    parts.push(`quitó ${quantity}${metadata.product}`);
+  }
+  if (typeof metadata.total === 'number') parts.push(`valor ${formatCOP(metadata.total)}`);
+  if (typeof metadata.discount === 'number')
+    parts.push(`descuento ${formatCOP(metadata.discount)}`);
+  if (typeof metadata.openingAmount === 'number') {
+    parts.push(`base ${formatCOP(metadata.openingAmount)}`);
+  }
+  if (typeof metadata.purpose === 'string') {
+    parts.push(PURPOSE_LABELS[metadata.purpose] ?? metadata.purpose);
+  }
+  if (typeof metadata.note === 'string') parts.push(`motivo: “${metadata.note}”`);
+  if (typeof metadata.approvedBy === 'string') parts.push(`autorizó ${metadata.approvedBy}`);
   if (metadata.source === 'SEED_ADMIN') parts.push('administrador inicial');
+  if (metadata.source === 'SCRIPT') parts.push('restablecida por script de recuperación');
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
@@ -70,7 +125,10 @@ function AuditItem({ log }: { log: AuditLog }) {
         ) : null}
         <span className="font-extrabold">{AUDIT_ACTION_LABELS[log.action]}</span>
         {log.entity !== null && log.entity.label !== null ? (
-          <Badge>@{log.entity.label}</Badge>
+          <Badge>
+            {log.entity.type === 'USER' ? '@' : ''}
+            {log.entity.label}
+          </Badge>
         ) : null}
       </div>
       <p className="text-sm text-muted-foreground">

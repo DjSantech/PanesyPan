@@ -1,7 +1,7 @@
 import { BUSINESS_NAME, hasPermission, USER_ROLE_LABELS } from '@panesypan/shared';
 import { CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
 import { useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,9 @@ export function AppLayout() {
   const items = NAV_ITEMS.filter(
     (item) => item.permission === undefined || hasPermission(user.role, item.permission),
   );
+  const mobileItems = items.filter((item) => item.mobile !== false);
+  // El punto de venta usa todo el ancho de la tablet.
+  const isPos = useMatch('/vender') !== null;
 
   const signOut = async () => {
     await logout();
@@ -76,7 +79,12 @@ export function AppLayout() {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
+        <div
+          className={cn(
+            'mx-auto flex h-16 items-center gap-3 px-4',
+            isPos ? 'max-w-screen-2xl' : 'max-w-6xl',
+          )}
+        >
           <Link
             to="/"
             className="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -104,7 +112,9 @@ export function AppLayout() {
                   }
                 >
                   <item.icon className="size-4.5" aria-hidden="true" />
-                  {item.label}
+                  <span className={items.length > 5 ? 'sr-only xl:not-sr-only' : undefined}>
+                    {item.label}
+                  </span>
                 </NavLink>
               ))}
             </nav>
@@ -192,21 +202,28 @@ export function AppLayout() {
 
       <main
         id="contenido"
-        className={cn('mx-auto max-w-6xl px-4 py-6', items.length > 1 && 'pb-28 md:pb-10')}
+        className={cn(
+          'mx-auto px-4',
+          isPos ? 'max-w-screen-2xl py-4' : 'max-w-6xl py-6',
+          mobileItems.length > 1 && 'pb-28 md:pb-10',
+          isPos && mobileItems.length > 1 && 'pb-44 md:pb-4',
+        )}
       >
         <Outlet />
       </main>
 
-      {items.length > 1 ? (
+      {mobileItems.length > 1 ? (
         <nav
           aria-label="Principal"
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
         >
           <ul
             className="mx-auto grid max-w-md"
-            style={{ gridTemplateColumns: `repeat(${String(items.length)}, minmax(0, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${String(mobileItems.length)}, minmax(0, 1fr))`,
+            }}
           >
-            {items.map((item) => (
+            {mobileItems.map((item) => (
               <li key={item.to}>
                 <NavLink
                   to={item.to}
