@@ -56,6 +56,18 @@ export type ReorderCategoriesRequest = z.infer<typeof reorderCategoriesRequestSc
 
 // ── Productos ──────────────────────────────────────────────────────
 
+/** Descripción corta del producto: la ven las meseras en el POS y los clientes en la web. */
+export const PRODUCT_DESCRIPTION_MAX = 300;
+const descriptionSchema = z
+  .string()
+  .trim()
+  .max(PRODUCT_DESCRIPTION_MAX, `Máximo ${String(PRODUCT_DESCRIPTION_MAX)} caracteres`);
+
+/** Imágenes de producto: el navegador las reduce antes de subirlas; este es el tope del servidor. */
+export const PRODUCT_IMAGE_TYPES = ['image/webp', 'image/jpeg', 'image/png'] as const;
+export type ProductImageType = (typeof PRODUCT_IMAGE_TYPES)[number];
+export const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
 /** Precio final en pesos (ya incluye impuestos). */
 export const priceSchema = z
   .int('El precio debe ser un número entero de pesos')
@@ -73,6 +85,11 @@ export const productSchema = z.object({
   trackStock: z.boolean(),
   /** Impuesto del producto; null = el impuesto general de Ajustes. */
   tax: z.enum(TAX_CODES).nullable(),
+  description: z.string(),
+  /** Ruta de la imagen en la API (se le antepone la URL de la API), o null sin imagen. */
+  imagePath: z.string().nullable(),
+  /** Aparece en la web pública (Fase 2). */
+  isVisibleOnline: z.boolean(),
   isActive: z.boolean(),
   sortOrder: z.int(),
   updatedAt: z.iso.datetime(),
@@ -97,6 +114,15 @@ export const createProductRequestSchema = z.strictObject({
   isFavorite: z.boolean().default(false),
   trackStock: z.boolean().default(false),
   tax: z.enum(TAX_CODES).nullable().default(null),
+  description: descriptionSchema.default(''),
+  isVisibleOnline: z.boolean().default(true),
+  /** Unidades con las que arranca el inventario (solo si controla inventario). */
+  initialStock: z
+    .int('El stock debe ser un número entero')
+    .min(0, 'El stock no puede ser negativo')
+    .max(10_000, 'El stock es demasiado alto')
+    .nullable()
+    .default(null),
 });
 export type CreateProductRequest = z.input<typeof createProductRequestSchema>;
 
@@ -108,6 +134,8 @@ export const updateProductRequestSchema = z
     isFavorite: z.boolean().optional(),
     trackStock: z.boolean().optional(),
     tax: z.enum(TAX_CODES).nullable().optional(),
+    description: descriptionSchema.optional(),
+    isVisibleOnline: z.boolean().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
