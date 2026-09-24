@@ -37,15 +37,44 @@ export async function findOpenShift(
   );
 }
 
-/** Para cobrar hay que tener la caja abierta: así cada peso queda en el turno de alguien. */
+/**
+ * Para cobrar hay que tener la caja abierta: así cada peso queda en el turno de alguien.
+ * Dentro de una transacción además reclama la caja (ver `claimOpenShift`).
+ */
 export async function requireOpenShift(
   userId: string,
   session?: ClientSession,
 ): Promise<CashShiftDocument> {
-  const shift = await findOpenShift(userId, session);
+  const shift =
+    session === undefined
+      ? await findOpenShift(userId)
+      : await CashShiftModel.findOneAndUpdate(
+          { userId: new Types.ObjectId(userId), status: 'OPEN' },
+          { $inc: { revision: 1 } },
+          { returnDocument: 'after', session },
+        );
   if (shift === null) {
     throw new AppError(409, 'CASH_SHIFT_REQUIRED', 'Abre la caja antes de cobrar.');
   }
+  return shift;
+}
+
+/**
+ * Reclama una caja abierta dentro de la transacción. Una lectura no basta: con aislamiento
+ * de snapshot, un cobro y el cierre de la misma caja (o dos retiros) no chocan si solo uno
+ * escribe la caja. Escribiendo ambos el mismo documento, MongoDB aborta uno y
+ * `connection.transaction` lo reintenta viendo el estado nuevo.
+ */
+export async function claimOpenShift(
+  shiftId: Types.ObjectId,
+  session: ClientSession,
+): Promise<CashShiftDocument> {
+  const shift = await CashShiftModel.findOneAndUpdate(
+    { _id: shiftId, status: 'OPEN' },
+    { $inc: { revision: 1 } },
+    { returnDocument: 'after', session },
+  );
+  if (shift === null) throw conflict('La caja de esta venta ya se cerró: no se puede anular.');
   return shift;
 }
 

@@ -710,6 +710,37 @@ describe('anulación y consulta de ventas', () => {
     expect(listSalesResponseSchema.parse(all.body).items).toHaveLength(2);
   });
 
+  it('la cajera consulta ventas de su caja y cuentas abiertas, no las de otra caja', async () => {
+    const mine = await sell(cashier);
+    const theirs = await sell(otherCashier);
+    const tab = saleOf((await send(otherCashier, 'post', '/tabs', { tableNumber: 3 })).body);
+
+    await cashier.agent.get(`/api/v1/sales/${mine.id}`).expect(200);
+    await cashier.agent.get(`/api/v1/sales/${tab.id}`).expect(200);
+    const denied = await cashier.agent.get(`/api/v1/sales/${theirs.id}`);
+    expect(denied.status).toBe(404);
+    await admin.agent.get(`/api/v1/sales/${theirs.id}`).expect(200);
+  });
+
+  it('un identificador de cobro ya usado no cobra la cuenta de una mesa', async () => {
+    const counter = await sell(cashier);
+    const stored = await SaleModel.findById(counter.id).orFail();
+    const tab = saleOf((await send(cashier, 'post', '/tabs', { tableNumber: 2 })).body);
+    await send(cashier, 'post', `/tabs/${tab.id}/lines`, {
+      productId: products.bread,
+      quantity: 1,
+    }).expect(200);
+
+    const response = await send(cashier, 'post', `/tabs/${tab.id}/checkout`, {
+      clientRequestId: stored.clientRequestId,
+      expectedTotal: 2_000,
+      discount: null,
+      payments: [{ method: 'CASH', amount: 2_000 }],
+    });
+    expect(response.status).toBe(409);
+    expect((await SaleModel.findById(tab.id).orFail()).status).toBe('OPEN');
+  });
+
   it('exige sesión y token CSRF', async () => {
     const anonymous = await request(app).get('/api/v1/tabs');
     expect(anonymous.status).toBe(401);

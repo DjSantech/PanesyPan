@@ -19,7 +19,7 @@ import type { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { CashShiftModel, type CashShiftDocument } from '../cash/cash-shift.model';
-import { findOpenShift, requireOpenShift } from '../cash/cash.service';
+import { claimOpenShift, findOpenShift, requireOpenShift } from '../cash/cash.service';
 import { applySaleStock } from '../inventory/inventory.service';
 import { getSettings } from '../settings/settings.service';
 import type { UserDocument } from '../users/user.model';
@@ -283,17 +283,24 @@ export async function checkoutTab(
     ? await resolveApproval(ctx, input.approverPin, 'DISCOUNT')
     : null;
 
-  const sale = await runInTransaction(async (session) => {
-    const tab = await findSaleOrThrow(id, session);
-    assertOpenTab(tab);
-    const shift = await requireOpenShift(ctx.actor.id, session);
-    // Si otra cajera agregó algo mientras se cobraba, el total cambia y se avisa.
-    const prepared = prepareCheckout(tab.lines, input, settings.maxCashierDiscountPercent);
-    await applyCheckout(tab, prepared, input, { actor: ctx.actor, approver, shift, session });
-    await applySaleStock(tab.lines, 1, personOf(ctx.actor), tab._id, session);
-    await tab.save({ session });
-    return tab;
-  });
+  let sale: SaleDocument;
+  try {
+    sale = await runInTransaction(async (session) => {
+      const tab = await findSaleOrThrow(id, session);
+      assertOpenTab(tab);
+      const shift = await requireOpenShift(ctx.actor.id, session);
+      // Si otra cajera agregó algo mientras se cobraba, el total cambia y se avisa.
+      const prepared = prepareCheckout(tab.lines, input, settings.maxCashierDiscountPercent);
+      await applyCheckout(tab, prepared, input, { actor: ctx.actor, approver, shift, session });
+      await applySaleStock(tab.lines, 1, personOf(ctx.actor), tab._id, session);
+      await tab.save({ session });
+      return tab;
+    });
+  } catch (error) {
+    // El identificador del cobro ya lo usó otra venta: nunca se cobra dos veces.
+    if (isDuplicateKey(error)) throw conflict('Esta venta ya se registró.');
+    throw error;
+  }
 
   await auditDiscountApproval(sale, approver, ctx);
   return toSaleDto(sale);
@@ -324,6 +331,8 @@ export async function voidSale(
   const voided = await runInTransaction(async (session) => {
     const doc = await findSaleOrThrow(id, session);
     if (doc.status !== 'PAID') throw conflict('La venta ya fue anulada.');
+    // La caja pudo cerrarse mientras se digitaba el PIN.
+    await claimOpenShift(shift._id, session);
     doc.status = 'VOIDED';
     doc.closure = {
       at: new Date(),
@@ -377,6 +386,16 @@ export async function listSales(query: ListSalesQuery, ctx: ActorContext): Promi
   return sales.map(toSaleDto);
 }
 
-export async function getSale(id: string): Promise<Sale> {
-  return toSaleDto(await findSaleOrThrow(id));
+/**
+ * Mismo alcance que el listado: la cajera ve las cuentas abiertas (las mesas son compartidas)
+ * y las ventas de su caja abierta; el historial completo es de quien tiene reportes.
+ */
+export async function getSale(id: string, ctx: ActorContext): Promise<Sale> {
+  const sale = await findSaleOrThrow(id);
+  if (hasPermission(ctx.actor.role, 'reports:read') || sale.status === 'OPEN') {
+    return toSaleDto(sale);
+  }
+  const shift = await findOpenShift(ctx.actor.id);
+  if (shift === null || sale.shiftId?.equals(shift._id) !== true) throw notFound();
+  return toSaleDto(sale);
 }

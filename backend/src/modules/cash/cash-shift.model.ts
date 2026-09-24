@@ -26,6 +26,12 @@ export interface CashShiftAttrs {
   closedAt: Date | null;
   /** Arqueo al cerrar (null mientras la caja siga abierta). */
   closing: CashShiftClosingAttrs | null;
+  /**
+   * Contador que sube en cada transacción que depende de que la caja siga abierta (cobrar,
+   * anular, egresos, cierre). Al escribir todas el mismo documento, MongoDB detecta el choque,
+   * aborta una y la reintenta con los datos frescos.
+   */
+  revision: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +75,7 @@ const cashShiftSchema = new Schema<CashShiftAttrs>(
       ),
       default: null,
     },
+    revision: { type: Number, default: 0 },
   },
   { timestamps: true, strict: 'throw' },
 );

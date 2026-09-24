@@ -175,6 +175,19 @@ describe('egresos y retiros', () => {
     expect(errorOf(response.body).code).toBe('CONFLICT');
     expect((await currentOf(cashier))?.summary.expensesTotal).toBe(0);
   });
+
+  it('dos retiros a la vez no sacan más efectivo del que hay', async () => {
+    await openShift(admin, 50_000).expect(201);
+    const [first, second] = await Promise.all([
+      move(admin, { type: 'WITHDRAWAL', amount: 40_000, reason: 'Consignación' }),
+      move(admin, { type: 'WITHDRAWAL', amount: 40_000, reason: 'Consignación' }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect((await currentOf(admin))?.summary).toMatchObject({
+      withdrawalsTotal: 40_000,
+      expectedCash: 10_000,
+    });
+  });
 });
 
 describe('cierre de caja con arqueo', () => {
@@ -267,6 +280,24 @@ describe('cierre de caja con arqueo', () => {
       409,
     );
     expect((await close(cashier, { counts: [] })).status).toBe(409);
+  });
+
+  it('una venta y el cierre a la vez: la venta nunca queda en una caja cerrada', async () => {
+    await openShift(cashier).expect(201);
+    const [sold, closed] = await Promise.all([
+      send(cashier, 'post', '/sales/checkout', sale(1)),
+      close(cashier, { counts: fullBill, note: 'Cierre con venta simultánea' }),
+    ]);
+    expect(closed.status).toBe(200);
+    const { shift } = cashShiftResponseSchema.parse(closed.body);
+    if (sold.status === 201) {
+      // La venta entró antes del cierre: el arqueo la cuenta.
+      expect(shift.summary.salesCount).toBe(1);
+      expect(shift.closing?.expectedCash).toBe(102_000);
+    } else {
+      expect(errorOf(sold.body).code).toBe('CASH_SHIFT_REQUIRED');
+      expect(shift.summary.salesCount).toBe(0);
+    }
   });
 
   it('después de cerrar se puede abrir una caja nueva', async () => {

@@ -70,7 +70,7 @@ export function createSalesRouter(deps: SalesRouterDeps): Router {
     res.json({ items: await listSales(query, posContext(req)) });
   });
   router.get('/sales/:id', ...canSell, async (req, res) => {
-    res.json({ sale: await getSale(parseIdParam(req)) });
+    res.json({ sale: await getSale(parseIdParam(req), posContext(req)) });
   });
   router.post('/sales/:id/void', ...withApproval, async (req, res) => {
     const input = parseBody(req, closeSaleRequestSchema);
