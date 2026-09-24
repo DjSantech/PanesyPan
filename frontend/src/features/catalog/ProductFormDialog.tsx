@@ -149,7 +149,7 @@ export function ProductFormDialog({
           <CheckboxField
             id="product-stock"
             label="Controlar inventario"
-            description="Descuenta unidades al vender (se usará en la etapa de inventario)."
+            description="Descuenta unidades al vender. Sin producción registrada en Inventario no se podrá vender."
             checked={trackStock}
             onCheckedChange={setTrackStock}
           />

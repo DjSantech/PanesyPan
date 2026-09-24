@@ -1,5 +1,6 @@
 import type { Permission } from '@panesypan/shared';
 import {
+  Boxes,
   Croissant,
   House,
   ReceiptText,
@@ -23,14 +24,21 @@ export interface NavItem {
 
 /**
  * En el celular caben máximo 5 elementos en la barra inferior. La cajera ve Vender, Ventas y
- * Catálogo; el administrador además el inicio y el menú, y el resto desde los accesos del inicio.
+ * Catálogo e Inventario; el administrador además el inicio, y el resto desde los accesos del inicio.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Inicio', icon: House, permission: 'reports:read' },
   { to: '/vender', label: 'Vender', icon: ShoppingBasket, permission: 'pos:sell' },
   { to: '/ventas', label: 'Ventas', icon: ReceiptText, permission: 'pos:sell' },
   { to: '/catalogo', label: 'Catálogo', icon: Croissant, permission: 'catalog:read' },
-  { to: '/menu-del-dia', label: 'Menú', icon: Soup, permission: 'catalog:manage' },
+  { to: '/inventario', label: 'Inventario', icon: Boxes, permission: 'inventory:read' },
+  {
+    to: '/menu-del-dia',
+    label: 'Menú',
+    icon: Soup,
+    permission: 'catalog:manage',
+    mobile: false,
+  },
   { to: '/usuarios', label: 'Usuarios', icon: Users, permission: 'users:manage', mobile: false },
   {
     to: '/auditoria',

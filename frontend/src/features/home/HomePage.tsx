@@ -1,6 +1,7 @@
 import { formatLongDateCO, hasPermission } from '@panesypan/shared';
 import {
   Activity,
+  Boxes,
   ChevronRight,
   Croissant,
   ReceiptText,
@@ -44,6 +45,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     icon: Croissant,
   },
   {
+    to: '/inventario',
+    title: 'Inventario',
+    description: 'Stock, producción diaria de pan, mermas y alertas de bajo stock.',
+    icon: Boxes,
+  },
+  {
     to: '/menu-del-dia',
     title: 'Menú del día',
     description: 'Sopa, principio, proteínas y porciones de almuerzo.',
@@ -75,12 +82,7 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
   },
 ];
 
-const UPCOMING = [
-  'Cierre de caja y arqueo',
-  'Egresos y retiros',
-  'Inventario',
-  'Estadísticas en tiempo real',
-];
+const UPCOMING = ['Cierre de caja y arqueo', 'Egresos y retiros', 'Estadísticas en tiempo real'];
 
 export function HomePage() {
   const user = useCurrentUser();
