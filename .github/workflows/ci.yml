@@ -1,0 +1,74 @@
+# Integración continua: cada push a main y cada pull request pasan por las mismas
+# revisiones que `pnpm check`, el build de producción y las pruebas de punta a punta.
+# No usa secretos: las pruebas levantan su propia base de datos en memoria.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Binario de MongoDB para las pruebas (mongodb-memory-server), guardado en caché.
+  MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+
+jobs:
+  check:
+    name: Tipos, lint, formato, pruebas y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - name: Build de producción
+        run: pnpm build
+        env:
+          VITE_API_URL: https://api.panesypan.com
+
+  e2e:
+    name: Pruebas de punta a punta
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - name: Navegador de Playwright
+        run: pnpm --filter @panesypan/e2e exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - name: Reporte si algo falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-e2e
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
