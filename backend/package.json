@@ -10,6 +10,8 @@
     "build": "tsup",
     "start": "node dist/server.js",
     "seed:admin": "tsx --env-file-if-exists=.env scripts/seed-admin.ts",
+    "seed:catalog": "tsx --env-file-if-exists=.env scripts/seed-catalog.ts",
+    "reset:password": "tsx --env-file-if-exists=.env scripts/reset-password.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",

@@ -20,6 +20,9 @@ import { createApiRouter } from './routes';
 const JSON_BODY_LIMIT = '100kb';
 const CREDENTIALS_WINDOW_MS = 15 * 60_000;
 
+const hasApproverPin = (body: unknown): boolean =>
+  typeof body === 'object' && body !== null && 'approverPin' in body;
+
 /** Crea la aplicación Express. No abre puertos ni conexiones: así se puede probar con Supertest. */
 export function createApp(env: Env, logger: Logger): Express {
   const app = express();
@@ -60,6 +63,14 @@ export function createApp(env: Env, logger: Logger): Express {
         limit: env.AUTH_RATE_LIMIT_MAX,
         trustCloudflareHeader: authConfig.trustCloudflareHeader,
         onlyCountFailures: true,
+      }),
+      // Solo cuentan los PIN de administrador equivocados (cada sesión además tiene su tope).
+      approvalLimiter: createRateLimiter({
+        windowMs: CREDENTIALS_WINDOW_MS,
+        limit: env.AUTH_RATE_LIMIT_MAX,
+        trustCloudflareHeader: authConfig.trustCloudflareHeader,
+        onlyCountFailures: true,
+        skip: (req) => !hasApproverPin(req.body),
       }),
       logger,
     }),

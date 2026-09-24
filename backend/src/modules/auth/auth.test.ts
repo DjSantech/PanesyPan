@@ -47,7 +47,12 @@ describe('POST /auth/login', () => {
     expect(response.status).toBe(200);
     const body = authSessionResponseSchema.parse(response.body);
     expect(body.user).toMatchObject({ username: 'laura', role: 'CASHIER', hasPin: true });
-    expect(body.user.permissions).toEqual(['pos:sell', 'cash:operate']);
+    expect(body.user.permissions).toEqual([
+      'pos:sell',
+      'cash:operate',
+      'catalog:read',
+      'catalog:availability',
+    ]);
     expect(body.session.locked).toBe(false);
     expect(body.csrfToken.length).toBeGreaterThan(20);
     expect(response.headers['cache-control']).toBe('no-store');
