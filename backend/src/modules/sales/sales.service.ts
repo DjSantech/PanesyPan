@@ -20,6 +20,7 @@ import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { CashShiftModel, type CashShiftDocument } from '../cash/cash-shift.model';
 import { findOpenShift, requireOpenShift } from '../cash/cash.service';
+import { applySaleStock } from '../inventory/inventory.service';
 import { getSettings } from '../settings/settings.service';
 import type { UserDocument } from '../users/user.model';
 import { toAuditActor } from '../users/users.mapper';
@@ -239,6 +240,7 @@ export async function checkoutCounter(
         openedAt: new Date(),
       });
       await applyCheckout(created, prepared, input, { actor: ctx.actor, approver, shift, session });
+      await applySaleStock(lines, 1, personOf(ctx.actor), created._id, session);
       await created.save({ session });
       return created;
     });
@@ -288,6 +290,7 @@ export async function checkoutTab(
     // Si otra cajera agregó algo mientras se cobraba, el total cambia y se avisa.
     const prepared = prepareCheckout(tab.lines, input, settings.maxCashierDiscountPercent);
     await applyCheckout(tab, prepared, input, { actor: ctx.actor, approver, shift, session });
+    await applySaleStock(tab.lines, 1, personOf(ctx.actor), tab._id, session);
     await tab.save({ session });
     return tab;
   });
@@ -329,6 +332,7 @@ export async function voidSale(
       reason: input.reason,
     };
     await adjustPortions(portionChangesOf(doc.lines, -1), session);
+    await applySaleStock(doc.lines, -1, personOf(ctx.actor), doc._id, session);
     await doc.save({ session });
     return doc;
   });

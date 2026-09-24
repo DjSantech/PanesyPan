@@ -77,6 +77,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'inventario',
+            lazy: async () => {
+              const { InventoryPage } = await import('@/features/inventory/InventoryPage');
+              return {
+                element: (
+                  <RequirePermission permission="inventory:read">
+                    <InventoryPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'menu-del-dia',
             lazy: async () => {
               const { DailyMenuPage } = await import('@/features/catalog/DailyMenuPage');

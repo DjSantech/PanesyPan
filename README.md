@@ -286,6 +286,19 @@ El botón **Caja** del punto de venta muestra el efectivo esperado (base + venta
 - **Cierre con arqueo:** se cuentan billetes y monedas por denominación. El sistema calcula el sobrante o faltante; si no cuadra exacto, la nota es obligatoria. No se puede cerrar con mesas abiertas, y una caja cerrada no admite más ventas, egresos ni anulaciones.
 - Egresos, retiros y cierres (con la diferencia) quedan en la auditoría.
 
+### Inventario
+
+**Ruta:** `/inventario`. Solo controla los productos con **"Controlar inventario"** activo en el catálogo (pan, pandebonos, buñuelos…); bebidas y almuerzos siguen sin descontar.
+
+1. **Producción.** En la pestaña "Producción de hoy" se registra cuántas unidades salieron del horno; se suman al stock. Lo puede hacer la cajera.
+2. **Mermas.** Unidades perdidas (vencido, dañado, quemado, devuelto u otro motivo). Nunca dejan el stock negativo. Lo puede hacer la cajera.
+3. **Ventas.** Al cobrar (mostrador o mesa) se descuentan las unidades, y al anular la venta se devuelven. Si no alcanza el stock, el cobro se rechaza completo con el mensaje "Solo quedan N unidades de …". Un producto con inventario que nunca tuvo producción registrada no se puede vender: registra primero la producción del día.
+4. **Alertas.** El administrador define un **stock mínimo** por producto; cuando el stock llega a ese valor o baja de él, se muestra un aviso en la página y el badge "Bajo stock". Con mínimo 0 no hay alerta.
+5. **Ajustes.** El administrador corrige el stock con un conteo físico (la nota es obligatoria) y se guarda la diferencia.
+6. **Trazabilidad.** Cada movimiento (producción, merma, ajuste, venta y anulación) queda en un libro de solo inserción con quién lo hizo, y producción, mermas, ajustes y cambios de mínimo quedan en la auditoría.
+
+Las cantidades son unidades enteras (máximo 10.000 por movimiento).
+
 ### Impresora térmica
 
 El tiquete se imprime con el diálogo de impresión del navegador:
@@ -471,7 +484,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1B   | Catálogo (categorías, productos, precios, agotados) y menú del día                                             | ✅     |
 | 1C   | Apertura de caja y POS: ventas, pagos mixtos, mesas, tiquete                                                   | ✅     |
 | 1D   | Caja: egresos, retiros, arqueo por denominaciones y cierre                                                     | ✅     |
-| 1E   | Inventario básico, producción, mermas y alertas                                                                | ⏳     |
+| 1E   | Inventario básico, producción, mermas y alertas                                                                | ✅     |
 | 1F   | Dashboard, estadísticas, tiempo real, PWA y exportes                                                           | ⏳     |
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ⏳     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
