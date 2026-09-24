@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PRICE_LIMITS } from '../money/money';
 
 /** Ancho del papel de la impresora térmica en milímetros. */
 export const TICKET_WIDTHS = ['58', '80'] as const;
@@ -17,6 +18,8 @@ export const businessSettingsSchema = z.object({
   tableCount: z.int(),
   /** Descuento máximo (en %) que la cajera puede dar sin el PIN de un administrador. */
   maxCashierDiscountPercent: z.int(),
+  /** Egreso máximo (en pesos) que la cajera saca de la caja sin el PIN de un administrador. */
+  maxCashierExpense: z.int(),
   updatedAt: z.iso.datetime().nullable(),
 });
 export type BusinessSettings = z.infer<typeof businessSettingsSchema>;
@@ -31,6 +34,7 @@ export const DEFAULT_BUSINESS_SETTINGS: Omit<BusinessSettings, 'updatedAt'> = {
   ticketWidth: '80',
   tableCount: 8,
   maxCashierDiscountPercent: 10,
+  maxCashierExpense: 50_000,
 };
 
 export const businessSettingsResponseSchema = z.object({ settings: businessSettingsSchema });
@@ -60,6 +64,11 @@ export const updateBusinessSettingsRequestSchema = z
       .int('Escribe un número entero')
       .min(0, 'Mínimo 0 %')
       .max(SETTINGS_LIMITS.maxDiscountPercent, 'Máximo 100 %')
+      .optional(),
+    maxCashierExpense: z
+      .int('Escribe un número entero de pesos')
+      .min(0, 'Mínimo $ 0')
+      .max(PRICE_LIMITS.max, 'El valor es demasiado alto')
       .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
