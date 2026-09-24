@@ -44,6 +44,17 @@ test('el administrador ingresa por primera vez y crea a la cajera', async ({ pag
   await expect(
     page.getByRole('listitem').filter({ hasText: `@${CASHIER.username}` }),
   ).toBeVisible();
+
+  // Facturación electrónica con el proveedor simulado (sin validez ante la DIAN).
+  await page
+    .getByRole('navigation', { name: 'Principal' })
+    .getByRole('link', { name: 'Ajustes' })
+    .click();
+  await page.getByRole('switch', { name: 'Facturar electrónicamente cada venta' }).click();
+  await page.getByLabel('Impuesto general de los productos').selectOption('INC_8');
+  await expectAccessible(page, 'los ajustes de facturación');
+  await page.getByRole('button', { name: 'Guardar facturación' }).click();
+  await expect(page.getByText('Facturación electrónica guardada')).toBeVisible();
 });
 
 test('la cajera abre caja, vende en mostrador y en mesa, y cierra cuadrada', async ({ page }) => {
@@ -73,8 +84,12 @@ test('la cajera abre caja, vende en mostrador y en mesa, y cierra cuadrada', asy
   await counterCheckout.getByRole('button', { name: '$ 10.000' }).click();
   await expect(counterCheckout).toContainText(/Cambio\s*\$\s*3\.000/);
   await expectAccessible(page, 'el cobro');
+  // La clienta pide la factura a su nombre.
+  await counterCheckout.getByRole('button', { name: 'Factura a nombre del cliente' }).click();
+  await counterCheckout.getByLabel('Número').fill('1088123456');
+  await counterCheckout.getByLabel('Nombre o razón social').fill('Ana María Ospina');
   await counterCheckout.getByRole('button', { name: 'Cobrar $ 7.000' }).click();
-  await expectSaleDone(page, 'Venta N.º 000001 registrada', '$ 3.000');
+  await expectSaleDone(page, 'Venta N.º 000001 registrada', '$ 3.000', 'SIMU1');
 
   // ── Mesa 3: 2 almojábanas + 1 buñuelo, efectivo y Nequi ──
   await page.getByRole('radio', { name: 'Mesas' }).click();
@@ -93,7 +108,7 @@ test('la cajera abre caja, vende en mostrador y en mesa, y cierra cuadrada', asy
   await tabCheckout.getByLabel('Nequi').fill('3000');
   await expect(tabCheckout.getByText('Los pagos cuadran con el total')).toBeVisible();
   await tabCheckout.getByRole('button', { name: 'Cobrar $ 5.500' }).click();
-  await expectSaleDone(page, 'Venta N.º 000002 registrada', '$ 0');
+  await expectSaleDone(page, 'Venta N.º 000002 registrada', '$ 0', 'SIMU2');
   await expect(page.getByRole('button', { name: 'Mesa 3, libre' })).toBeVisible();
 
   // ── Cierre con arqueo: 1 × 100.000 + 1 × 5.000 + 2 × 2.000 + 1 × 500 = 109.500 ──
@@ -132,12 +147,28 @@ test('el administrador ve lo vendido en el panel', async ({ page }) => {
     .click();
   await expect(page.getByText('000001')).toBeVisible();
   await expect(page.getByText('000002')).toBeVisible();
+
+  await page.goto('/facturacion');
+  await expect(page.getByRole('heading', { name: 'Facturación electrónica' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Validada (2)' })).toBeVisible();
+  const documents = page.getByRole('listitem');
+  await expect(documents.filter({ hasText: 'Factura SIMU1' })).toContainText('Ana María Ospina');
+  await expect(documents.filter({ hasText: 'Factura SIMU2' })).toContainText('Consumidor final');
+  await expectAccessible(page, 'la facturación electrónica');
 });
 
-async function expectSaleDone(page: Page, title: string, change: string): Promise<void> {
+async function expectSaleDone(
+  page: Page,
+  title: string,
+  change: string,
+  invoiceNumber: string,
+): Promise<void> {
   const done = page.getByRole('dialog', { name: title });
   await expect(done).toBeVisible();
   await expect(done).toContainText(change);
+  // La factura electrónica se valida en segundos y el diálogo lo muestra sin recargar.
+  await expect(done).toContainText('Factura electrónica: Validada');
+  await expect(done).toContainText(invoiceNumber);
   await done.getByRole('button', { name: 'Nueva venta' }).click();
   await expect(done).toBeHidden();
 }
