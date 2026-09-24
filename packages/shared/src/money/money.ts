@@ -102,3 +102,17 @@ export function splitTaxIncludedAmount(total: Money, rateBasisPoints: number): T
   const base = divideRoundHalfUp(total * BASIS_POINTS_SCALE, BASIS_POINTS_SCALE + rateBasisPoints);
   return { base, tax: total - base };
 }
+
+/** Precio mínimo y máximo aceptados para un producto (en pesos). */
+export const PRICE_LIMITS = { min: 50, max: 10_000_000 } as const;
+
+/**
+ * Lee un precio escrito a mano: "12.500", "$ 12.500" o "12500" → 12500.
+ * Devuelve `null` si no hay dígitos. Los pesos no tienen decimales: se ignoran puntos y comas.
+ */
+export function parseCOPInput(text: string): Money | null {
+  const digits = text.replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  const value = Number(digits);
+  return Number.isSafeInteger(value) ? value : null;
+}

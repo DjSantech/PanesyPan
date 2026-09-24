@@ -10,17 +10,22 @@ export const PERMISSIONS = [
   'system:status',
   'pos:sell',
   'cash:operate',
+  'catalog:read',
+  'catalog:availability',
   'catalog:manage',
   'inventory:manage',
   'reports:read',
   'sales:void:approve',
+  'settings:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
 
 export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = {
   ADMIN: PERMISSIONS,
-  CASHIER: ['pos:sell', 'cash:operate'],
+  // La cajera ve el catálogo y puede marcar productos como agotados, pero no cambia precios.
+  // Anular ventas o dar descuentos por encima del tope exige el PIN de un administrador.
+  CASHIER: ['pos:sell', 'cash:operate', 'catalog:read', 'catalog:availability'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

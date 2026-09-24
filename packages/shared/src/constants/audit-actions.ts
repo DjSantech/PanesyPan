@@ -17,6 +17,20 @@ export const AUDIT_ACTIONS = [
   'USER_PASSWORD_RESET',
   'USER_PIN_RESET',
   'USER_UNLOCKED',
+  'CATEGORY_CREATED',
+  'CATEGORY_UPDATED',
+  'PRODUCT_CREATED',
+  'PRODUCT_UPDATED',
+  'PRODUCT_PRICE_CHANGED',
+  'PRODUCT_AVAILABILITY_CHANGED',
+  'DAILY_MENU_UPDATED',
+  'SETTINGS_UPDATED',
+  'CASH_SHIFT_OPENED',
+  'SALE_DISCOUNT_APPROVED',
+  'SALE_VOIDED',
+  'TAB_ITEM_REMOVED',
+  'TAB_CANCELED',
+  'APPROVAL_FAILED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -39,6 +53,20 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   USER_PASSWORD_RESET: 'Contraseña restablecida',
   USER_PIN_RESET: 'PIN restablecido',
   USER_UNLOCKED: 'Cuenta desbloqueada',
+  CATEGORY_CREATED: 'Categoría creada',
+  CATEGORY_UPDATED: 'Categoría modificada',
+  PRODUCT_CREATED: 'Producto creado',
+  PRODUCT_UPDATED: 'Producto modificado',
+  PRODUCT_PRICE_CHANGED: 'Cambio de precio',
+  PRODUCT_AVAILABILITY_CHANGED: 'Disponibilidad de producto',
+  DAILY_MENU_UPDATED: 'Menú del día actualizado',
+  SETTINGS_UPDATED: 'Configuración modificada',
+  CASH_SHIFT_OPENED: 'Apertura de caja',
+  SALE_DISCOUNT_APPROVED: 'Descuento autorizado',
+  SALE_VOIDED: 'Venta anulada',
+  TAB_ITEM_REMOVED: 'Producto quitado de una mesa',
+  TAB_CANCELED: 'Cuenta de mesa cancelada',
+  APPROVAL_FAILED: 'PIN de autorización incorrecto',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */
@@ -46,4 +74,5 @@ export const SECURITY_ALERT_ACTIONS: readonly AuditAction[] = [
   'AUTH_ACCOUNT_LOCKED',
   'AUTH_REFRESH_REUSE_DETECTED',
   'AUTH_SESSION_REVOKED_PIN',
+  'APPROVAL_FAILED',
 ];

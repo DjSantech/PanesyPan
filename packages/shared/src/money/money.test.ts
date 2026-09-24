@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatCOP, isMoney, percentageOf, splitTaxIncludedAmount, sumMoney } from './money';
+import {
+  formatCOP,
+  isMoney,
+  parseCOPInput,
+  percentageOf,
+  splitTaxIncludedAmount,
+  sumMoney,
+} from './money';
 
 /** Espacio no separable que usa Intl entre el signo $ y el número. */
 const NBSP = String.fromCharCode(0xa0);
@@ -84,5 +91,15 @@ describe('splitTaxIncludedAmount', () => {
 
   it('sin impuesto la base es el total', () => {
     expect(splitTaxIncludedAmount(3_500, 0)).toEqual({ base: 3_500, tax: 0 });
+  });
+});
+
+describe('parseCOPInput', () => {
+  it('lee precios escritos de varias formas', () => {
+    expect(parseCOPInput('12.500')).toBe(12_500);
+    expect(parseCOPInput('$ 12.500')).toBe(12_500);
+    expect(parseCOPInput('800')).toBe(800);
+    expect(parseCOPInput('')).toBeNull();
+    expect(parseCOPInput('abc')).toBeNull();
   });
 });
