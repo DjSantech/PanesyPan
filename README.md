@@ -303,7 +303,7 @@ No necesitan `pnpm dev:db` ni `.env`: levantan su propia base de datos en memori
 1. **Abrir caja.** Al entrar a vender por primera vez en el turno, la cajera escribe la base en efectivo. Cada cajera tiene como máximo una caja abierta y todas sus ventas quedan en ella. Al terminar el turno se cierra con el arqueo (ver "Caja: egresos, retiros y cierre").
 2. **Mostrador.** Se tocan los productos (o se busca con la tecla `/` y `Enter` agrega el primer resultado) y se cobra. El pedido se conserva si la tablet recarga la página.
 3. **Mesas.** En "Mesas" se toca una mesa libre para abrir su cuenta. Se pueden agregar, subir o bajar cantidades, cambiar la cuenta de mesa o cancelarla. Varias cajeras pueden atender la misma mesa. Quitar productos de una mesa queda en la auditoría.
-4. **Almuerzos.** Solo se venden si están en el menú del día **publicado**. Al tocarlos se elige la proteína, y se descuentan las porciones: nunca se vende más de lo preparado, aunque dos cajeras cobren la última porción al mismo tiempo.
+4. **Almuerzos.** Solo se venden si están en el menú del día **publicado**. Al tocar **Almuerzo** se elige la proteína, el principio y la sopa (o "Sin sopa"); la elección queda en la cuenta, la comanda y el tiquete. El **Caldo** solo se vende directo con su propio precio. Se descuentan las porciones: nunca se vende más de lo preparado, aunque dos cajeras cobren la última porción al mismo tiempo.
 5. **Cobro.** Efectivo con botones de billetes y cambio en grande, Nequi, Daviplata, tarjetas o transferencia (con referencia opcional), o **pago combinado**. La API recalcula el total con los precios vigentes: si un precio cambió mientras se cobraba, avisa en vez de cobrar mal. Cada cobro lleva un identificador único, de modo que un reintento por mala señal no cobra dos veces.
 6. **Descuentos.** Por porcentaje o valor, siempre con motivo. Hasta el tope configurado (10 % por defecto) los da la cajera; por encima, un administrador digita su PIN en la tablet.
 7. **Anulaciones.** Desde `/ventas`, con motivo y PIN de administrador. Solo mientras la caja de esa venta siga abierta. La venta anulada deja de contar en la caja y devuelve las porciones de almuerzo.
@@ -325,14 +325,18 @@ Las imágenes se guardan en la misma base de datos y se sirven en `/api/v1/publi
 
 **Almuerzos y menú del día** (`/menu-del-dia`). Los almuerzos funcionan distinto al resto:
 
-1. En el catálogo, crea una categoría de tipo **Almuerzos (menú del día)** y dentro los productos que se venden, por ejemplo "Almuerzo corriente" y "Almuerzo ejecutivo", con su precio. **No** les actives "Controlar inventario": sus porciones se controlan en el menú.
+1. En el catálogo, dentro de la categoría de tipo **Almuerzos (menú del día)**, crea el producto **Almuerzo** con su precio (hay un solo precio) y, si se vende aparte, el producto **Caldo** con el suyo. **No** les actives "Controlar inventario": sus porciones se controlan en el menú.
 2. Cada día, en **Menú del día**:
-   - Escribe la sopa, el principio, las proteínas (la cajera elige una al vender), los acompañamientos y el jugo.
-   - En **Almuerzos a la venta**, elige qué almuerzos se venden hoy y cuántas porciones hay (vacío = sin límite).
+   - Arriba, **Hoy hay** resume lo que se le ofrece al cliente.
+   - En **Sopas**, **Principios** y **Proteínas**, agrega las opciones del día. Cuando una se acabe, apaga su interruptor: deja de salir en Vender.
+   - Jugo y notas son opcionales.
+   - En **Qué se vende hoy**, activa el Almuerzo y el Caldo, con sus porciones (vacío = sin límite). El Almuerzo va como **Almuerzo (elige)**: al venderlo se pide proteína, principio y sopa. El Caldo va como **Venta directa**.
    - Activa **Publicar menú** y guarda.
 3. Solo entonces los almuerzos aparecen en Vender, con las porciones que quedan. Si hay almuerzos en el catálogo pero el menú de hoy no está publicado, Vender muestra un aviso con el enlace para publicarlo.
 
-Los caldos de la mañana y las bebidas son productos normales (categorías de tipo General): se venden todos los días sin menú.
+La sopa que va con el almuerzo está incluida en su precio; solo se cobra el Caldo cuando se pide solo. Los menús guardados antes de este cambio (una sola sopa y un solo principio) se leen como listas de una opción.
+
+Las bebidas y los caldos de la categoría General "Caldos" son productos normales: se venden todos los días sin menú.
 
 ### Caja: egresos, retiros y cierre
 
