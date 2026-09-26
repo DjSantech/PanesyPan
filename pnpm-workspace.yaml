@@ -1,5 +1,6 @@
 packages:
   - frontend
+  - web
   - backend
   - packages/*
   - e2e
