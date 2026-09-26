@@ -129,6 +129,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'pedidos-web',
+            lazy: async () => {
+              const { WebOrdersPage } = await import('@/features/web-orders/WebOrdersPage');
+              return {
+                element: (
+                  <RequirePermission permission="web-orders:read">
+                    <WebOrdersPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'configuracion',
             lazy: async () => {
               const { SettingsPage } = await import('@/features/settings/SettingsPage');
