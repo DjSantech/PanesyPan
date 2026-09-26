@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import mongoose from 'mongoose';
 import type { Logger } from 'pino';
 
@@ -17,13 +18,33 @@ export async function connectDatabase(options: DatabaseOptions, logger?: Logger)
   connection.on('disconnected', () => logger?.warn('Conexión con MongoDB perdida'));
   connection.on('reconnected', () => logger?.info('Conexión con MongoDB restablecida'));
 
-  await mongoose.connect(options.uri, {
-    dbName: options.dbName,
-    appName: 'panesypan-api',
-    serverSelectionTimeoutMS: 10_000,
-    maxPoolSize: 10,
-  });
+  const connect = (): Promise<typeof mongoose> =>
+    mongoose.connect(options.uri, {
+      dbName: options.dbName,
+      appName: 'panesypan-api',
+      serverSelectionTimeoutMS: 10_000,
+      maxPoolSize: 10,
+    });
+
+  try {
+    await connect();
+  } catch (error) {
+    // Algunos routers/ISP rechazan las consultas DNS SRV de `mongodb+srv://`
+    // (querySrv ECONNREFUSED / ETIMEOUT). Se reintenta una vez con DNS públicos.
+    if (!isSrvLookupError(error)) throw error;
+    logger?.warn('El DNS del sistema rechazó la consulta SRV; reintentando con DNS públicos');
+    dns.setServers(FALLBACK_DNS_SERVERS);
+    await mongoose.disconnect().catch(() => undefined);
+    await connect();
+  }
   logger?.info({ dbName: options.dbName }, 'Conectado a MongoDB');
+}
+
+const FALLBACK_DNS_SERVERS = ['1.1.1.1', '8.8.8.8'];
+
+function isSrvLookupError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /^query(Srv|Txt) /.test(message);
 }
 
 export async function disconnectDatabase(): Promise<void> {
