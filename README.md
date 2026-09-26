@@ -636,6 +636,12 @@ pnpm db:restore -- <archivo> --confirm panesypan --replace   # si la base ya tie
 - [ ] Revisar en Auditoría los PIN fallidos, bloqueos y anulaciones.
 - [ ] Revisar las cajas con diferencia en el arqueo.
 
+## Web pública
+
+La web de clientes (`web/`, Next.js) se publica en `panesypan.com`. Ver los
+[contratos de la API pública](docs/web/CONTRATOS.md) y el
+[checklist de despliegue](docs/web/DESPLIEGUE.md).
+
 ## Operación y soporte
 
 | Situación                                  | Qué hacer                                                                                                                                                                                                     |
