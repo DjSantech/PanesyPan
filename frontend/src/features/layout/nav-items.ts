@@ -7,6 +7,7 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
+  ShoppingBag,
   ShoppingBasket,
   Soup,
   Users,
@@ -33,6 +34,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/ventas', label: 'Ventas', icon: ReceiptText, permission: 'pos:sell' },
   { to: '/catalogo', label: 'Catálogo', icon: Croissant, permission: 'catalog:read' },
   { to: '/inventario', label: 'Inventario', icon: Boxes, permission: 'inventory:read' },
+  {
+    to: '/pedidos-web',
+    label: 'Pedidos web',
+    icon: ShoppingBag,
+    permission: 'web-orders:read',
+    mobile: false,
+  },
   {
     to: '/menu-del-dia',
     label: 'Menú',

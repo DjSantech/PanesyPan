@@ -15,6 +15,10 @@ import { createReportsRouter } from './modules/reports/reports.routes';
 import { createSalesRouter } from './modules/sales/sales.routes';
 import { createSettingsRouter } from './modules/settings/settings.routes';
 import { createUsersRouter } from './modules/users/users.routes';
+import {
+  createPublicWebOrdersRouter,
+  createWebOrdersRouter,
+} from './modules/web-orders/web-orders.routes';
 
 export interface ApiRouterDeps {
   authConfig: AuthConfig;
@@ -37,6 +41,8 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   router.use(notifyDashboardOnChanges);
   router.use('/public', createPublicRouter());
   router.use('/public', createPublicWebRouter());
+  router.use('/public', createPublicWebOrdersRouter(withLogger({ config: authConfig, guards })));
+  router.use('/web-orders', createWebOrdersRouter(withLogger({ config: authConfig, guards })));
   router.use(
     '/auth',
     createAuthRouter(withLogger({ config: authConfig, guards, credentialsLimiter })),

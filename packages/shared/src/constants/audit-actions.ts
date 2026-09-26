@@ -39,6 +39,7 @@ export const AUDIT_ACTIONS = [
   'TAB_CANCELED',
   'APPROVAL_FAILED',
   'EINVOICE_RETRIED',
+  'WEB_ORDER_STATUS_CHANGED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -83,6 +84,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   TAB_CANCELED: 'Cuenta de mesa cancelada',
   APPROVAL_FAILED: 'PIN de autorización incorrecto',
   EINVOICE_RETRIED: 'Reenvío de factura electrónica',
+  WEB_ORDER_STATUS_CHANGED: 'Cambio de estado de pedido web',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */
