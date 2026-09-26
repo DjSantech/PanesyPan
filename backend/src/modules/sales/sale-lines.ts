@@ -1,7 +1,13 @@
-import { lineTotal } from '@panesypan/shared';
+import { lineTotal, lunchChoiceLabel, type LunchChoice } from '@panesypan/shared';
 import { trusted, Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../lib/errors';
-import { CategoryModel, DailyMenuModel, ProductModel } from '../catalog/catalog.models';
+import {
+  CategoryModel,
+  DailyMenuModel,
+  ProductModel,
+  type DailyMenuDocument,
+} from '../catalog/catalog.models';
+import { menuOptionsOf } from '../catalog/daily-menu.service';
 import { newLineId, type SaleLineAttrs } from './sale.model';
 
 export interface SellableProduct {
@@ -56,22 +62,31 @@ export async function loadSellableProducts(
   return result;
 }
 
+/**
+ * Arma la línea de venta. En un almuerzo, la elección (proteína, principio, sopa) va al
+ * principio de la nota para que se lea en la cuenta, la comanda y el tiquete.
+ */
 export function buildLine(
   product: SellableProduct,
   quantity: number,
   note: string,
   today: string,
+  lunch: LunchChoice | null = null,
 ): SaleLineAttrs {
+  if (lunch !== null && !product.isLunch) {
+    throw new AppError(400, 'VALIDATION_ERROR', `${product.name} no es un almuerzo`);
+  }
   return {
     _id: newLineId(),
     productId: product._id,
     name: product.name,
     unitPrice: product.price,
     quantity,
-    note,
+    note: lunch === null ? note : [lunchChoiceLabel(lunch), note].filter(Boolean).join(' · '),
     total: lineTotal({ unitPrice: product.price, quantity }),
     isLunch: product.isLunch,
     menuDate: product.isLunch ? today : null,
+    lunch,
   };
 }
 
@@ -79,6 +94,7 @@ export interface PortionChange {
   productId: Types.ObjectId;
   name: string;
   menuDate: string;
+  lunch: LunchChoice | null;
   /** Positivo: se venden porciones. Negativo: se devuelven (se quitó de la mesa, se anuló…). */
   delta: number;
 }
@@ -92,6 +108,7 @@ export function portionChangesOf(lines: readonly SaleLineAttrs[], sign: 1 | -1):
             productId: line.productId,
             name: line.name,
             menuDate: line.menuDate,
+            lunch: line.lunch,
             delta: sign * line.quantity,
           },
         ]
@@ -104,6 +121,31 @@ export function portionChangesOf(lines: readonly SaleLineAttrs[], sign: 1 | -1):
  * venden la última porción al mismo tiempo, MongoDB aborta una transacción, se reintenta
  * y la segunda ve que ya no quedan.
  */
+/** Verifica que la proteína, el principio y la sopa estén en el menú y no se hayan agotado. */
+function assertLunchChoice(
+  menu: DailyMenuDocument,
+  change: PortionChange,
+  withChoices: boolean,
+): void {
+  const invalid = (message: string): AppError => new AppError(400, 'VALIDATION_ERROR', message);
+  if (!withChoices) {
+    if (change.lunch !== null) throw invalid(`${change.name} se vende sin elegir proteína`);
+    return;
+  }
+  const { lunch } = change;
+  if (lunch === null) throw invalid(`Elige la proteína y el principio de ${change.name}`);
+
+  const options = menuOptionsOf(menu);
+  const check = (list: { name: string; isAvailable: boolean }[], name: string, what: string) => {
+    const option = list.find((item) => item.name === name);
+    if (option === undefined) throw invalid(`${name} no es ${what} del menú de hoy`);
+    if (!option.isAvailable) throw outOfStock(`Se acabó ${name}`);
+  };
+  check(options.proteins, lunch.protein, 'una proteína');
+  check(options.principles, lunch.principle, 'un principio');
+  if (lunch.soup !== null) check(options.soups, lunch.soup, 'una sopa');
+}
+
 export async function adjustPortions(
   changes: readonly PortionChange[],
   session: ClientSession,
@@ -122,6 +164,13 @@ export async function adjustPortions(
   const dates = new Set([...merged.values()].map((change) => change.menuDate));
   for (const date of dates) {
     const menu = await DailyMenuModel.findOne({ date }).session(session);
+    if (menu?.isPublished === true) {
+      for (const change of changes) {
+        if (change.menuDate !== date || change.delta <= 0) continue;
+        const offering = menu.offerings.find((item) => item.productId.equals(change.productId));
+        if (offering !== undefined) assertLunchChoice(menu, change, offering.withChoices);
+      }
+    }
     let modified = false;
     for (const change of merged.values()) {
       if (change.menuDate !== date || change.delta === 0) continue;

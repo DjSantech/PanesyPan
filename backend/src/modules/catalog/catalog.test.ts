@@ -306,21 +306,40 @@ describe('menú del día', () => {
   it('guarda el menú con porciones de productos de almuerzo', async () => {
     const lunch = await createCategory('Almuerzos', 'LUNCH');
     const corriente = await createProduct('Almuerzo corriente', lunch.id, 14_000);
+    const caldo = await createProduct('Caldo', lunch.id, 6_000);
 
     const response = await send(admin, 'put', '/daily-menus/2026-09-24', {
-      soup: 'Sancocho',
-      principle: 'Fríjoles',
+      soups: [{ name: 'Sancocho' }, { name: 'Ajiaco' }],
+      principles: [{ name: 'Fríjoles' }],
       proteins: [{ name: 'Pollo' }, { name: 'Cerdo', isAvailable: false }],
-      sides: ['Arroz', 'Maduro'],
       juice: 'Mora',
-      offerings: [{ productId: corriente.id, portions: 40 }],
+      offerings: [
+        { productId: corriente.id, portions: 40 },
+        { productId: caldo.id, portions: null, withChoices: false },
+      ],
       isPublished: true,
     });
     expect(response.status).toBe(200);
     const { menu } = dailyMenuResponseSchema.parse(response.body);
-    expect(menu).toMatchObject({ soup: 'Sancocho', isPublished: true });
+    expect(menu).toMatchObject({ isPublished: true, principles: [{ name: 'Fríjoles' }] });
+    expect(menu.soups.map((soup) => soup.name)).toEqual(['Sancocho', 'Ajiaco']);
     expect(menu.offerings).toEqual([
-      { productId: corriente.id, portions: 40, sold: 0, name: 'Almuerzo corriente', price: 14_000 },
+      {
+        productId: corriente.id,
+        portions: 40,
+        sold: 0,
+        withChoices: true,
+        name: 'Almuerzo corriente',
+        price: 14_000,
+      },
+      {
+        productId: caldo.id,
+        portions: null,
+        sold: 0,
+        withChoices: false,
+        name: 'Caldo',
+        price: 6_000,
+      },
     ]);
 
     const read = dailyMenuResponseSchema.parse(
@@ -330,6 +349,25 @@ describe('menú del día', () => {
       { name: 'Pollo', isAvailable: true },
       { name: 'Cerdo', isAvailable: false },
     ]);
+  });
+
+  it('lee los menús guardados con una sola sopa y un solo principio', async () => {
+    await DailyMenuModel.collection.insertOne({
+      date: '2026-09-23',
+      soup: 'Mondongo',
+      principle: 'Arvejas',
+      proteins: [{ name: 'Res', isAvailable: true }],
+      sides: ['Arroz'],
+      offerings: [],
+      isPublished: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const { menu } = dailyMenuResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/daily-menus/2026-09-23')).body,
+    );
+    expect(menu.soups).toEqual([{ name: 'Mondongo', isAvailable: true }]);
+    expect(menu.principles).toEqual([{ name: 'Arvejas', isAvailable: true }]);
   });
 
   it('un día sin menú devuelve un menú vacío', async () => {
@@ -370,7 +408,9 @@ describe('menú del día', () => {
 
   it('rechaza fechas imposibles y la cajera no puede editar el menú', async () => {
     expect((await admin.agent.get('/api/v1/daily-menus/2026-02-31')).status).toBe(400);
-    const response = await send(cashier, 'put', '/daily-menus/2026-09-24', { soup: 'Ajiaco' });
+    const response = await send(cashier, 'put', '/daily-menus/2026-09-24', {
+      soups: [{ name: 'Ajiaco' }],
+    });
     expect(response.status).toBe(403);
   });
 });

@@ -228,7 +228,7 @@ export async function checkoutCounter(
   const productIds = input.lines.map((line) => line.productId);
   const buildLines = (products: Map<string, SellableProduct>, today: string) =>
     input.lines.map((line) =>
-      buildLine(productFor(products, line.productId), line.quantity, line.note, today),
+      buildLine(productFor(products, line.productId), line.quantity, line.note, today, line.lunch),
     );
 
   const draft = prepareCheckout(

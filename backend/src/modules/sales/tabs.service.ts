@@ -57,6 +57,10 @@ function pickLine(line: SaleLineAttrs): SaleLineAttrs {
     total: line.total,
     isLunch: line.isLunch,
     menuDate: line.menuDate,
+    lunch:
+      line.lunch === null
+        ? null
+        : { protein: line.lunch.protein, principle: line.lunch.principle, soup: line.lunch.soup },
   };
 }
 
@@ -131,7 +135,7 @@ export async function addTabLine(id: string, input: SaleLineInput): Promise<Sale
       await loadSellableProducts([input.productId], session),
       input.productId,
     );
-    const candidate = buildLine(product, input.quantity, note, today);
+    const candidate = buildLine(product, input.quantity, note, today, input.lunch ?? null);
 
     const same = doc.lines.find(
       (line) =>

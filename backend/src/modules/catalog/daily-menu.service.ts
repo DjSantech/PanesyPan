@@ -15,6 +15,7 @@ import {
   DailyMenuModel,
   ProductModel,
   type DailyMenuDocument,
+  type MenuOptionAttrs,
 } from './catalog.models';
 
 type ParsedMenu = z.output<typeof upsertDailyMenuRequestSchema>;
@@ -28,14 +29,29 @@ export function assertMenuDate(date: string): void {
   }
 }
 
+const toOptions = (options: readonly MenuOptionAttrs[]): MenuOptionAttrs[] =>
+  options.map((option) => ({ name: option.name, isAvailable: option.isAvailable }));
+
+/** Sopas, principios y proteínas del menú; convierte los menús guardados con el formato anterior. */
+export function menuOptionsOf(
+  menu: DailyMenuDocument,
+): Pick<DailyMenu, 'soups' | 'principles' | 'proteins'> {
+  const legacy = (value: string | undefined): MenuOptionAttrs[] =>
+    value === undefined || value.trim() === '' ? [] : [{ name: value.trim(), isAvailable: true }];
+  return {
+    soups: menu.soups.length > 0 ? toOptions(menu.soups) : legacy(menu.soup),
+    principles: menu.principles.length > 0 ? toOptions(menu.principles) : legacy(menu.principle),
+    proteins: toOptions(menu.proteins),
+  };
+}
+
 async function toDailyMenuDto(date: string, menu: DailyMenuDocument | null): Promise<DailyMenu> {
   if (menu === null) {
     return {
       date,
-      soup: '',
-      principle: '',
+      soups: [],
+      principles: [],
       proteins: [],
-      sides: [],
       juice: '',
       notes: '',
       offerings: [],
@@ -49,13 +65,7 @@ async function toDailyMenuDto(date: string, menu: DailyMenuDocument | null): Pro
   const byId = new Map(products.map((product) => [product.id, product]));
   return {
     date: menu.date,
-    soup: menu.soup,
-    principle: menu.principle,
-    proteins: menu.proteins.map((protein) => ({
-      name: protein.name,
-      isAvailable: protein.isAvailable,
-    })),
-    sides: [...menu.sides],
+    ...menuOptionsOf(menu),
     juice: menu.juice,
     notes: menu.notes,
     offerings: menu.offerings.map((offering) => {
@@ -64,6 +74,7 @@ async function toDailyMenuDto(date: string, menu: DailyMenuDocument | null): Pro
         productId: offering.productId.toString(),
         portions: offering.portions,
         sold: offering.sold,
+        withChoices: offering.withChoices,
         name: product?.name ?? 'Producto eliminado',
         price: product?.price ?? 0,
       };
@@ -127,23 +138,28 @@ export async function upsertDailyMenu(
         `Ya se vendieron ${String(sold)} porciones: no puedes dejar menos`,
       );
     }
-    return { productId: new Types.ObjectId(offering.productId), portions: offering.portions, sold };
+    return {
+      productId: new Types.ObjectId(offering.productId),
+      portions: offering.portions,
+      sold,
+      withChoices: offering.withChoices,
+    };
   });
 
   const menu = await DailyMenuModel.findOneAndUpdate(
     { date },
     {
       $set: {
-        soup: data.soup,
-        principle: data.principle,
+        soups: data.soups,
+        principles: data.principles,
         proteins: data.proteins,
-        sides: data.sides,
         juice: data.juice,
         notes: data.notes,
         offerings,
         isPublished: data.isPublished,
         updatedBy: new Types.ObjectId(ctx.actor.id),
       },
+      $unset: { soup: 1, principle: 1, sides: 1 },
     },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   );

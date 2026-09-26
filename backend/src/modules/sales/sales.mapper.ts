@@ -22,6 +22,10 @@ export function toSaleDto(sale: SaleDocument): Sale {
       note: line.note,
       total: line.total,
       isLunch: line.isLunch,
+      lunch:
+        line.lunch === null
+          ? null
+          : { protein: line.lunch.protein, principle: line.lunch.principle, soup: line.lunch.soup },
     })),
     subtotal: sale.subtotal,
     discount:

@@ -33,6 +33,8 @@ export interface SaleLineAttrs {
   isLunch: boolean;
   /** Día del menú del que se descontó la porción (solo almuerzos). */
   menuDate: string | null;
+  /** Proteína, principio y sopa elegidos (solo almuerzos con elección). */
+  lunch: { protein: string; principle: string; soup: string | null } | null;
 }
 
 /** Cliente que pidió la factura a su nombre. */
@@ -114,6 +116,17 @@ const lineSchema = new Schema<SaleLineAttrs>({
   total: money,
   isLunch: { type: Boolean, default: false },
   menuDate: { type: String, default: null },
+  lunch: {
+    type: new Schema(
+      {
+        protein: { type: String, required: true },
+        principle: { type: String, required: true },
+        soup: { type: String, default: null },
+      },
+      { _id: false },
+    ),
+    default: null,
+  },
 });
 
 const saleSchema = new Schema<SaleAttrs>(

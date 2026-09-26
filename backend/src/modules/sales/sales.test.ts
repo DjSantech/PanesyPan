@@ -38,7 +38,13 @@ let stopDatabase: (() => Promise<void>) | undefined;
 let admin: LoggedIn;
 let cashier: LoggedIn;
 let otherCashier: LoggedIn;
-let products: { bread: string; fritter: string; soldOut: string; lunch: string };
+let products: {
+  bread: string;
+  fritter: string;
+  soldOut: string;
+  lunch: string;
+  broth: string;
+};
 
 beforeAll(async () => {
   stopDatabase = await startTestDatabase();
@@ -85,6 +91,7 @@ beforeEach(async () => {
     fritter: await createProduct('Buñuelo', bakery._id, 1_500),
     soldOut: await createProduct('Almojábana', bakery._id, 2_500, false),
     lunch: await createProduct('Almuerzo corriente', lunches._id, 14_000),
+    broth: await createProduct('Caldo', lunches._id, 6_000),
   };
 });
 
@@ -99,7 +106,7 @@ const openShift = (who: LoggedIn, openingAmount = 100_000) =>
   send(who, 'post', '/cash-shifts', { openingAmount });
 
 function counterSale(
-  lines: { productId: string; quantity: number; note?: string }[],
+  lines: { productId: string; quantity: number; note?: string; lunch?: object | null }[],
   expectedTotal: number,
   extra: object = {},
 ) {
@@ -418,9 +425,17 @@ describe('almuerzos con porciones', () => {
     await DailyMenuModel.create({
       date: toBusinessDate(),
       isPublished: true,
-      offerings: [{ productId: products.lunch, portions: 2, sold: 0 }],
+      soups: [{ name: 'Sancocho' }],
+      principles: [{ name: 'Fríjoles' }, { name: 'Lentejas', isAvailable: false }],
+      proteins: [{ name: 'Pollo asado' }, { name: 'Cerdo' }],
+      offerings: [
+        { productId: products.lunch, portions: 2, sold: 0 },
+        { productId: products.broth, portions: null, sold: 0, withChoices: false },
+      ],
     });
   });
+
+  const choice = { protein: 'Pollo asado', principle: 'Fríjoles', soup: 'Sancocho' };
 
   const soldPortions = async () =>
     (await DailyMenuModel.findOne({ date: toBusinessDate() }))?.offerings[0]?.sold;
@@ -430,17 +445,21 @@ describe('almuerzos con porciones', () => {
       cashier,
       'post',
       '/sales/checkout',
-      counterSale([{ productId: products.lunch, quantity: 2, note: 'Pollo asado' }], 28_000),
+      counterSale([{ productId: products.lunch, quantity: 2, lunch: choice }], 28_000),
     );
     expect(first.status).toBe(201);
-    expect(saleOf(first.body).lines[0]).toMatchObject({ isLunch: true, note: 'Pollo asado' });
+    expect(saleOf(first.body).lines[0]).toMatchObject({
+      isLunch: true,
+      note: 'Pollo asado · Fríjoles · Sancocho',
+      lunch: choice,
+    });
     expect(await soldPortions()).toBe(2);
 
     const extra = await send(
       cashier,
       'post',
       '/sales/checkout',
-      counterSale([{ productId: products.lunch, quantity: 1 }], 14_000),
+      counterSale([{ productId: products.lunch, quantity: 1, lunch: choice }], 14_000),
     );
     expect(extra.status).toBe(409);
     expect(errorOf(extra.body).message).toBe('Se acabaron las porciones de Almuerzo corriente');
@@ -465,7 +484,7 @@ describe('almuerzos con porciones', () => {
           who,
           'post',
           '/sales/checkout',
-          counterSale([{ productId: products.lunch, quantity: 1 }], 14_000),
+          counterSale([{ productId: products.lunch, quantity: 1, lunch: choice }], 14_000),
         ),
       ),
     );
@@ -480,9 +499,75 @@ describe('almuerzos con porciones', () => {
       cashier,
       'post',
       '/sales/checkout',
-      counterSale([{ productId: products.lunch, quantity: 1 }], 14_000),
+      counterSale([{ productId: products.lunch, quantity: 1, lunch: choice }], 14_000),
     );
     expect(errorOf(response.body).message).toBe('Almuerzo corriente no está en el menú de hoy');
+  });
+
+  it('el almuerzo exige proteína y principio del menú; la sopa es opcional', async () => {
+    const sell = (lunch: object | null) =>
+      send(
+        cashier,
+        'post',
+        '/sales/checkout',
+        counterSale([{ productId: products.lunch, quantity: 1, lunch }], 14_000),
+      );
+
+    const withoutChoice = await sell(null);
+    expect(withoutChoice.status).toBe(400);
+    expect(errorOf(withoutChoice.body).message).toMatch(/Elige la proteína/);
+
+    const soldOut = await sell({ ...choice, principle: 'Lentejas' });
+    expect(soldOut.status).toBe(409);
+    expect(errorOf(soldOut.body).message).toBe('Se acabó Lentejas');
+
+    const unknown = await sell({ ...choice, protein: 'Pescado' });
+    expect(unknown.status).toBe(400);
+    expect(errorOf(unknown.body).message).toMatch(/Pescado no es una proteína/);
+
+    const noSoup = await sell({ ...choice, soup: null });
+    expect(noSoup.status).toBe(201);
+    expect(saleOf(noSoup.body).lines[0]?.note).toBe('Pollo asado · Fríjoles · Sin sopa');
+  });
+
+  it('el caldo solo se vende con su precio y sin elegir nada', async () => {
+    const broth = await send(
+      cashier,
+      'post',
+      '/sales/checkout',
+      counterSale([{ productId: products.broth, quantity: 2 }], 12_000),
+    );
+    expect(broth.status).toBe(201);
+    expect(saleOf(broth.body).lines[0]).toMatchObject({
+      name: 'Caldo',
+      total: 12_000,
+      lunch: null,
+    });
+
+    const withChoice = await send(
+      cashier,
+      'post',
+      '/sales/checkout',
+      counterSale([{ productId: products.broth, quantity: 1, lunch: choice }], 6_000),
+    );
+    expect(withChoice.status).toBe(400);
+  });
+
+  it('en la mesa, el mismo almuerzo con otra proteína es otra línea', async () => {
+    const tab = saleOf((await send(cashier, 'post', '/tabs', { tableNumber: 1 })).body);
+    const add = (lunch: object) =>
+      send(cashier, 'post', `/tabs/${tab.id}/lines`, {
+        productId: products.lunch,
+        quantity: 1,
+        lunch,
+      });
+    await add(choice).expect(200);
+    const last = await add({ ...choice, protein: 'Cerdo' });
+    expect(last.status).toBe(200);
+    expect(saleOf(last.body).lines.map((line) => line.note)).toEqual([
+      'Pollo asado · Fríjoles · Sancocho',
+      'Cerdo · Fríjoles · Sancocho',
+    ]);
   });
 });
 

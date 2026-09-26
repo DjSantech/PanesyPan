@@ -131,16 +131,34 @@ export const ProductImageModel = model<ProductImageAttrs>('ProductImage', produc
 
 // ── Menú del día ───────────────────────────────────────────────────
 
+export interface MenuOptionAttrs {
+  name: string;
+  isAvailable: boolean;
+}
+
+const menuOptionSchema = new Schema<MenuOptionAttrs>(
+  { name: { type: String, required: true }, isAvailable: { type: Boolean, default: true } },
+  { _id: false },
+);
+
 export interface DailyMenuAttrs {
   /** Día de negocio AAAA-MM-DD (hora de Colombia). */
   date: string;
-  soup: string;
-  principle: string;
-  proteins: { name: string; isAvailable: boolean }[];
-  sides: string[];
+  soups: MenuOptionAttrs[];
+  principles: MenuOptionAttrs[];
+  proteins: MenuOptionAttrs[];
+  /** Formato anterior (una sola sopa y un solo principio): se leen si aún no hay listas. */
+  soup?: string;
+  principle?: string;
+  sides?: string[];
   juice: string;
   notes: string;
-  offerings: { productId: Types.ObjectId; portions: number | null; sold: number }[];
+  offerings: {
+    productId: Types.ObjectId;
+    portions: number | null;
+    sold: number;
+    withChoices: boolean;
+  }[];
   isPublished: boolean;
   updatedBy: Types.ObjectId | null;
   createdAt: Date;
@@ -150,18 +168,12 @@ export interface DailyMenuAttrs {
 const dailyMenuSchema = new Schema<DailyMenuAttrs>(
   {
     date: { type: String, required: true },
-    soup: { type: String, default: '' },
-    principle: { type: String, default: '' },
-    proteins: {
-      type: [
-        new Schema(
-          { name: { type: String, required: true }, isAvailable: { type: Boolean, default: true } },
-          { _id: false },
-        ),
-      ],
-      default: [],
-    },
-    sides: { type: [String], default: [] },
+    soups: { type: [menuOptionSchema], default: [] },
+    principles: { type: [menuOptionSchema], default: [] },
+    proteins: { type: [menuOptionSchema], default: [] },
+    soup: { type: String },
+    principle: { type: String },
+    sides: { type: [String], default: undefined },
     juice: { type: String, default: '' },
     notes: { type: String, default: '' },
     offerings: {
@@ -171,6 +183,7 @@ const dailyMenuSchema = new Schema<DailyMenuAttrs>(
             productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
             portions: { type: Number, default: null },
             sold: { type: Number, default: 0 },
+            withChoices: { type: Boolean, default: true },
           },
           { _id: false },
         ),
