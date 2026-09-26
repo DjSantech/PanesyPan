@@ -1,6 +1,12 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
-import { DASHBOARD_CHANGED_EVENT, hasPermission, REALTIME_PATH } from '@panesypan/shared';
+import {
+  DASHBOARD_CHANGED_EVENT,
+  hasPermission,
+  REALTIME_PATH,
+  WEB_ORDERS_CHANGED_EVENT,
+  type UserRole,
+} from '@panesypan/shared';
 import type { Logger } from 'pino';
 import { Server, type Socket } from 'socket.io';
 import type { Env } from '../../config/env';
@@ -12,6 +18,7 @@ import { isSessionUsable } from '../auth/session.service';
 import { UserModel } from '../users/user.model';
 
 const DASHBOARD_ROOM = 'dashboard';
+const WEB_ORDERS_ROOM = 'web-orders';
 /** Varios cambios seguidos (un cobro toca ventas, caja e inventario) se avisan como uno solo. */
 const NOTIFY_DEBOUNCE_MS = 300;
 /** Cada cuánto se confirma que las sesiones conectadas siguen vigentes. */
@@ -40,6 +47,29 @@ export function notifyDashboardChanged(): void {
   pending.unref();
 }
 
+let pendingWebOrders: NodeJS.Timeout | null = null;
+
+/**
+ * Avisa a quienes atienden los pedidos web que la lista cambió (sin datos: cada cliente vuelve
+ * a pedirla por la API). Sin servidor de tiempo real activo no hace nada.
+ */
+export function notifyWebOrdersChanged(): void {
+  if (current === null || pendingWebOrders !== null) return;
+  pendingWebOrders = setTimeout(() => {
+    pendingWebOrders = null;
+    current?.to(WEB_ORDERS_ROOM).emit(WEB_ORDERS_CHANGED_EVENT);
+  }, NOTIFY_DEBOUNCE_MS);
+  pendingWebOrders.unref();
+}
+
+/** Salas a las que entra un rol según sus permisos. */
+function roomsFor(role: UserRole): string[] {
+  const rooms: string[] = [];
+  if (hasPermission(role, 'reports:read')) rooms.push(DASHBOARD_ROOM);
+  if (hasPermission(role, 'web-orders:read')) rooms.push(WEB_ORDERS_ROOM);
+  return rooms;
+}
+
 function parseCookies(header: string | undefined): Map<string, string> {
   const cookies = new Map<string, string>();
   for (const part of (header ?? '').split(';')) {
@@ -59,16 +89,26 @@ function parseCookies(header: string | undefined): Map<string, string> {
 interface SocketIdentity {
   userId: string;
   sessionId: string;
+  rooms?: string[];
 }
 
-/** La sesión sigue viva, el usuario está activo y conserva el permiso de reportes. */
-async function isIdentityValid({ userId, sessionId }: SocketIdentity): Promise<boolean> {
+/**
+ * La sesión sigue viva, el usuario está activo y conserva algún permiso con sala (reportes o
+ * pedidos web). Devuelve las salas a las que puede entrar, o null.
+ */
+async function roomsOfIdentity({ userId, sessionId }: SocketIdentity): Promise<string[] | null> {
   const session = await SessionModel.findById(sessionId);
   if (session === null || !isSessionUsable(session) || session.userId.toString() !== userId) {
-    return false;
+    return null;
   }
   const user = await UserModel.findById(userId);
-  return user?.isActive === true && hasPermission(user.role, 'reports:read');
+  if (user?.isActive !== true) return null;
+  const rooms = roomsFor(user.role);
+  return rooms.length > 0 ? rooms : null;
+}
+
+async function isIdentityValid(identity: SocketIdentity): Promise<boolean> {
+  return (await roomsOfIdentity(identity)) !== null;
 }
 
 async function identify(socket: Socket, authConfig: AuthConfig): Promise<SocketIdentity | null> {
@@ -79,7 +119,8 @@ async function identify(socket: Socket, authConfig: AuthConfig): Promise<SocketI
   const claims = await verifyAccessToken(token, authConfig.accessTokenSecret);
   if (claims === null) return null;
   const identity = { userId: claims.userId, sessionId: claims.sessionId };
-  return (await isIdentityValid(identity)) ? identity : null;
+  const rooms = await roomsOfIdentity(identity);
+  return rooms === null ? null : { ...identity, rooms };
 }
 
 /**
@@ -135,7 +176,7 @@ export function createRealtime(
   });
 
   io.on('connection', (socket) => {
-    void socket.join(DASHBOARD_ROOM);
+    void socket.join((socket.data as SocketIdentity).rooms ?? []);
   });
 
   // Si cierran la sesión o desactivan al usuario, el socket se corta en menos de un minuto.
@@ -155,6 +196,8 @@ export function createRealtime(
       clearInterval(revalidate);
       if (pending !== null) clearTimeout(pending);
       pending = null;
+      if (pendingWebOrders !== null) clearTimeout(pendingWebOrders);
+      pendingWebOrders = null;
       current = null;
       await io.close();
     },

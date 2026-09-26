@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { DASHBOARD_CHANGED_EVENT, REALTIME_PATH, slugify } from '@panesypan/shared';
+import {
+  DASHBOARD_CHANGED_EVENT,
+  REALTIME_PATH,
+  slugify,
+  WEB_ORDERS_CHANGED_EVENT,
+} from '@panesypan/shared';
 import request from 'supertest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -103,8 +108,40 @@ describe('tiempo real', () => {
     expect(await connected(open(null))).toBe('rejected');
   });
 
-  it('rechaza a la cajera: no tiene permiso de reportes', async () => {
-    expect(await connected(open(await accessCookieOf('laura')))).toBe('rejected');
+  it('la cajera recibe los pedidos web pero no los avisos del dashboard', async () => {
+    const socket = open(await accessCookieOf('laura'));
+    expect(await connected(socket)).toBe('connected');
+    let dashboard = false;
+    socket.on(DASHBOARD_CHANGED_EVENT, () => {
+      dashboard = true;
+    });
+    const changed = new Promise<void>((resolve) => {
+      socket.on(WEB_ORDERS_CHANGED_EVENT, () => resolve());
+    });
+    await cashier.agent
+      .post('/api/v1/cash-shifts')
+      .set('X-CSRF-Token', cashier.csrfToken)
+      .send({ openingAmount: 50_000 })
+      .expect(201);
+    await request(app)
+      .post('/api/v1/public/pedidos')
+      .set('Origin', ORIGIN)
+      .send({
+        clientRequestId: randomUUID(),
+        customer: {
+          name: 'Ana Gómez',
+          phone: '3001234567',
+          address: 'Cra 16 # 40-20',
+          neighborhood: 'Los Molinos',
+          note: '',
+        },
+        confirmsDosquebradas: true,
+        lines: [{ productId: breadId, quantity: 1 }],
+      })
+      .expect(201);
+    await expect(changed).resolves.toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(dashboard).toBe(false);
   });
 
   it('rechaza un origen no permitido', async () => {
