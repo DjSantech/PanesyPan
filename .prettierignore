@@ -1,3 +1,6 @@
 # Prettier también respeta .gitignore (dependencias, builds, datos locales…).
 pnpm-lock.yaml
 frontend/public
+
+# Lo genera Next.js en cada build
+web/next-env.d.ts
