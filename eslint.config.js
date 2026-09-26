@@ -10,7 +10,7 @@ import tseslint from 'typescript-eslint';
 export default defineConfig([
   // Todo lo que git ignora (dependencias, builds, datos locales…) tampoco se revisa.
   includeIgnoreFile(fileURLToPath(new URL('.gitignore', import.meta.url))),
-  globalIgnores(['frontend/public/']),
+  globalIgnores(['frontend/public/', 'web/next-env.d.ts']),
 
   // Archivos JavaScript (configuraciones)
   {
@@ -72,6 +72,13 @@ export default defineConfig([
     files: ['frontend/src/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat['recommended-latest'], reactRefresh.configs.vite],
     languageOptions: { globals: globals.browser },
+  },
+
+  // Web pública (Next.js)
+  {
+    files: ['web/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat['recommended-latest']],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
 
   // Pruebas: se permiten algunas licencias propias de los tests
