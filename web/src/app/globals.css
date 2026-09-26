@@ -1,0 +1,113 @@
+@import 'tailwindcss';
+
+/*
+ * Paleta "Horno clásico" (la misma del panel, frontend/src/index.css).
+ * Modo oscuro según el sistema.
+ */
+:root {
+  color-scheme: light;
+  --background: #f7ecdf;
+  --foreground: #3a1d0a;
+  --card: #fffaf4;
+  --card-foreground: #3a1d0a;
+  --muted: #f1e2d0;
+  --muted-foreground: #6b4a33;
+  --border: #e5ccb4;
+  --input: #d9bea2;
+  --primary: #a1452e;
+  --primary-foreground: #fffaf4;
+  --accent: #e0b25c;
+  --accent-foreground: #3a1d0a;
+  --accent-soft: #f5e1b8;
+  --accent-soft-foreground: #5c3d0e;
+  --ring: #a1452e;
+  --success: #2e6b3a;
+  --success-soft: #e2f0e3;
+  --danger: #9f2d20;
+  --danger-soft: #fbe3dd;
+  --pending: #7a5a1e;
+  --pending-soft: #f6ead0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #1c120c;
+    --foreground: #f5e2cb;
+    --card: #2a1b12;
+    --card-foreground: #f5e2cb;
+    --muted: #3a271b;
+    --muted-foreground: #cdb49a;
+    --border: #4a3222;
+    --input: #5c4030;
+    --primary: #e58866;
+    --primary-foreground: #1c120c;
+    --accent: #e0b25c;
+    --accent-foreground: #1c120c;
+    --accent-soft: #3b2d14;
+    --accent-soft-foreground: #ecc877;
+    --ring: #e58866;
+    --success: #8fd19b;
+    --success-soft: #1f3524;
+    --danger: #f59a86;
+    --danger-soft: #3f1d17;
+    --pending: #e9c46a;
+    --pending-soft: #3a2e14;
+  }
+}
+
+@theme inline {
+  --font-sans: 'Nunito Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Playfair Display Variable', Georgia, 'Times New Roman', serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
