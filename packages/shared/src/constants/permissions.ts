@@ -20,6 +20,8 @@ export const PERMISSIONS = [
   'sales:void:approve',
   'settings:manage',
   'einvoice:manage',
+  'web-orders:read',
+  'web-orders:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -36,6 +38,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>>
     'catalog:availability',
     'inventory:read',
     'inventory:record',
+    // Los pedidos de la web los atiende quien esté en caja.
+    'web-orders:read',
+    'web-orders:manage',
   ],
 };
 
