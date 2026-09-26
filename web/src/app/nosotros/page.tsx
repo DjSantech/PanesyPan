@@ -1,12 +1,14 @@
 import { ContactDetails } from '@/components/ContactDetails';
 import { PageHeading } from '@/components/PageHeading';
 import { getContactInfo } from '@/lib/business';
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Nosotros',
-  description: 'Conoce nuestra panadería en Dosquebradas, Risaralda, y cómo llegar.',
-};
+  description:
+    'Conoce Panes & Panes, panadería de barrio en Dosquebradas, Risaralda: quiénes somos, horarios y cómo llegar.',
+  path: '/nosotros',
+});
 
 export default async function AboutPage() {
   const contact = await getContactInfo();

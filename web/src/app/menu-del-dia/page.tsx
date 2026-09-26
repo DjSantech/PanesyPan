@@ -2,12 +2,14 @@ import { PageHeading } from '@/components/PageHeading';
 import { getDailyMenu } from '@/lib/api';
 import type { DailyMenuOption } from '@/lib/types';
 import { formatCOP } from '@panesypan/shared';
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Menú del día',
-  description: 'Almuerzo casero de hoy: sopas, principios, proteínas y jugo.',
-};
+  description:
+    'Almuerzo casero de hoy en Dosquebradas: sopa, principio, proteína y jugo. Consulta el menú antes de venir.',
+  path: '/menu-del-dia',
+});
 
 function formatDate(date: string): string {
   // El día de negocio viene como AAAA-MM-DD; se fija el mediodía UTC para no cambiar de día.

@@ -1,12 +1,14 @@
 import { ContactDetails } from '@/components/ContactDetails';
 import { PageHeading } from '@/components/PageHeading';
 import { getContactInfo } from '@/lib/business';
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Contacto',
-  description: 'Escríbenos o visítanos en Dosquebradas, Risaralda.',
-};
+  description:
+    'Escríbenos por WhatsApp o visita nuestra panadería en Dosquebradas, Risaralda: ubicación y datos de contacto.',
+  path: '/contacto',
+});
 
 export default async function ContactPage() {
   const contact = await getContactInfo();

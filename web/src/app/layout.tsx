@@ -4,17 +4,24 @@ import './globals.css';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
 import { getContactInfo } from '@/lib/business';
+import { JsonLdScript } from '@/lib/seo/JsonLdScript';
+import { bakeryJsonLd } from '@/lib/seo/jsonld';
+import { SITE_LOCALE, getSiteUrl } from '@/lib/seo/site';
 import { BUSINESS_NAME } from '@panesypan/shared';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
   title: {
-    default: `${BUSINESS_NAME} · Panadería en Dosquebradas`,
-    template: `%s · ${BUSINESS_NAME}`,
+    default: `Panadería en Dosquebradas | ${BUSINESS_NAME}`,
+    template: `%s | ${BUSINESS_NAME}`,
   },
   description:
     'Panadería en Dosquebradas, Risaralda: pan fresco, productos de panadería y menú del día.',
+  applicationName: BUSINESS_NAME,
+  openGraph: { type: 'website', locale: SITE_LOCALE, siteName: BUSINESS_NAME },
+  twitter: { card: 'summary_large_image' },
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -22,6 +29,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="es-CO">
       <body className="flex min-h-dvh flex-col">
+        <JsonLdScript data={bakeryJsonLd(contact)} />
         <a
           href="#contenido"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"

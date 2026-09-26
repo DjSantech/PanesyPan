@@ -4,6 +4,14 @@ import { getContactInfo } from '@/lib/business';
 import { ArrowRight, MessageCircle, UtensilsCrossed } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { pageMetadata } from '@/lib/seo/site';
+
+export const metadata = pageMetadata({
+  title: 'Panadería en Dosquebradas',
+  description:
+    'Pan fresco todos los días, productos de panadería y menú del día en Dosquebradas, Risaralda. Pide por WhatsApp.',
+  path: '/',
+});
 
 export default async function HomePage() {
   const [catalog, contact] = await Promise.all([getCatalog(), getContactInfo()]);

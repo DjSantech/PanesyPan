@@ -1,12 +1,14 @@
 import { PageHeading } from '@/components/PageHeading';
 import { ProductCard } from '@/components/ProductCard';
 import { getCatalog } from '@/lib/api';
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
-  title: 'Menú',
-  description: 'Productos de panadería, bebidas y más, con precios.',
-};
+export const metadata = pageMetadata({
+  title: 'Menú y precios',
+  description:
+    'Pan, productos de panadería y bebidas con precios en pesos. Tu panadería de confianza en Dosquebradas.',
+  path: '/menu',
+});
 
 export default async function MenuPage() {
   const { categories } = await getCatalog();
