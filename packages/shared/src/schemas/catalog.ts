@@ -147,18 +147,28 @@ export const setAvailabilityRequestSchema = z.strictObject({ isAvailable: z.bool
 
 const menuTextSchema = z.string().trim().max(120);
 
+/** Opción del menú (una sopa, un principio o una proteína) que se puede marcar como agotada. */
+export const menuOptionSchema = z.object({ name: z.string(), isAvailable: z.boolean() });
+export type MenuOption = z.infer<typeof menuOptionSchema>;
+
+export const MENU_OPTIONS_MAX = 10;
+
 export const dailyMenuOfferingSchema = z.object({
   productId: objectIdSchema,
   /** Porciones preparadas; `null` = sin límite. */
   portions: z.int().min(0).max(1_000).nullable(),
+  /**
+   * true: al venderlo se elige proteína, principio y sopa (el almuerzo).
+   * false: se vende directo (p. ej. el caldo solo).
+   */
+  withChoices: z.boolean(),
 });
 
 export const dailyMenuSchema = z.object({
   date: businessDateSchema,
-  soup: z.string(),
-  principle: z.string(),
-  proteins: z.array(z.object({ name: z.string(), isAvailable: z.boolean() })),
-  sides: z.array(z.string()),
+  soups: z.array(menuOptionSchema),
+  principles: z.array(menuOptionSchema),
+  proteins: z.array(menuOptionSchema),
   juice: z.string(),
   notes: z.string(),
   offerings: z.array(
@@ -171,18 +181,24 @@ export type DailyMenu = z.infer<typeof dailyMenuSchema>;
 
 export const dailyMenuResponseSchema = z.object({ menu: dailyMenuSchema });
 
+const menuOptionsInputSchema = z
+  .array(z.strictObject({ name: menuTextSchema.min(1), isAvailable: z.boolean().default(true) }))
+  .max(MENU_OPTIONS_MAX)
+  .default([])
+  .refine(
+    (options) =>
+      new Set(options.map((option) => option.name.toLocaleLowerCase('es'))).size === options.length,
+    { message: 'Hay una opción repetida' },
+  );
+
 export const upsertDailyMenuRequestSchema = z.strictObject({
-  soup: menuTextSchema.default(''),
-  principle: menuTextSchema.default(''),
-  proteins: z
-    .array(z.strictObject({ name: menuTextSchema.min(1), isAvailable: z.boolean().default(true) }))
-    .max(10)
-    .default([]),
-  sides: z.array(menuTextSchema.min(1)).max(10).default([]),
+  soups: menuOptionsInputSchema,
+  principles: menuOptionsInputSchema,
+  proteins: menuOptionsInputSchema,
   juice: menuTextSchema.default(''),
   notes: z.string().trim().max(300).default(''),
   offerings: z
-    .array(dailyMenuOfferingSchema.strict())
+    .array(dailyMenuOfferingSchema.extend({ withChoices: z.boolean().default(true) }).strict())
     .max(10)
     .default([])
     .refine(
@@ -193,3 +209,19 @@ export const upsertDailyMenuRequestSchema = z.strictObject({
   isPublished: z.boolean().default(false),
 });
 export type UpsertDailyMenuRequest = z.input<typeof upsertDailyMenuRequestSchema>;
+
+// ── Elección del almuerzo al vender ────────────────────────────────
+
+/** Lo que el cliente pide del almuerzo: proteína, principio y (si quiere) sopa. */
+export const lunchChoiceSchema = z.strictObject({
+  protein: menuTextSchema.min(1, 'Elige la proteína'),
+  principle: menuTextSchema.min(1, 'Elige el principio'),
+  /** null = sin sopa. */
+  soup: menuTextSchema.min(1).nullable(),
+});
+export type LunchChoice = z.infer<typeof lunchChoiceSchema>;
+
+/** Texto de la elección para la cuenta, la comanda y el tiquete. */
+export function lunchChoiceLabel(choice: LunchChoice): string {
+  return [choice.protein, choice.principle, choice.soup ?? 'Sin sopa'].join(' · ');
+}

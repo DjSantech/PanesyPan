@@ -3,6 +3,7 @@ import { PAYMENT_METHODS } from '../constants/payment-methods';
 import { PRICE_LIMITS } from '../money/money';
 import { DISCOUNT_MODES } from '../sales/sale-math';
 import { SETTINGS_LIMITS } from './settings';
+import { lunchChoiceSchema } from './catalog';
 import { businessDateSchema, moneySchema, objectIdSchema } from './common';
 import { customerInputSchema, saleCustomerSchema, saleEInvoiceSchema } from './einvoice';
 
@@ -52,6 +53,8 @@ export const saleLineSchema = z.object({
   note: z.string(),
   total: z.int(),
   isLunch: z.boolean(),
+  /** Proteína, principio y sopa que eligió el cliente (solo almuerzos con elección). */
+  lunch: lunchChoiceSchema.nullable(),
 });
 export type SaleLine = z.infer<typeof saleLineSchema>;
 
@@ -126,6 +129,8 @@ export const saleLineInputSchema = z.strictObject({
   productId: objectIdSchema,
   quantity: z.int().min(1).max(SALE_LIMITS.maxQuantity),
   note: z.string().trim().max(SALE_LIMITS.noteMax).default(''),
+  /** Obligatorio al vender un almuerzo del menú del día que pide elección. */
+  lunch: lunchChoiceSchema.nullable().default(null),
 });
 export type SaleLineInput = z.input<typeof saleLineInputSchema>;
 
