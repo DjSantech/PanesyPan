@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { CartIndicator } from '@/features/cart/CartIndicator';
 import { NAV_ITEMS } from './nav-items';
 
 export function SiteHeader({ businessName }: { businessName: string }) {
@@ -46,16 +47,19 @@ export function SiteHeader({ businessName }: { businessName: string }) {
         <nav aria-label="Principal" className="hidden md:block">
           <ul className="flex items-center gap-1">{links}</ul>
         </nav>
-        <button
-          type="button"
-          className="rounded-md p-2 hover:bg-muted md:hidden"
-          aria-expanded={open}
-          aria-controls="menu-movil"
-          aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? <X aria-hidden className="size-6" /> : <Menu aria-hidden className="size-6" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <CartIndicator />
+          <button
+            type="button"
+            className="rounded-md p-2 hover:bg-muted md:hidden"
+            aria-expanded={open}
+            aria-controls="menu-movil"
+            aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? <X aria-hidden className="size-6" /> : <Menu aria-hidden className="size-6" />}
+          </button>
+        </div>
       </div>
       {open && (
         <nav id="menu-movil" aria-label="Principal (móvil)" className="border-t md:hidden">

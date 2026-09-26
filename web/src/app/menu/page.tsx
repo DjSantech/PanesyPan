@@ -1,5 +1,6 @@
 import { PageHeading } from '@/components/PageHeading';
 import { ProductCard } from '@/components/ProductCard';
+import { AddToCartButton } from '@/features/cart/AddToCartButton';
 import { getCatalog } from '@/lib/api';
 import type { Metadata } from 'next';
 
@@ -44,7 +45,11 @@ export default async function MenuPage() {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {c.products.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    action={p.isAvailable ? <AddToCartButton product={p} /> : undefined}
+                  />
                 ))}
               </div>
             </section>
