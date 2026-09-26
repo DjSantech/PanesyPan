@@ -36,8 +36,9 @@ services:
         sync: false
       - key: MONGODB_DB_NAME
         value: panesypan
+      # Panel POS + web pública (apex y www), separados por coma y sin barra final.
       - key: CORS_ORIGINS
-        value: https://sistema.panesypan.com
+        value: https://sistema.panesypan.com,https://panesypan.com,https://www.panesypan.com
       - key: TRUST_PROXY_HOPS
         value: '1'
       - key: ORIGIN_VERIFY_SECRET
