@@ -11,6 +11,8 @@ export interface PosProduct {
   isAvailable: boolean;
   isFavorite: boolean;
   isLunch: boolean;
+  /** Almuerzo del menú: al venderlo se elige proteína, principio y sopa. */
+  withChoices: boolean;
   /** Foto de referencia para quien vende (null = sin foto). */
   imagePath: string | null;
   /** Porciones que quedan hoy (solo almuerzos con límite). */
@@ -117,6 +119,7 @@ export function buildPosCatalog(
         isAvailable: product.isAvailable,
         isFavorite: product.isFavorite,
         isLunch,
+        withChoices: isLunch && offering?.withChoices === true,
         imagePath: product.imagePath,
         portionsLeft: portionsLeftOf(offering),
         sortOrder: product.sortOrder,

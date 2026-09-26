@@ -1,21 +1,141 @@
-import type { DailyMenu } from '@panesypan/shared';
+import { formatCOP, type DailyMenu, type LunchChoice, type MenuOption } from '@panesypan/shared';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import type { PosProduct } from './use-pos-catalog';
 
-/** Qué trae el almuerzo de hoy, para leérselo al cliente. */
-function menuSummary(menu: DailyMenu): string {
-  return [
-    menu.soup === '' ? null : `Sopa: ${menu.soup}`,
-    menu.principle === '' ? null : `Principio: ${menu.principle}`,
-    menu.sides.length === 0 ? null : menu.sides.join(', '),
-    menu.juice === '' ? null : `Jugo: ${menu.juice}`,
-  ]
-    .filter((part) => part !== null)
-    .join(' · ');
+const NO_SOUP = '';
+
+/** Grupo de botones grandes para elegir una opción del menú (una sola a la vez). */
+function ChoiceGroup({
+  title,
+  options,
+  value,
+  onChange,
+  extra,
+}: {
+  title: string;
+  options: MenuOption[];
+  value: string | null;
+  onChange: (value: string) => void;
+  /** Opción adicional al final (p. ej. "Sin sopa"). */
+  extra?: { value: string; label: string };
+}) {
+  const available = options.filter((option) => option.isAvailable);
+  const items = [
+    ...available.map((option) => ({ value: option.name, label: option.name })),
+    ...(extra === undefined ? [] : [extra]),
+  ];
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-1.5 text-sm font-bold">{title}</legend>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No hay opciones disponibles hoy.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label={title}>
+          {items.map((item) => {
+            const selected = value === item.value;
+            return (
+              <Button
+                key={item.value === NO_SOUP ? '__sin__' : item.value}
+                role="radio"
+                aria-checked={selected}
+                variant={selected ? 'default' : 'outline'}
+                size="lg"
+                className={cn('h-12 text-base', selected && 'ring-3 ring-ring/40')}
+                onClick={() => {
+                  onChange(item.value);
+                }}
+              >
+                {item.label}
+              </Button>
+            );
+          })}
+        </div>
+      )}
+      {options.some((option) => !option.isAvailable) ? (
+        <p className="text-xs text-muted-foreground">
+          Agotado:{' '}
+          {options
+            .filter((option) => !option.isAvailable)
+            .map((option) => option.name)
+            .join(', ')}
+        </p>
+      ) : null}
+    </fieldset>
+  );
 }
 
-/** Al vender un almuerzo, la cajera elige la proteína: queda como nota en la cuenta y el tiquete. */
+/** Si solo hay una opción disponible, se deja elegida. */
+const onlyOption = (options: MenuOption[]): string | null => {
+  const available = options.filter((option) => option.isAvailable);
+  return available.length === 1 ? (available[0]?.name ?? null) : null;
+};
+
+function LunchForm({
+  product,
+  menu,
+  onChoose,
+}: {
+  product: PosProduct;
+  menu: DailyMenu;
+  onChoose: (product: PosProduct, lunch: LunchChoice) => void;
+}) {
+  const [protein, setProtein] = useState(() => onlyOption(menu.proteins));
+  const [principle, setPrinciple] = useState(() => onlyOption(menu.principles));
+  const [soup, setSoup] = useState<string | null>(() =>
+    menu.soups.some((option) => option.isAvailable) ? onlyOption(menu.soups) : NO_SOUP,
+  );
+
+  const ready = protein !== null && principle !== null && soup !== null;
+
+  return (
+    <div className="grid gap-5">
+      <ChoiceGroup
+        title="1. Proteína"
+        options={menu.proteins}
+        value={protein}
+        onChange={setProtein}
+      />
+      <ChoiceGroup
+        title="2. Principio"
+        options={menu.principles}
+        value={principle}
+        onChange={setPrinciple}
+      />
+      <ChoiceGroup
+        title="3. Sopa (va incluida)"
+        options={menu.soups}
+        value={soup}
+        onChange={setSoup}
+        extra={{ value: NO_SOUP, label: 'Sin sopa' }}
+      />
+      {menu.juice === '' && menu.notes === '' ? null : (
+        <p className="text-sm text-muted-foreground">
+          {[menu.juice === '' ? null : `Jugo: ${menu.juice}`, menu.notes === '' ? null : menu.notes]
+            .filter((part) => part !== null)
+            .join(' · ')}
+        </p>
+      )}
+      <Button
+        size="lg"
+        className="h-14 text-base"
+        disabled={!ready}
+        onClick={() => {
+          if (protein === null || principle === null || soup === null) return;
+          onChoose(product, { protein, principle, soup: soup === NO_SOUP ? null : soup });
+        }}
+      >
+        {ready
+          ? `Agregar almuerzo · ${formatCOP(product.price)}`
+          : 'Elige proteína, principio y sopa'}
+      </Button>
+    </div>
+  );
+}
+
+/** Al vender un almuerzo, la cajera elige proteína, principio y sopa (la sopa se puede quitar). */
 export function LunchDialog({
   product,
   menu,
@@ -25,32 +145,17 @@ export function LunchDialog({
   product: PosProduct | null;
   menu: DailyMenu;
   onOpenChange: (open: boolean) => void;
-  onChoose: (product: PosProduct, note: string) => void;
+  onChoose: (product: PosProduct, lunch: LunchChoice) => void;
 }) {
   return (
     <Dialog open={product !== null} onOpenChange={onOpenChange}>
       {product === null ? null : (
-        <DialogContent title={`${product.name}: ¿qué proteína?`} description={menuSummary(menu)}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {menu.proteins.map((protein) => (
-              <Button
-                key={protein.name}
-                variant="outline"
-                size="lg"
-                className="h-14 text-base"
-                disabled={!protein.isAvailable}
-                onClick={() => {
-                  onChoose(product, protein.name);
-                }}
-              >
-                {protein.name}
-                {protein.isAvailable ? null : ' (agotada)'}
-              </Button>
-            ))}
-          </div>
-          {menu.notes === '' ? null : (
-            <p className="mt-3 text-sm text-muted-foreground">{menu.notes}</p>
-          )}
+        <DialogContent
+          title={product.name}
+          description="Pregúntale al cliente la proteína, el principio y si quiere sopa."
+          className="sm:max-w-xl"
+        >
+          <LunchForm key={product.id} product={product} menu={menu} onChoose={onChoose} />
         </DialogContent>
       )}
     </Dialog>

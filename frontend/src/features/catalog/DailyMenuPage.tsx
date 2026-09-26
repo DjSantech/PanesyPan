@@ -1,8 +1,10 @@
 import {
   formatCOP,
   formatLongDateCO,
+  MENU_OPTIONS_MAX,
   toBusinessDate,
   type DailyMenu,
+  type MenuOption,
   type UpsertDailyMenuRequest,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,60 +40,151 @@ interface Offering {
   enabled: boolean;
   portions: string;
   sold: number;
+  withChoices: boolean;
 }
 
-/** Lista editable de textos (acompañantes). */
-function TextList({
-  label,
-  items,
-  onChange,
+/** Almuerzo = se elige proteína, principio y sopa; el resto (p. ej. "Caldo") se vende directo. */
+const guessWithChoices = (name: string): boolean => !/caldo|sopa/i.test(name);
+
+/** Lista editable de opciones del menú (sopas, principios o proteínas) con "disponible". */
+function OptionList({
+  title,
+  singular,
   placeholder,
+  options,
+  onChange,
 }: {
-  label: string;
-  items: string[];
-  onChange: (items: string[]) => void;
+  title: string;
+  singular: string;
   placeholder: string;
+  options: MenuOption[];
+  onChange: (options: MenuOption[]) => void;
 }) {
+  const update = (index: number, change: Partial<MenuOption>) => {
+    onChange(options.map((item, position) => (position === index ? { ...item, ...change } : item)));
+  };
   return (
-    <fieldset className="grid gap-2">
-      <legend className="mb-1.5 text-sm font-bold">{label}</legend>
-      {items.map((item, index) => (
-        <div key={index} className="flex gap-2">
-          <Input
-            aria-label={`${label} ${String(index + 1)}`}
-            value={item}
-            placeholder={placeholder}
-            onChange={(event) => {
-              onChange(
-                items.map((value, position) => (position === index ? event.target.value : value)),
-              );
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Quitar ${item === '' ? 'fila' : item}`}
-            onClick={() => {
-              onChange(items.filter((_, position) => position !== index));
-            }}
-          >
-            <Trash2 />
-          </Button>
-        </div>
-      ))}
-      <Button
-        variant="outline"
-        size="sm"
-        className="justify-self-start"
-        onClick={() => {
-          onChange([...items, '']);
-        }}
-      >
-        <Plus aria-hidden="true" /> Agregar
-      </Button>
-    </fieldset>
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>
+          Apaga el interruptor cuando se acabe: deja de salir en Vender.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {options.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Todavía no hay {title.toLowerCase()}.</p>
+        ) : null}
+        {options.map((option, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <Input
+              aria-label={`${singular} ${String(index + 1)}`}
+              placeholder={placeholder}
+              value={option.name}
+              onChange={(event) => {
+                update(index, { name: event.target.value });
+              }}
+            />
+            <Switch
+              checked={option.isAvailable}
+              label={`${option.name === '' ? singular : option.name} disponible`}
+              onCheckedChange={(isAvailable) => {
+                update(index, { isAvailable });
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Quitar ${option.name === '' ? singular.toLowerCase() : option.name}`}
+              onClick={() => {
+                onChange(options.filter((_, position) => position !== index));
+              }}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          className="justify-self-start"
+          disabled={options.length >= MENU_OPTIONS_MAX}
+          onClick={() => {
+            onChange([...options, { name: '', isAvailable: true }]);
+          }}
+        >
+          <Plus aria-hidden="true" /> Agregar {singular.toLowerCase()}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
+
+/** Resumen de lo que hay hoy, como se lo dice la cajera al cliente. */
+function TodaySummary({
+  soups,
+  principles,
+  proteins,
+  isPublished,
+}: {
+  soups: MenuOption[];
+  principles: MenuOption[];
+  proteins: MenuOption[];
+  isPublished: boolean;
+}) {
+  const groups = [
+    { label: 'Sopas', options: soups },
+    { label: 'Principios', options: principles },
+    { label: 'Proteínas', options: proteins },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Hoy hay</CardTitle>
+        <CardDescription>
+          El almuerzo trae una proteína, un principio y sopa (si el cliente la quiere).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-3">
+        {groups.map((group) => {
+          const named = group.options.filter((option) => option.name.trim() !== '');
+          return (
+            <div key={group.label}>
+              <p className="text-sm font-bold text-muted-foreground">{group.label}</p>
+              {named.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin definir</p>
+              ) : (
+                <ul className="mt-1 grid gap-0.5">
+                  {named.map((option) => (
+                    <li
+                      key={option.name}
+                      className={
+                        option.isAvailable ? 'font-extrabold' : 'text-muted-foreground line-through'
+                      }
+                    >
+                      {option.name}
+                      {option.isAvailable ? null : <span className="sr-only"> (agotado)</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+        {isPublished ? null : (
+          <Alert tone="pending" className="sm:col-span-3">
+            Este menú es un borrador: en Vender no aparecen los almuerzos hasta que lo publiques.
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const cleanOptions = (options: MenuOption[]): MenuOption[] =>
+  options
+    .map((option) => ({ ...option, name: option.name.trim() }))
+    .filter((option) => option.name !== '');
 
 function MenuForm({
   date,
@@ -103,10 +196,9 @@ function MenuForm({
   lunchProducts: { id: string; name: string; price: number }[];
 }) {
   const queryClient = useQueryClient();
-  const [soup, setSoup] = useState(menu.soup);
-  const [principle, setPrinciple] = useState(menu.principle);
+  const [soups, setSoups] = useState(menu.soups);
+  const [principles, setPrinciples] = useState(menu.principles);
   const [proteins, setProteins] = useState(menu.proteins);
-  const [sides, setSides] = useState(menu.sides);
   const [juice, setJuice] = useState(menu.juice);
   const [notes, setNotes] = useState(menu.notes);
   const [isPublished, setIsPublished] = useState(menu.isPublished);
@@ -121,6 +213,7 @@ function MenuForm({
         portions:
           current?.portions === null || current === undefined ? '' : String(current.portions),
         sold: current?.sold ?? 0,
+        withChoices: current?.withChoices ?? guessWithChoices(product.name),
       };
     }),
   );
@@ -133,13 +226,18 @@ function MenuForm({
     },
   });
 
+  const updateOffering = (index: number, change: Partial<Offering>) => {
+    setOfferings(
+      offerings.map((item, position) => (position === index ? { ...item, ...change } : item)),
+    );
+  };
+
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     save.mutate({
-      soup,
-      principle,
-      proteins: proteins.filter((protein) => protein.name.trim() !== ''),
-      sides: sides.filter((side) => side.trim() !== ''),
+      soups: cleanOptions(soups),
+      principles: cleanOptions(principles),
+      proteins: cleanOptions(proteins),
       juice,
       notes,
       isPublished,
@@ -148,37 +246,47 @@ function MenuForm({
         .map((offering) => ({
           productId: offering.productId,
           portions: offering.portions.trim() === '' ? null : Number(offering.portions),
+          withChoices: offering.withChoices,
         })),
     });
   };
 
   return (
     <form className="grid gap-5" onSubmit={handleSubmit} noValidate>
+      <TodaySummary
+        soups={soups}
+        principles={principles}
+        proteins={proteins}
+        isPublished={menu.isPublished}
+      />
+
+      <OptionList
+        title="Sopas"
+        singular="Sopa"
+        placeholder="Ej.: Sancocho"
+        options={soups}
+        onChange={setSoups}
+      />
+      <OptionList
+        title="Principios"
+        singular="Principio"
+        placeholder="Ej.: Fríjoles"
+        options={principles}
+        onChange={setPrinciples}
+      />
+      <OptionList
+        title="Proteínas"
+        singular="Proteína"
+        placeholder="Ej.: Pollo asado"
+        options={proteins}
+        onChange={setProteins}
+      />
+
       <Card>
         <CardHeader>
-          <CardTitle>Qué hay hoy</CardTitle>
+          <CardTitle>Extras (opcional)</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field id="menu-soup" label="Sopa">
-            <Input
-              id="menu-soup"
-              placeholder="Ej.: Sancocho"
-              value={soup}
-              onChange={(event) => {
-                setSoup(event.target.value);
-              }}
-            />
-          </Field>
-          <Field id="menu-principle" label="Principio">
-            <Input
-              id="menu-principle"
-              placeholder="Ej.: Fríjoles"
-              value={principle}
-              onChange={(event) => {
-                setPrinciple(event.target.value);
-              }}
-            />
-          </Field>
           <Field id="menu-juice" label="Jugo">
             <Input
               id="menu-juice"
@@ -189,7 +297,7 @@ function MenuForm({
               }}
             />
           </Field>
-          <Field id="menu-notes" label="Notas (opcional)">
+          <Field id="menu-notes" label="Notas">
             <Input
               id="menu-notes"
               placeholder="Ej.: Postre de natas"
@@ -199,76 +307,15 @@ function MenuForm({
               }}
             />
           </Field>
-
-          <fieldset className="grid gap-2 sm:col-span-2">
-            <legend className="mb-1.5 text-sm font-bold">
-              Proteínas (la cajera elige cuál sirve)
-            </legend>
-            {proteins.map((protein, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <Input
-                  aria-label={`Proteína ${String(index + 1)}`}
-                  placeholder="Ej.: Pollo asado"
-                  value={protein.name}
-                  onChange={(event) => {
-                    setProteins(
-                      proteins.map((item, position) =>
-                        position === index ? { ...item, name: event.target.value } : item,
-                      ),
-                    );
-                  }}
-                />
-                <Switch
-                  checked={protein.isAvailable}
-                  label={`${protein.name === '' ? 'Proteína' : protein.name} disponible`}
-                  onCheckedChange={(isAvailable) => {
-                    setProteins(
-                      proteins.map((item, position) =>
-                        position === index ? { ...item, isAvailable } : item,
-                      ),
-                    );
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Quitar proteína"
-                  onClick={() => {
-                    setProteins(proteins.filter((_, position) => position !== index));
-                  }}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-self-start"
-              onClick={() => {
-                setProteins([...proteins, { name: '', isAvailable: true }]);
-              }}
-            >
-              <Plus aria-hidden="true" /> Agregar proteína
-            </Button>
-          </fieldset>
-
-          <div className="sm:col-span-2">
-            <TextList
-              label="Acompañantes"
-              items={sides}
-              onChange={setSides}
-              placeholder="Ej.: Arroz, maduro, ensalada"
-            />
-          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Almuerzos a la venta</CardTitle>
+          <CardTitle>Qué se vende hoy</CardTitle>
           <CardDescription>
-            Marca los que se venden hoy y cuántas porciones hay. Vacío = sin límite.
+            Marca lo que se vende y cuántas porciones hay (vacío = sin límite). El almuerzo pide
+            proteína, principio y sopa; el caldo solo se vende directo con su propio precio.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
@@ -281,11 +328,7 @@ function MenuForm({
                 checked={offering.enabled}
                 label={`Vender ${offering.name} hoy`}
                 onCheckedChange={(enabled) => {
-                  setOfferings(
-                    offerings.map((item, position) =>
-                      position === index ? { ...item, enabled } : item,
-                    ),
-                  );
+                  updateOffering(index, { enabled });
                 }}
               />
               <div className="min-w-0 flex-1">
@@ -295,6 +338,19 @@ function MenuForm({
                   {offering.sold > 0 ? ` · vendidos hoy: ${String(offering.sold)}` : ''}
                 </p>
               </div>
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Switch
+                  checked={offering.withChoices}
+                  disabled={!offering.enabled}
+                  label={`${offering.name} pide proteína, principio y sopa`}
+                  onCheckedChange={(withChoices) => {
+                    updateOffering(index, { withChoices });
+                  }}
+                />
+                <span aria-hidden="true">
+                  {offering.withChoices ? 'Almuerzo (elige)' : 'Venta directa'}
+                </span>
+              </div>
               <Input
                 aria-label={`Porciones de ${offering.name}`}
                 className="w-28"
@@ -303,12 +359,9 @@ function MenuForm({
                 disabled={!offering.enabled}
                 value={offering.portions}
                 onChange={(event) => {
-                  const portions = event.target.value.replace(/\D/g, '').slice(0, 4);
-                  setOfferings(
-                    offerings.map((item, position) =>
-                      position === index ? { ...item, portions } : item,
-                    ),
-                  );
+                  updateOffering(index, {
+                    portions: event.target.value.replace(/\D/g, '').slice(0, 4),
+                  });
                 }}
               />
             </div>
@@ -398,7 +451,7 @@ export function DailyMenuPage() {
         <EmptyState
           icon={Soup}
           title="No hay productos de almuerzo"
-          description='Crea en el Catálogo productos como "Almuerzo corriente" o "Ejecutivo" dentro de la categoría Almuerzos.'
+          description='Crea en el Catálogo, dentro de la categoría Almuerzos, el producto "Almuerzo" (y "Caldo" si lo vendes aparte).'
         />
       ) : (
         <MenuForm

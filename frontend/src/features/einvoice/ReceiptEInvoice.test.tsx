@@ -38,6 +38,7 @@ const sale = (einvoice: SaleEInvoice | null, customer: Sale['customer'] = null):
       quantity: 2,
       note: '',
       total: 4_000,
+      lunch: null,
       isLunch: false,
     },
   ],

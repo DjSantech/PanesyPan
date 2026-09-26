@@ -3,7 +3,9 @@ import {
   formatLongDateCO,
   formatTimeCO,
   toBusinessDate,
+  lunchChoiceLabel,
   type CashShift,
+  type LunchChoice,
   type Sale,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -207,22 +209,22 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
     },
   });
 
-  const addProduct = (product: PosProduct, note: string) => {
+  const addProduct = (product: PosProduct, lunch: LunchChoice | null) => {
     if (selectedTab !== null) {
       tabAction.mutate(() =>
-        addTabLine(selectedTab.id, { productId: product.id, quantity: 1, note }),
+        addTabLine(selectedTab.id, { productId: product.id, quantity: 1, lunch }),
       );
     } else {
-      addToCart(product.id, note);
+      addToCart(product.id, '', lunch);
     }
   };
 
   const pickProduct = (product: PosProduct) => {
-    if (product.isLunch && (catalog.menu?.proteins.length ?? 0) > 0) {
+    if (product.withChoices) {
       setLunchFor(product);
       return;
     }
-    addProduct(product, '');
+    addProduct(product, null);
   };
 
   const selectTable = (tableNumber: number, tab: Sale | undefined) => {
@@ -251,7 +253,12 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
     return {
       key: line.key,
       name: product?.name ?? 'Producto retirado',
-      note: line.note,
+      note: [
+        line.lunch === undefined || line.lunch === null ? '' : lunchChoiceLabel(line.lunch),
+        line.note,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       unitPrice,
       quantity: line.quantity,
       total: unitPrice * line.quantity,
@@ -294,6 +301,7 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
             productId: line.productId,
             quantity: line.quantity,
             note: line.note,
+            lunch: line.lunch ?? null,
           })),
         })
       : checkoutTab(selectedTab.id, payload);
@@ -545,9 +553,9 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
           onOpenChange={(open) => {
             if (!open) setLunchFor(null);
           }}
-          onChoose={(product, note) => {
+          onChoose={(product, lunch) => {
             setLunchFor(null);
-            addProduct(product, note);
+            addProduct(product, lunch);
           }}
         />
       )}

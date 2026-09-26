@@ -27,10 +27,9 @@ const product = (id: string, categoryId: string) => ({
 
 const menu = (overrides: Partial<DailyMenu> = {}): DailyMenu => ({
   date: '2026-09-23',
-  soup: '',
-  principle: '',
+  soups: [],
+  principles: [],
   proteins: [],
-  sides: [],
   juice: '',
   notes: '',
   offerings: [],
@@ -48,6 +47,7 @@ describe('catálogo del punto de venta', () => {
   const products = [
     product('bono', 'pan'),
     product('corriente', 'almuerzos'),
+    product('caldo', 'almuerzos'),
     product('archivado', 'viejo'),
   ];
 
@@ -56,12 +56,25 @@ describe('catálogo del punto de venta', () => {
       categories,
       products,
       menu({
-        offerings: [{ productId: 'corriente', portions: 30, sold: 12, name: 'x', price: 1 }],
+        offerings: [
+          {
+            productId: 'corriente',
+            portions: 30,
+            sold: 12,
+            withChoices: true,
+            name: 'x',
+            price: 1,
+          },
+          { productId: 'caldo', portions: null, sold: 0, withChoices: false, name: 'y', price: 1 },
+        ],
       }),
     );
-    expect(withLunch.products.map((item) => [item.id, item.portionsLeft])).toEqual([
-      ['bono', null],
-      ['corriente', 18],
+    expect(
+      withLunch.products.map((item) => [item.id, item.portionsLeft, item.withChoices]),
+    ).toEqual([
+      ['bono', null, false],
+      ['corriente', 18, true],
+      ['caldo', null, false],
     ]);
 
     const unpublished = buildPosCatalog(
@@ -69,7 +82,16 @@ describe('catálogo del punto de venta', () => {
       products,
       menu({
         isPublished: false,
-        offerings: [{ productId: 'corriente', portions: null, sold: 0, name: 'x', price: 1 }],
+        offerings: [
+          {
+            productId: 'corriente',
+            portions: null,
+            sold: 0,
+            withChoices: true,
+            name: 'x',
+            price: 1,
+          },
+        ],
       }),
     );
     expect(unpublished.products.map((item) => item.id)).toEqual(['bono']);
@@ -83,25 +105,27 @@ describe('pedido de mostrador', () => {
     useCartStore.getState().clear();
   });
 
-  it('suma el mismo producto y separa por nota', () => {
+  it('suma el mismo producto y separa el almuerzo por lo que eligió el cliente', () => {
     const { add } = useCartStore.getState();
+    const pollo = { protein: 'Pollo', principle: 'Fríjoles', soup: 'Sancocho' };
     add('bono');
     add('bono');
-    add('corriente', 'Pollo');
-    add('corriente', 'Res');
+    add('corriente', '', pollo);
+    add('corriente', '', pollo);
+    add('corriente', '', { ...pollo, soup: null });
     expect(useCartStore.getState().lines.map((line) => [line.key, line.quantity])).toEqual([
-      ['bono|', 2],
-      ['corriente|Pollo', 1],
-      ['corriente|Res', 1],
+      ['bono||', 2],
+      ['corriente|Pollo · Fríjoles · Sancocho|', 2],
+      ['corriente|Pollo · Fríjoles · Sin sopa|', 1],
     ]);
   });
 
   it('cantidad cero quita la línea', () => {
     const { add, setQuantity } = useCartStore.getState();
     add('bono');
-    setQuantity('bono|', 5);
+    setQuantity('bono||', 5);
     expect(useCartStore.getState().lines[0]?.quantity).toBe(5);
-    setQuantity('bono|', 0);
+    setQuantity('bono||', 0);
     expect(useCartStore.getState().lines).toEqual([]);
   });
 });

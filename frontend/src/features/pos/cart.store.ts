@@ -1,24 +1,27 @@
-import { SALE_LIMITS } from '@panesypan/shared';
+import { lunchChoiceLabel, SALE_LIMITS, type LunchChoice } from '@panesypan/shared';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 export interface CartLine {
-  /** Producto + nota: el mismo almuerzo con otra proteína es otra línea. */
+  /** Producto + elección + nota: el mismo almuerzo con otra proteína es otra línea. */
   key: string;
   productId: string;
   quantity: number;
   note: string;
+  /** Proteína, principio y sopa del almuerzo (null en los demás productos). */
+  lunch?: LunchChoice | null;
 }
 
 interface CartState {
   lines: CartLine[];
-  add: (productId: string, note?: string) => void;
+  add: (productId: string, note?: string, lunch?: LunchChoice | null) => void;
   /** Cantidad 0 = quitar la línea. */
   setQuantity: (key: string, quantity: number) => void;
   clear: () => void;
 }
 
-const lineKey = (productId: string, note: string): string => `${productId}|${note}`;
+const lineKey = (productId: string, note: string, lunch: LunchChoice | null): string =>
+  `${productId}|${lunch === null ? '' : lunchChoiceLabel(lunch)}|${note}`;
 
 /**
  * Pedido de mostrador que se está armando. Solo guarda qué y cuánto: el nombre y el precio
@@ -29,12 +32,12 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
-      add: (productId, note = '') => {
+      add: (productId, note = '', lunch = null) => {
         set((state) => {
-          const key = lineKey(productId, note);
+          const key = lineKey(productId, note, lunch);
           const existing = state.lines.find((line) => line.key === key);
           if (existing === undefined) {
-            return { lines: [...state.lines, { key, productId, quantity: 1, note }] };
+            return { lines: [...state.lines, { key, productId, quantity: 1, note, lunch }] };
           }
           return {
             lines: state.lines.map((line) =>
