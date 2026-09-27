@@ -739,6 +739,7 @@ Al cierre de cada fase se hace una revisión de seguridad.
 | 1G   | Revisión de seguridad, pruebas, pulido y guía de producción                                                    | ✅     |
 | 1H   | Facturación electrónica DIAN (factura de venta y nota crédito, proveedor Factus): lista, **sin activar**       | ✅     |
 | 2    | Web pública (Next.js, SEO local) y domicilios en tiempo real                                                   | ⏳     |
+| 3    | Pedidos web cobrados como venta, almuerzos por la web, avisos, comanda y reportes web vs. local                | ✅     |
 
 ## Convención de commits
 
