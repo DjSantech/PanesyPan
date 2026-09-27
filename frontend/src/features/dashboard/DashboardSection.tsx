@@ -9,6 +9,8 @@ import {
   BellRing,
   Banknote,
   Receipt,
+  ShoppingBag,
+  Store,
   TrendingDown,
   Wifi,
   WifiOff,
@@ -104,6 +106,9 @@ function ShareRow({
   );
 }
 
+const countLabel = (count: number): string =>
+  count === 0 ? 'Aún sin ventas' : `${String(count)} ${count === 1 ? 'venta' : 'ventas'}`;
+
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Card>
@@ -159,6 +164,21 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
               ? 'Ningún producto controla inventario'
               : `de ${String(inventory.trackedCount)} productos con inventario`
           }
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Kpi
+          icon={Store}
+          label="Ventas en el local"
+          value={formatCOP(data.byOrigin.local.total)}
+          detail={countLabel(data.byOrigin.local.count)}
+        />
+        <Kpi
+          icon={ShoppingBag}
+          label="Ventas de pedidos web"
+          value={formatCOP(data.byOrigin.web.total)}
+          detail={countLabel(data.byOrigin.web.count)}
         />
       </div>
 
