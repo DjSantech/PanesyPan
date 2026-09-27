@@ -48,7 +48,7 @@ import { toSaleDto } from './sales.mapper';
 
 type CounterCheckoutInput = z.output<typeof counterCheckoutRequestSchema>;
 type TabCheckoutInput = z.output<typeof tabCheckoutRequestSchema>;
-type CheckoutFields = TabCheckoutInput;
+export type CheckoutFields = TabCheckoutInput;
 
 const SALE_SEQUENCE = 'sale';
 
@@ -85,7 +85,7 @@ export function productFor(products: Map<string, SellableProduct>, id: string): 
 
 // ── Cobro ──────────────────────────────────────────────────────────
 
-interface PreparedCheckout {
+export interface PreparedCheckout {
   totals: SaleTotals;
   change: number;
   cashReceived: number | null;
@@ -93,7 +93,7 @@ interface PreparedCheckout {
 }
 
 /** Valida total, descuento y pagos. La API recalcula todo: la tablet solo propone. */
-function prepareCheckout(
+export function prepareCheckout(
   lines: readonly PricedLine[],
   input: CheckoutFields,
   maxDiscountPercent: number,
@@ -139,7 +139,7 @@ function toSaleCustomer(customer: CheckoutFields['customer']): SaleCustomerAttrs
   };
 }
 
-async function applyCheckout(
+export async function applyCheckout(
   sale: SaleDocument,
   prepared: PreparedCheckout,
   input: CheckoutFields,
@@ -183,7 +183,7 @@ async function applyCheckout(
   sale.status = 'PAID';
 }
 
-async function auditDiscountApproval(
+export async function auditDiscountApproval(
   sale: SaleDocument,
   approver: PersonRef | null,
   ctx: ActorContext,
@@ -206,7 +206,7 @@ async function auditDiscountApproval(
   );
 }
 
-const isDuplicateKey = (error: unknown): boolean =>
+export const isDuplicateKey = (error: unknown): boolean =>
   error instanceof mongo.MongoServerError && error.code === 11000;
 
 /** Un reintento del mismo cobro devuelve la venta ya registrada en vez de cobrar dos veces. */

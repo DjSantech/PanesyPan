@@ -122,7 +122,7 @@ export function portionChangesOf(lines: readonly SaleLineAttrs[], sign: 1 | -1):
  * y la segunda ve que ya no quedan.
  */
 /** Verifica que la proteína, el principio y la sopa estén en el menú y no se hayan agotado. */
-function assertLunchChoice(
+export function assertLunchChoice(
   menu: DailyMenuDocument,
   change: PortionChange,
   withChoices: boolean,
