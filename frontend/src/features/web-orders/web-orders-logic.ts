@@ -1,4 +1,11 @@
-import type { WebOrder, WebOrderStatus } from '@panesypan/shared';
+import {
+  canCancelWebOrder,
+  canCheckoutWebOrder,
+  formatCOP,
+  lunchChoiceLabel,
+  type WebOrder,
+  type WebOrderStatus,
+} from '@panesypan/shared';
 
 export const STATUS_TONE: Record<
   WebOrderStatus,
@@ -45,4 +52,25 @@ export function sortWebOrders(orders: readonly WebOrder[]): WebOrder[] {
         ? b.createdAt.localeCompare(a.createdAt)
         : a.createdAt.localeCompare(b.createdAt)),
   );
+}
+
+/** Qué acciones ve quien atiende el pedido, según su estado y sus permisos. */
+export function webOrderActions(
+  status: WebOrderStatus,
+  perms: { manage: boolean; sell: boolean },
+): { checkout: boolean; cancel: boolean } {
+  return {
+    checkout: perms.manage && perms.sell && canCheckoutWebOrder(status),
+    cancel: perms.manage && canCancelWebOrder(status),
+  };
+}
+
+/** Texto de la elección de almuerzo de una línea (null si no es almuerzo). */
+export function lineLunchLabel(line: WebOrder['lines'][number]): string | null {
+  return line.lunch === null ? null : lunchChoiceLabel(line.lunch);
+}
+
+/** Texto para la cajera: el domicilio lo recibe el domiciliario, no la caja. */
+export function deliveryFeeNote(fee: number | null): string | null {
+  return fee === null ? null : `El cliente le paga ${formatCOP(fee)} al domiciliario`;
 }

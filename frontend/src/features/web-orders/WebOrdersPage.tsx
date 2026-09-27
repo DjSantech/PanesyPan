@@ -4,26 +4,35 @@ import {
   nextWebOrderStatus,
   WEB_ORDER_STATUS_LABELS,
   WEB_ORDER_STATUSES,
+  type Sale,
   type WebOrder,
   type WebOrderStatus,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Phone, ShoppingBag } from 'lucide-react';
+import { Ban, MessageCircle, Phone, ShoppingBag, Wallet } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, Skeleton } from '@/components/ui/surface';
 import { useCan } from '@/features/auth/use-session';
+import { posKeys } from '@/features/pos/pos.api';
+import { SaleDoneDialog } from '@/features/pos/SaleDoneDialog';
+import { useSettings } from '@/features/settings/settings.api';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { useWebOrdersRealtime } from './use-web-orders-realtime';
+import { CancelWebOrderDialog, WebOrderCheckoutDialog } from './WebOrderDialogs';
 import { listWebOrders, updateWebOrderStatus, webOrderKeys } from './web-orders.api';
 import {
   customerWhatsappUrl,
+  deliveryFeeNote,
+  lineLunchLabel,
   NEXT_ACTION_LABEL,
   sortWebOrders,
   STATUS_TONE,
+  webOrderActions,
 } from './web-orders-logic';
 
 /** Respaldo por si el tiempo real no está disponible. */
@@ -32,16 +41,25 @@ const POLL_MS = 30_000;
 function OrderCard({
   order,
   canManage,
+  canSell,
   onAdvance,
+  onCheckout,
+  onCancel,
   advancing,
 }: {
   order: WebOrder;
   canManage: boolean;
+  canSell: boolean;
+  onCheckout: () => void;
+  onCancel: () => void;
   onAdvance: (status: WebOrderStatus) => void;
   advancing: boolean;
 }) {
   const next = nextWebOrderStatus(order.status);
   const { customer } = order;
+  const actions = webOrderActions(order.status, { manage: canManage, sell: canSell });
+  const feeNote = deliveryFeeNote(order.deliveryFee);
+  const showNext = canManage && next !== null && next !== 'DELIVERED';
   return (
     <Card>
       <CardContent className="grid gap-3 py-4">
@@ -81,21 +99,53 @@ function OrderCard({
           )}
         </div>
         <ul className="grid gap-0.5 rounded-md bg-muted/50 px-3 py-2 text-sm">
-          {order.lines.map((line) => (
-            <li key={line.productId} className="flex justify-between gap-2">
+          {order.lines.map((line, index) => (
+            <li key={`${line.productId}-${String(index)}`} className="flex justify-between gap-2">
               <span>
                 {line.quantity} × {line.name}
+                {lineLunchLabel(line) === null ? null : (
+                  <span className="text-muted-foreground"> · {lineLunchLabel(line)}</span>
+                )}
               </span>
               <span className="tabular-nums">{formatCOP(line.total)}</span>
             </li>
           ))}
-          <li className="text-muted-foreground">Domicilio: a confirmar</li>
+          <li className="text-muted-foreground">{feeNote ?? 'Domicilio: a confirmar'}</li>
         </ul>
-        {canManage && next !== null ? (
-          <div>
-            <Button onClick={() => onAdvance(next)} disabled={advancing}>
-              {advancing ? <Spinner className="size-4" /> : null} {NEXT_ACTION_LABEL[order.status]}
-            </Button>
+        {order.cancelReason === null ? null : (
+          <p className="text-sm">
+            <span className="font-bold">Motivo de cancelación:</span> {order.cancelReason}
+          </p>
+        )}
+        {order.sale === null ? null : (
+          <p className="text-sm font-bold">
+            {canSell ? (
+              <Link to="/ventas" className="text-primary underline">
+                Venta #{order.sale.number ?? '—'}
+              </Link>
+            ) : (
+              <>Venta #{order.sale.number ?? '—'}</>
+            )}
+          </p>
+        )}
+        {showNext || actions.checkout || actions.cancel ? (
+          <div className="flex flex-wrap gap-2">
+            {showNext ? (
+              <Button onClick={() => onAdvance(next)} disabled={advancing}>
+                {advancing ? <Spinner className="size-4" /> : null}{' '}
+                {NEXT_ACTION_LABEL[order.status]}
+              </Button>
+            ) : null}
+            {actions.checkout ? (
+              <Button variant="outline" onClick={onCheckout}>
+                <Wallet aria-hidden="true" /> Cobrar
+              </Button>
+            ) : null}
+            {actions.cancel ? (
+              <Button variant="ghost" className="text-danger" onClick={onCancel}>
+                <Ban aria-hidden="true" /> Cancelar
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </CardContent>
@@ -107,6 +157,11 @@ function OrderCard({
 export function WebOrdersPage() {
   const queryClient = useQueryClient();
   const canManage = useCan('web-orders:manage');
+  const canSell = useCan('pos:sell');
+  const settings = useSettings();
+  const [checkoutOrder, setCheckoutOrder] = useState<WebOrder | null>(null);
+  const [cancelOrder, setCancelOrder] = useState<WebOrder | null>(null);
+  const [doneSale, setDoneSale] = useState<Sale | null>(null);
   const [status, setStatus] = useState<WebOrderStatus | undefined>(undefined);
 
   const orders = useQuery({
@@ -191,6 +246,13 @@ export function WebOrdersPage() {
               <OrderCard
                 order={order}
                 canManage={canManage}
+                canSell={canSell}
+                onCheckout={() => {
+                  setCheckoutOrder(order);
+                }}
+                onCancel={() => {
+                  setCancelOrder(order);
+                }}
                 advancing={advance.isPending && advance.variables.id === order.id}
                 onAdvance={(next) => {
                   advance.mutate({ id: order.id, status: next });
@@ -200,6 +262,43 @@ export function WebOrdersPage() {
           ))}
         </ul>
       )}
+
+      <WebOrderCheckoutDialog
+        order={checkoutOrder}
+        onClose={() => {
+          setCheckoutOrder(null);
+        }}
+        onPaid={(sale) => {
+          setCheckoutOrder(null);
+          setDoneSale(sale);
+          refresh();
+          void queryClient.invalidateQueries({ queryKey: posKeys.shift });
+          void queryClient.invalidateQueries({ queryKey: ['pos', 'sales'] });
+        }}
+        onStale={(message) => {
+          toast.error(message);
+          setCheckoutOrder(null);
+          refresh();
+        }}
+      />
+      <CancelWebOrderDialog
+        order={cancelOrder}
+        onClose={() => {
+          setCancelOrder(null);
+        }}
+        onCanceled={(order) => {
+          setCancelOrder(null);
+          toast.success(`Pedido #${String(order.number)} cancelado`);
+          refresh();
+        }}
+      />
+      <SaleDoneDialog
+        sale={doneSale}
+        settings={settings.data}
+        onClose={() => {
+          setDoneSale(null);
+        }}
+      />
     </div>
   );
 }
