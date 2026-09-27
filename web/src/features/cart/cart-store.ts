@@ -1,15 +1,16 @@
 'use client';
 
-import { WEB_ORDER_LIMITS } from '@panesypan/shared';
+import type { LunchChoice } from '@panesypan/shared';
 import { useSyncExternalStore } from 'react';
+import {
+  addLine,
+  parseStoredCart,
+  setLineQuantity,
+  type CartItem,
+  type CartProduct,
+} from './cart-lines';
 
-/** Producto en el carrito. El precio es solo para mostrar: el servidor recalcula todo. */
-export interface CartItem {
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
+export { lineKey, type CartItem } from './cart-lines';
 
 const STORAGE_KEY = 'pyp-carrito-v1';
 const EMPTY: readonly CartItem[] = [];
@@ -18,34 +19,13 @@ let items: readonly CartItem[] = EMPTY;
 let loaded = false;
 const listeners = new Set<() => void>();
 
-function isCartItem(value: unknown): value is CartItem {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.productId === 'string' &&
-    typeof v.name === 'string' &&
-    typeof v.price === 'number' &&
-    typeof v.quantity === 'number' &&
-    Number.isInteger(v.quantity) &&
-    v.quantity >= 1
-  );
-}
-
 function load(): void {
   if (loaded) return;
   loaded = true;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     const parsed: unknown = raw === null ? [] : JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      items = parsed
-        .filter(isCartItem)
-        .slice(0, WEB_ORDER_LIMITS.linesMax)
-        .map((item) => ({
-          ...item,
-          quantity: Math.min(item.quantity, WEB_ORDER_LIMITS.quantityMax),
-        }));
-    }
+    items = parseStoredCart(parsed);
   } catch {
     // Sin almacenamiento (modo privado, bloqueado): el carrito vive solo en memoria.
   }
@@ -87,28 +67,16 @@ export function useCart(): readonly CartItem[] {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-export function addToCart(product: { id: string; name: string; price: number }): void {
+export function addToCart(product: CartProduct, lunch: LunchChoice | null = null): void {
   load();
-  const existing = items.find((item) => item.productId === product.id);
-  if (existing === undefined) {
-    if (items.length >= WEB_ORDER_LIMITS.linesMax) return;
-    save([
-      ...items,
-      { productId: product.id, name: product.name, price: product.price, quantity: 1 },
-    ]);
-    return;
-  }
-  setQuantity(product.id, existing.quantity + 1);
+  const next = addLine(items, product, lunch);
+  if (next !== items) save(next);
 }
 
-export function setQuantity(productId: string, quantity: number): void {
+/** Cambia la cantidad de una línea (ver `lineKey`); 0 la quita. */
+export function setQuantity(key: string, quantity: number): void {
   load();
-  if (quantity <= 0) {
-    save(items.filter((item) => item.productId !== productId));
-    return;
-  }
-  const capped = Math.min(Math.floor(quantity), WEB_ORDER_LIMITS.quantityMax);
-  save(items.map((item) => (item.productId === productId ? { ...item, quantity: capped } : item)));
+  save(setLineQuantity(items, key, quantity));
 }
 
 export function clearCart(): void {
