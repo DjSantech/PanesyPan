@@ -14,6 +14,7 @@ import { createTestEnv, silentLogger } from '../../../test/helpers';
 import { createApp } from '../../app';
 import { AuditLogModel } from '../audit/audit-log.model';
 import { CategoryModel, ProductModel } from '../catalog/catalog.models';
+import { SaleModel } from '../sales/sale.model';
 
 const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
 
@@ -110,10 +111,26 @@ describe('GET /reports/dashboard', () => {
       discountsTotal: 0,
       voidedCount: 0,
     });
+    expect(summary.byOrigin).toEqual({
+      web: { count: 0, total: 0 },
+      local: { count: 0, total: 0 },
+    });
     expect(summary.byHour).toHaveLength(24);
     expect(summary.byMethod).toEqual([]);
     expect(summary.cash.openShifts).toEqual([]);
     expect(summary.inventory.lowStockCount).toBe(0);
+  });
+
+  it('separa las ventas de pedidos web de las del local', async () => {
+    await seedDay();
+    await SaleModel.updateOne({ total: 5_000 }, { webOrderNumber: 3 });
+    const summary = dashboardSummarySchema.parse(
+      (await admin.agent.get('/api/v1/reports/dashboard').expect(200)).body,
+    );
+    expect(summary.byOrigin).toEqual({
+      web: { count: 1, total: 5_000 },
+      local: { count: 1, total: 6_000 },
+    });
   });
 
   it('resume ventas, medios de pago, caja e inventario del día', async () => {
@@ -191,6 +208,16 @@ describe('GET /reports/export/:kind', () => {
     expect(lines).toHaveLength(3);
     expect(lines.join(' ')).toContain('Efectivo 6000');
     expect(lines.join(' ')).toContain('Nequi 5000');
+  });
+
+  it('marca el origen web o local de cada venta', async () => {
+    await seedDay();
+    await SaleModel.updateOne({ total: 5_000 }, { webOrderNumber: 7 });
+    const response = await admin.agent.get(`/api/v1/reports/export/sales${range()}`).expect(200);
+    const lines = response.text.trim().split(String.fromCharCode(13, 10));
+    expect(lines[0]?.endsWith(';Origen;Pedido web')).toBe(true);
+    expect(lines.some((line) => line.endsWith(';Web;7'))).toBe(true);
+    expect(lines.some((line) => line.endsWith(';Local;'))).toBe(true);
   });
 
   it('exporta cajas e inventario', async () => {
