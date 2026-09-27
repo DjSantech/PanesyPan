@@ -19,6 +19,18 @@ export const dashboardSalesSchema = z.object({
   voidedCount: z.int().nonnegative(),
 });
 
+export const dashboardOriginSchema = z.object({
+  count: z.int().nonnegative(),
+  total: moneySchema,
+});
+
+/** Ventas pagadas según su origen: pedidos web frente a ventas en el local. */
+export const dashboardByOriginSchema = z.object({
+  web: dashboardOriginSchema,
+  local: dashboardOriginSchema,
+});
+export type DashboardByOrigin = z.infer<typeof dashboardByOriginSchema>;
+
 export const dashboardHourSchema = z.object({
   /** Hora del día en Colombia, 0–23. */
   hour: z.int().min(0).max(23),
@@ -62,6 +74,7 @@ export const dashboardSummarySchema = z.object({
   businessDate: businessDateSchema,
   generatedAt: z.iso.datetime(),
   sales: dashboardSalesSchema,
+  byOrigin: dashboardByOriginSchema,
   byHour: z.array(dashboardHourSchema),
   byMethod: z.array(dashboardMethodSchema),
   topProducts: z.array(dashboardTopProductSchema),
