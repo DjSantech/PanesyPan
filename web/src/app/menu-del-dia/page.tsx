@@ -1,4 +1,6 @@
 import { PageHeading } from '@/components/PageHeading';
+import { AddToCartButton } from '@/features/cart/AddToCartButton';
+import { LunchOrderButton } from '@/features/cart/LunchOrderButton';
 import { getDailyMenu } from '@/lib/api';
 import type { DailyMenuOption } from '@/lib/types';
 import { formatCOP } from '@panesypan/shared';
@@ -72,7 +74,19 @@ export default async function DailyMenuPage() {
                     <span className="font-semibold text-danger">Agotado</span>
                   ) : (
                     item.price !== null && (
-                      <span className="text-lg font-bold">{formatCOP(item.price)}</span>
+                      <span className="flex flex-wrap items-center justify-end gap-2">
+                        <span className="text-lg font-bold">{formatCOP(item.price)}</span>
+                        {item.withChoices ? (
+                          <LunchOrderButton
+                            product={{ id: item.productId, name: item.name, price: item.price }}
+                            options={menu}
+                          />
+                        ) : (
+                          <AddToCartButton
+                            product={{ id: item.productId, name: item.name, price: item.price }}
+                          />
+                        )}
+                      </span>
                     )
                   )}
                 </li>

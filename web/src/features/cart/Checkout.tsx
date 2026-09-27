@@ -8,13 +8,14 @@ import {
   createWebOrderResponseSchema,
   DELIVERY_NEIGHBORHOODS,
   formatCOP,
+  lunchChoiceLabel,
   WEB_ORDER_LIMITS,
   type CreateWebOrderResponse,
 } from '@panesypan/shared';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState, type SyntheticEvent } from 'react';
-import { cartSubtotal, clearCart, setQuantity, useCart } from './cart-store';
+import { cartSubtotal, clearCart, lineKey, setQuantity, useCart } from './cart-store';
 import { buildOrderMessage, whatsappUrl } from './whatsapp';
 
 type Field = 'name' | 'phone' | 'address' | 'neighborhood' | 'note' | 'confirmsDosquebradas';
@@ -62,7 +63,11 @@ export function Checkout() {
       clientRequestId: requestId.current,
       customer,
       confirmsDosquebradas,
-      lines: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      lines: items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        lunch: item.lunch,
+      })),
     });
     if (!parsed.success) {
       const next: Errors = {};
@@ -155,9 +160,10 @@ export function Checkout() {
         </h2>
         <ul className="divide-y rounded-xl border bg-card">
           {items.map((item) => (
-            <li key={item.productId} className="flex flex-wrap items-center gap-3 p-4">
+            <li key={lineKey(item)} className="flex flex-wrap items-center gap-3 p-4">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{item.name}</p>
+                {item.lunch !== null && <p className="text-sm">{lunchChoiceLabel(item.lunch)}</p>}
                 <p className="text-sm text-muted-foreground">{formatCOP(item.price)} c/u</p>
               </div>
               <div className="flex items-center gap-1">
@@ -165,7 +171,7 @@ export function Checkout() {
                   type="button"
                   className="rounded-full p-2 hover:bg-muted"
                   aria-label={`Quitar uno de ${item.name}`}
-                  onClick={() => setQuantity(item.productId, item.quantity - 1)}
+                  onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
                 >
                   <Minus aria-hidden className="size-4" />
                 </button>
@@ -175,7 +181,7 @@ export function Checkout() {
                   className="rounded-full p-2 hover:bg-muted disabled:opacity-40"
                   aria-label={`Agregar uno de ${item.name}`}
                   disabled={item.quantity >= WEB_ORDER_LIMITS.quantityMax}
-                  onClick={() => setQuantity(item.productId, item.quantity + 1)}
+                  onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
                 >
                   <Plus aria-hidden className="size-4" />
                 </button>
@@ -183,7 +189,7 @@ export function Checkout() {
                   type="button"
                   className="rounded-full p-2 text-danger hover:bg-danger-soft"
                   aria-label={`Quitar ${item.name} del pedido`}
-                  onClick={() => setQuantity(item.productId, 0)}
+                  onClick={() => setQuantity(lineKey(item), 0)}
                 >
                   <Trash2 aria-hidden className="size-4" />
                 </button>
