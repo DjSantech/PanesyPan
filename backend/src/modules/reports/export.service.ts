@@ -64,12 +64,15 @@ async function salesRows(query: ExportQuery): Promise<{ headers: string[]; rows:
       'CUFE',
       'Nota crédito',
       'Cliente',
+      'Origen',
+      'Pedido web',
     ],
     rows: sales.map((sale) => {
       // Las ventas anteriores a la facturación electrónica no tienen estos campos (lean no
       // aplica valores por defecto).
       const einvoice = orNull(sale.einvoice);
       const customer = orNull(sale.customer);
+      const webOrder = orNull(sale.webOrderNumber);
       return [
         sale.number,
         sale.businessDate,
@@ -91,6 +94,8 @@ async function salesRows(query: ExportQuery): Promise<{ headers: string[]; rows:
         einvoice?.cufe ?? null,
         einvoice?.creditNote?.number ?? null,
         customer === null ? null : `${customer.name} (${customer.idType} ${customer.idNumber})`,
+        webOrder === null ? 'Local' : 'Web',
+        webOrder,
       ];
     }),
   };

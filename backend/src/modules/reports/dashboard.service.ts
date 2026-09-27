@@ -31,73 +31,97 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const { start, end } = businessDateRangeUtc(businessDate);
   const paidToday = { businessDate, status: 'PAID' } as const;
 
-  const [totals, voidedCount, hours, methods, products, openShifts, movements, closed, inventory] =
-    await Promise.all([
-      SaleModel.aggregate<TotalsRow>([
-        { $match: paidToday },
-        {
-          $group: {
-            _id: null,
-            count: { $sum: 1 },
-            total: { $sum: '$total' },
-            discounts: { $sum: { $ifNull: ['$discount.amount', 0] } },
-          },
+  const [
+    totals,
+    origins,
+    voidedCount,
+    hours,
+    methods,
+    products,
+    openShifts,
+    movements,
+    closed,
+    inventory,
+  ] = await Promise.all([
+    SaleModel.aggregate<TotalsRow>([
+      { $match: paidToday },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          total: { $sum: '$total' },
+          discounts: { $sum: { $ifNull: ['$discount.amount', 0] } },
         },
-      ]),
-      SaleModel.countDocuments({ businessDate, status: 'VOIDED' }),
-      SaleModel.aggregate<{ _id: number; count: number; total: number }>([
-        { $match: paidToday },
-        {
-          $group: {
-            _id: { $hour: { date: '$paidAt', timezone: BUSINESS_TIME_ZONE } },
-            count: { $sum: 1 },
-            total: { $sum: '$total' },
-          },
+      },
+    ]),
+    SaleModel.aggregate<{ _id: boolean; count: number; total: number }>([
+      { $match: paidToday },
+      {
+        $group: {
+          _id: { $ne: [{ $ifNull: ['$webOrderNumber', null] }, null] },
+          count: { $sum: 1 },
+          total: { $sum: '$total' },
         },
-      ]),
-      SaleModel.aggregate<{ _id: PaymentMethod; amount: number; count: number }>([
-        { $match: paidToday },
-        { $unwind: '$payments' },
-        {
-          $group: {
-            _id: '$payments.method',
-            amount: { $sum: '$payments.amount' },
-            count: { $sum: 1 },
-          },
+      },
+    ]),
+    SaleModel.countDocuments({ businessDate, status: 'VOIDED' }),
+    SaleModel.aggregate<{ _id: number; count: number; total: number }>([
+      { $match: paidToday },
+      {
+        $group: {
+          _id: { $hour: { date: '$paidAt', timezone: BUSINESS_TIME_ZONE } },
+          count: { $sum: 1 },
+          total: { $sum: '$total' },
         },
-      ]),
-      SaleModel.aggregate<{ _id: Types.ObjectId; name: string; quantity: number; total: number }>([
-        { $match: paidToday },
-        { $unwind: '$lines' },
-        {
-          $group: {
-            _id: '$lines.productId',
-            name: { $last: '$lines.name' },
-            quantity: { $sum: '$lines.quantity' },
-            total: { $sum: '$lines.total' },
-          },
+      },
+    ]),
+    SaleModel.aggregate<{ _id: PaymentMethod; amount: number; count: number }>([
+      { $match: paidToday },
+      { $unwind: '$payments' },
+      {
+        $group: {
+          _id: '$payments.method',
+          amount: { $sum: '$payments.amount' },
+          count: { $sum: 1 },
         },
-        { $sort: { quantity: -1, total: -1 } },
-        { $limit: TOP_PRODUCTS },
-      ]),
-      CashShiftModel.find({ status: 'OPEN' }).sort({ openedAt: 1 }),
-      CashMovementModel.aggregate<{ _id: string; total: number }>([
-        { $match: { createdAt: { $gte: start, $lt: end } } },
-        { $group: { _id: '$type', total: { $sum: '$amount' } } },
-      ]),
-      CashShiftModel.countDocuments({
-        status: 'CLOSED',
-        businessDate,
-        'closing.difference': trusted({ $ne: 0 }),
-      }),
-      listInventory({}),
-    ]);
+      },
+    ]),
+    SaleModel.aggregate<{ _id: Types.ObjectId; name: string; quantity: number; total: number }>([
+      { $match: paidToday },
+      { $unwind: '$lines' },
+      {
+        $group: {
+          _id: '$lines.productId',
+          name: { $last: '$lines.name' },
+          quantity: { $sum: '$lines.quantity' },
+          total: { $sum: '$lines.total' },
+        },
+      },
+      { $sort: { quantity: -1, total: -1 } },
+      { $limit: TOP_PRODUCTS },
+    ]),
+    CashShiftModel.find({ status: 'OPEN' }).sort({ openedAt: 1 }),
+    CashMovementModel.aggregate<{ _id: string; total: number }>([
+      { $match: { createdAt: { $gte: start, $lt: end } } },
+      { $group: { _id: '$type', total: { $sum: '$amount' } } },
+    ]),
+    CashShiftModel.countDocuments({
+      status: 'CLOSED',
+      businessDate,
+      'closing.difference': trusted({ $ne: 0 }),
+    }),
+    listInventory({}),
+  ]);
 
   const shiftSummaries = await Promise.all(
     openShifts.map(async (shift) => ({ shift, summary: await summarizeShift(shift) })),
   );
 
   const salesTotals = totals[0] ?? { count: 0, total: 0, discounts: 0 };
+  const origin = (web: boolean) => {
+    const row = origins.find((item) => item._id === web);
+    return { count: row?.count ?? 0, total: row?.total ?? 0 };
+  };
   const hourMap = new Map(hours.map((row) => [row._id, row]));
   const methodMap = new Map(methods.map((row) => [row._id, row]));
   const movementTotal = (type: string): number =>
@@ -116,6 +140,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       discountsTotal: salesTotals.discounts,
       voidedCount,
     },
+    byOrigin: { web: origin(true), local: origin(false) },
     // Las 24 horas siempre presentes: el gráfico no salta de una hora a otra.
     byHour: Array.from({ length: 24 }, (_, hour) => ({
       hour,
