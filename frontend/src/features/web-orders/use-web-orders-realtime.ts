@@ -9,7 +9,7 @@ export type RealtimeStatus = 'connecting' | 'live' | 'offline';
  * Avisa con `onChange` cada vez que llega o cambia un pedido web (el socket no trae datos).
  * Al reconectar también avisa, por si hubo cambios mientras estuvo caído.
  */
-export function useWebOrdersRealtime(onChange: () => void): RealtimeStatus {
+export function useWebOrdersRealtime(onChange: () => void, enabled = true): RealtimeStatus {
   const [status, setStatus] = useState<RealtimeStatus>('connecting');
   const handler = useRef(onChange);
 
@@ -18,6 +18,7 @@ export function useWebOrdersRealtime(onChange: () => void): RealtimeStatus {
   }, [onChange]);
 
   useEffect(() => {
+    if (!enabled) return;
     const socket = io(getApiBaseUrl(), {
       path: REALTIME_PATH,
       withCredentials: true,
@@ -43,7 +44,7 @@ export function useWebOrdersRealtime(onChange: () => void): RealtimeStatus {
     return () => {
       socket.close();
     };
-  }, []);
+  }, [enabled]);
 
   return status;
 }

@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { lockSession, logout, logoutEverywhere } from '../auth/auth.api';
 import { useIdleLock } from '../auth/use-idle-lock';
 import { useCurrentUser } from '../auth/use-session';
+import { useWebOrderAlerts } from '../web-orders/use-web-order-alerts';
 import { NAV_ITEMS } from './nav-items';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -41,6 +42,8 @@ export function AppLayout() {
   const [closingAll, setClosingAll] = useState(false);
 
   useIdleLock(!locked);
+  const pendingWebOrders = useWebOrderAlerts();
+  const badgeFor = (to: string): number => (to === '/pedidos-web' ? pendingWebOrders : 0);
 
   const items = NAV_ITEMS.filter(
     (item) => item.permission === undefined || hasPermission(user.role, item.permission),
@@ -115,6 +118,12 @@ export function AppLayout() {
                   <span className={items.length > 5 ? 'sr-only xl:not-sr-only' : undefined}>
                     {item.label}
                   </span>
+                  {badgeFor(item.to) > 0 ? (
+                    <span className="grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-extrabold text-white">
+                      {badgeFor(item.to)}
+                      <span className="sr-only"> pendientes</span>
+                    </span>
+                  ) : null}
                 </NavLink>
               ))}
             </nav>

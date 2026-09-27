@@ -4,6 +4,7 @@ import {
   customerWhatsappUrl,
   deliveryFeeNote,
   lineLunchLabel,
+  newPendingIds,
   sortWebOrders,
   webOrderActions,
 } from './web-orders-logic';
@@ -30,6 +31,20 @@ const order = (number: number, status: WebOrder['status'], createdAt: string): W
 });
 
 describe('pedidos web', () => {
+  it('solo avisa de pendientes nuevos y nunca en la primera carga', () => {
+    const first = newPendingIds([order(1, 'PENDING', '2026-09-25T10:00:00.000Z')], null);
+    expect(first.fresh).toEqual([]);
+    const second = newPendingIds(
+      [
+        order(1, 'PENDING', '2026-09-25T10:00:00.000Z'),
+        order(2, 'PENDING', '2026-09-25T11:00:00.000Z'),
+        order(3, 'CONFIRMED', '2026-09-25T11:00:00.000Z'),
+      ],
+      first.seen,
+    );
+    expect(second.fresh.map((o) => o.number)).toEqual([2]);
+  });
+
   it('ordena pendientes primero y los más antiguos arriba', () => {
     const sorted = sortWebOrders([
       order(1, 'DELIVERED', '2026-09-25T10:00:00.000Z'),

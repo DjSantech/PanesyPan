@@ -74,3 +74,21 @@ export function lineLunchLabel(line: WebOrder['lines'][number]): string | null {
 export function deliveryFeeNote(fee: number | null): string | null {
   return fee === null ? null : `El cliente le paga ${formatCOP(fee)} al domiciliario`;
 }
+
+/**
+ * Pedidos pendientes que no se habían visto. Con `seen` en null (primera carga) no hay
+ * ninguno nuevo: solo se recuerdan los que ya estaban.
+ */
+export function newPendingIds(
+  orders: readonly WebOrder[],
+  seen: ReadonlySet<string> | null,
+): { fresh: WebOrder[]; seen: Set<string> } {
+  const next = new Set(seen ?? []);
+  const fresh: WebOrder[] = [];
+  for (const order of orders) {
+    if (next.has(order.id)) continue;
+    next.add(order.id);
+    if (seen !== null && order.status === 'PENDING') fresh.push(order);
+  }
+  return { fresh, seen: next };
+}
