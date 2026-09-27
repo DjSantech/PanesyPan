@@ -43,10 +43,12 @@ function DoneContent({
   sale: initial,
   settings,
   onClose,
+  closeLabel,
 }: {
   sale: Sale;
   settings: BusinessSettings | undefined;
   onClose: () => void;
+  closeLabel: string;
 }) {
   const sale = useLiveSale(initial);
   const einvoice = sale.einvoice;
@@ -92,7 +94,7 @@ function DoneContent({
           <Printer aria-hidden="true" /> Imprimir tiquete
         </Button>
         <Button size="lg" autoFocus onClick={onClose}>
-          Nueva venta
+          {closeLabel}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -104,10 +106,13 @@ export function SaleDoneDialog({
   sale,
   settings,
   onClose,
+  closeLabel = 'Nueva venta',
 }: {
   sale: Sale | null;
   settings: BusinessSettings | undefined;
   onClose: () => void;
+  /** Texto del botón que cierra el diálogo. */
+  closeLabel?: string;
 }) {
   return (
     <Dialog
@@ -117,7 +122,13 @@ export function SaleDoneDialog({
       }}
     >
       {sale === null ? null : (
-        <DoneContent key={sale.id} sale={sale} settings={settings} onClose={onClose} />
+        <DoneContent
+          key={sale.id}
+          sale={sale}
+          settings={settings}
+          onClose={onClose}
+          closeLabel={closeLabel}
+        />
       )}
     </Dialog>
   );
