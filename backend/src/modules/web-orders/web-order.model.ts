@@ -35,6 +35,10 @@ export interface WebOrderAttrs {
   deliveryFee: number | null;
   total: number;
   statusHistory: WebOrderStatusChange[];
+  /** Venta creada al cobrar el pedido. */
+  saleId: Types.ObjectId | null;
+  /** Motivo de la cancelación. */
+  cancelReason: string | null;
   /** UUID que genera la web: los reintentos no duplican el pedido. */
   clientRequestId: string;
   createdAt: Date;
@@ -104,6 +108,8 @@ const webOrderSchema = new Schema<WebOrderAttrs>(
     deliveryFee: { type: Number, default: null },
     total: { type: Number, required: true, min: 0 },
     statusHistory: { type: [statusChangeSchema], default: [] },
+    saleId: { type: Schema.Types.ObjectId, default: null },
+    cancelReason: { type: String, default: null },
     clientRequestId: { type: String, required: true },
   },
   { collection: 'weborders', timestamps: true, strict: 'throw' },

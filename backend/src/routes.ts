@@ -42,7 +42,10 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   router.use('/public', createPublicRouter());
   router.use('/public', createPublicWebRouter());
   router.use('/public', createPublicWebOrdersRouter(withLogger({ config: authConfig, guards })));
-  router.use('/web-orders', createWebOrdersRouter(withLogger({ config: authConfig, guards })));
+  router.use(
+    '/web-orders',
+    createWebOrdersRouter(withLogger({ config: authConfig, guards, approvalLimiter })),
+  );
   router.use(
     '/auth',
     createAuthRouter(withLogger({ config: authConfig, guards, credentialsLimiter })),
