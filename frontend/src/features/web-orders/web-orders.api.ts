@@ -1,5 +1,9 @@
 import {
   listWebOrdersResponseSchema,
+  saleSchema,
+  type CancelWebOrderRequest,
+  type Sale,
+  type WebOrderCheckoutRequest,
   webOrderResponseSchema,
   type ListWebOrdersQuery,
   type WebOrder,
@@ -30,6 +34,27 @@ export async function updateWebOrderStatus(input: {
   const { order } = await apiJson(`/api/v1/web-orders/${input.id}/status`, webOrderResponseSchema, {
     method: 'PATCH',
     body: { status: input.status },
+  });
+  return order;
+}
+
+const checkoutResponseSchema = webOrderResponseSchema.extend({ sale: saleSchema });
+
+/** Cobra el pedido en la caja abierta de quien cobra; el domicilio no entra a la venta. */
+export async function checkoutWebOrder(
+  id: string,
+  input: WebOrderCheckoutRequest,
+): Promise<{ order: WebOrder; sale: Sale }> {
+  return apiJson(`/api/v1/web-orders/${id}/checkout`, checkoutResponseSchema, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function cancelWebOrder(id: string, input: CancelWebOrderRequest): Promise<WebOrder> {
+  const { order } = await apiJson(`/api/v1/web-orders/${id}/cancel`, webOrderResponseSchema, {
+    method: 'POST',
+    body: input,
   });
   return order;
 }

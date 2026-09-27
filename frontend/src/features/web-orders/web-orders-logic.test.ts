@@ -1,6 +1,12 @@
 import type { WebOrder } from '@panesypan/shared';
 import { describe, expect, it } from 'vitest';
-import { customerWhatsappUrl, sortWebOrders } from './web-orders-logic';
+import {
+  customerWhatsappUrl,
+  deliveryFeeNote,
+  lineLunchLabel,
+  sortWebOrders,
+  webOrderActions,
+} from './web-orders-logic';
 
 const order = (number: number, status: WebOrder['status'], createdAt: string): WebOrder => ({
   id: String(number),
@@ -38,5 +44,45 @@ describe('pedidos web', () => {
     expect(customerWhatsappUrl('300 123 4567', 7)).toMatch(
       /^https:\/\/wa\.me\/573001234567\?text=/,
     );
+  });
+});
+
+describe('webOrderActions', () => {
+  const all = { manage: true, sell: true };
+  it('cobra desde confirmado o despachado y cancela antes de entregar', () => {
+    expect(webOrderActions('PENDING', all)).toEqual({ checkout: false, cancel: true });
+    expect(webOrderActions('CONFIRMED', all)).toEqual({ checkout: true, cancel: true });
+    expect(webOrderActions('DISPATCHED', all)).toEqual({ checkout: true, cancel: true });
+    expect(webOrderActions('DELIVERED', all)).toEqual({ checkout: false, cancel: false });
+    expect(webOrderActions('CANCELED', all)).toEqual({ checkout: false, cancel: false });
+  });
+  it('cobrar exige vender; nada sin gestionar pedidos', () => {
+    expect(webOrderActions('CONFIRMED', { manage: true, sell: false })).toEqual({
+      checkout: false,
+      cancel: true,
+    });
+    expect(webOrderActions('CONFIRMED', { manage: false, sell: true })).toEqual({
+      checkout: false,
+      cancel: false,
+    });
+  });
+});
+
+describe('lineLunchLabel y deliveryFeeNote', () => {
+  it('sin almuerzo ni domicilio no hay texto', () => {
+    expect(
+      lineLunchLabel({
+        productId: 'p',
+        name: 'Pan',
+        unitPrice: 1000,
+        quantity: 1,
+        total: 1000,
+        lunch: null,
+      }),
+    ).toBeNull();
+    expect(deliveryFeeNote(null)).toBeNull();
+  });
+  it('el domicilio va para el domiciliario', () => {
+    expect(deliveryFeeNote(5000)).toMatch(/^El cliente le paga \$\s?5\.000 al domiciliario$/);
   });
 });
