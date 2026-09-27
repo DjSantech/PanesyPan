@@ -57,6 +57,7 @@ const sale = (einvoice: SaleEInvoice | null, customer: Sale['customer'] = null):
   closure: null,
   customer,
   einvoice,
+  webOrderNumber: null,
   updatedAt: '2026-09-24T15:00:00.000Z',
 });
 

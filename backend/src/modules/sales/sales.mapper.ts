@@ -73,6 +73,7 @@ export function toSaleDto(sale: SaleDocument): Sale {
             email: sale.customer.email,
           },
     einvoice: toSaleEInvoiceDto(sale.einvoice ?? null),
+    webOrderNumber: sale.webOrderNumber ?? null,
     updatedAt: sale.updatedAt.toISOString(),
   };
 }

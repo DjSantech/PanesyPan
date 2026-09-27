@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { objectIdSchema } from './common';
+import { lunchChoiceSchema } from './catalog';
+import { moneySchema, objectIdSchema } from './common';
+import { tabCheckoutRequestSchema } from './sales';
 
 /**
  * Web pública (panesypan.com): respuestas de las rutas públicas de lectura.
@@ -82,7 +84,17 @@ export type PublicBusinessResponse = z.infer<typeof publicBusinessResponseSchema
 
 // ── Pedidos web ──
 
-export const WEB_ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'DISPATCHED', 'DELIVERED'] as const;
+/**
+ * Flujo: PENDING → CONFIRMED → DISPATCHED → DELIVERED. DELIVERED se alcanza solo al cobrar el
+ * pedido (se crea la venta). CANCELED se permite desde cualquier estado previo a DELIVERED.
+ */
+export const WEB_ORDER_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'DISPATCHED',
+  'DELIVERED',
+  'CANCELED',
+] as const;
 export const webOrderStatusSchema = z.enum(WEB_ORDER_STATUSES);
 export type WebOrderStatus = z.infer<typeof webOrderStatusSchema>;
 
@@ -91,13 +103,30 @@ export const WEB_ORDER_STATUS_LABELS: Readonly<Record<WebOrderStatus, string>> =
   CONFIRMED: 'Confirmado',
   DISPATCHED: 'Despachado',
   DELIVERED: 'Entregado',
+  CANCELED: 'Cancelado',
 };
 
-/** Siguiente estado permitido (solo hacia adelante); null si ya se entregó. */
+const FORWARD: Readonly<Record<WebOrderStatus, WebOrderStatus | null>> = {
+  PENDING: 'CONFIRMED',
+  CONFIRMED: 'DISPATCHED',
+  // Pasar a DELIVERED es cobrar el pedido (POST /web-orders/:id/checkout), no un cambio de estado.
+  DISPATCHED: null,
+  DELIVERED: null,
+  CANCELED: null,
+};
+
+/** Siguiente estado con PATCH /status; null si el paso siguiente es cobrar o ya terminó. */
 export function nextWebOrderStatus(status: WebOrderStatus): WebOrderStatus | null {
-  const index = WEB_ORDER_STATUSES.indexOf(status);
-  return WEB_ORDER_STATUSES[index + 1] ?? null;
+  return FORWARD[status];
 }
+
+/** Se puede cobrar (crear la venta) desde CONFIRMED o DISPATCHED. */
+export const canCheckoutWebOrder = (status: WebOrderStatus): boolean =>
+  status === 'CONFIRMED' || status === 'DISPATCHED';
+
+/** Se puede cancelar mientras no se haya cobrado ni cancelado. */
+export const canCancelWebOrder = (status: WebOrderStatus): boolean =>
+  status !== 'DELIVERED' && status !== 'CANCELED';
 
 // TODO(dueño): barrios de Dosquebradas donde hay domicilio
 export const DELIVERY_NEIGHBORHOODS: readonly string[] = [];
@@ -154,6 +183,8 @@ export const createWebOrderRequestSchema = z.strictObject({
       z.strictObject({
         productId: objectIdSchema,
         quantity: z.number().int().min(1).max(L.quantityMax),
+        /** Obligatorio en almuerzos del menú del día con elección; null en el resto. */
+        lunch: lunchChoiceSchema.nullable().default(null),
       }),
     )
     .min(1, 'El carrito está vacío')
@@ -180,14 +211,26 @@ export const webOrderLineSchema = z.strictObject({
   unitPrice: z.number().int().nonnegative(),
   quantity: z.number().int().positive(),
   total: z.number().int().nonnegative(),
+  /** Proteína, principio y sopa (solo almuerzos con elección). */
+  lunch: lunchChoiceSchema.nullable(),
 });
 export type WebOrderLine = z.infer<typeof webOrderLineSchema>;
 
 /** Totales del pedido con los precios de la BD. El domicilio queda a confirmar (null). */
 export function computeWebOrderTotals(
-  lines: readonly { productId: string; name: string; unitPrice: number; quantity: number }[],
+  lines: readonly {
+    productId: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    lunch?: WebOrderLine['lunch'];
+  }[],
 ): { lines: WebOrderLine[]; subtotal: number; deliveryFee: null; total: number } {
-  const priced = lines.map((line) => ({ ...line, total: line.unitPrice * line.quantity }));
+  const priced = lines.map((line) => ({
+    ...line,
+    lunch: line.lunch ?? null,
+    total: line.unitPrice * line.quantity,
+  }));
   const subtotal = priced.reduce((sum, line) => sum + line.total, 0);
   return { lines: priced, subtotal, deliveryFee: null, total: subtotal };
 }
@@ -221,6 +264,10 @@ export const webOrderSchema = z.strictObject({
   subtotal: z.number().int().nonnegative(),
   deliveryFee: z.number().int().nonnegative().nullable(),
   total: z.number().int().nonnegative(),
+  /** Venta creada al cobrar el pedido (null mientras no se cobre). */
+  sale: z.strictObject({ id: z.string(), number: z.number().int().nullable() }).nullable(),
+  /** Motivo de la cancelación (null si no se canceló). */
+  cancelReason: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -238,4 +285,24 @@ export const updateWebOrderStatusRequestSchema = z.strictObject({ status: webOrd
 export type UpdateWebOrderStatusRequest = z.infer<typeof updateWebOrderStatusRequestSchema>;
 
 export const webOrderResponseSchema = z.strictObject({ order: webOrderSchema });
+
+// ── Cobro y cancelación de pedidos web (panel) ──
+
+/**
+ * POST /api/v1/web-orders/:id/checkout — cobra el pedido: crea una venta de mostrador en la caja
+ * abierta de quien cobra (mismas reglas que el cobro del POS: pagos, descuento, PIN, cliente),
+ * descuenta inventario y porciones del menú, y deja el pedido en DELIVERED.
+ * `deliveryFee` es lo que cobra el domiciliario: se guarda en el pedido y NO entra a la venta
+ * ni a la caja (el cliente se lo paga al domiciliario).
+ */
+export const webOrderCheckoutRequestSchema = tabCheckoutRequestSchema.extend({
+  deliveryFee: moneySchema,
+});
+export type WebOrderCheckoutRequest = z.input<typeof webOrderCheckoutRequestSchema>;
+
+/** POST /api/v1/web-orders/:id/cancel — solo mientras no se haya cobrado. */
+export const cancelWebOrderRequestSchema = z.strictObject({
+  reason: z.string().trim().min(3, 'Escribe el motivo').max(120, 'Máximo 120 caracteres'),
+});
+export type CancelWebOrderRequest = z.infer<typeof cancelWebOrderRequestSchema>;
 export type WebOrderResponse = z.infer<typeof webOrderResponseSchema>;

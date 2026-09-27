@@ -36,6 +36,7 @@ export function toPublicWebOrder(order: WebOrderDocument): CreateWebOrderRespons
       unitPrice: line.unitPrice,
       quantity: line.quantity,
       total: line.total,
+      lunch: null,
     })),
     subtotal: order.subtotal,
     deliveryFee: order.deliveryFee,
@@ -57,6 +58,8 @@ export function toWebOrderDto(order: WebOrderDocument): WebOrder {
     subtotal,
     deliveryFee,
     total,
+    sale: null,
+    cancelReason: null,
     createdAt,
     updatedAt: order.updatedAt.toISOString(),
   };

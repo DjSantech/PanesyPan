@@ -99,6 +99,7 @@ const SAMPLE_SALE: Sale = {
   closure: null,
   customer: null,
   einvoice: null,
+  webOrderNumber: null,
   updatedAt: new Date().toISOString(),
 };
 

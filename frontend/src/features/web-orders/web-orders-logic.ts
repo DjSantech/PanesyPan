@@ -1,18 +1,23 @@
 import type { WebOrder, WebOrderStatus } from '@panesypan/shared';
 
-export const STATUS_TONE: Record<WebOrderStatus, 'pending' | 'primary' | 'accent' | 'success'> = {
+export const STATUS_TONE: Record<
+  WebOrderStatus,
+  'pending' | 'primary' | 'accent' | 'success' | 'neutral'
+> = {
   PENDING: 'pending',
   CONFIRMED: 'primary',
   DISPATCHED: 'accent',
   DELIVERED: 'success',
+  CANCELED: 'neutral',
 };
 
 /** Texto del botón que lleva al siguiente estado. */
 export const NEXT_ACTION_LABEL: Record<WebOrderStatus, string | null> = {
   PENDING: 'Confirmar',
   CONFIRMED: 'Despachar',
-  DISPATCHED: 'Marcar entregado',
+  DISPATCHED: null,
   DELIVERED: null,
+  CANCELED: null,
 };
 
 /** Enlace de WhatsApp al celular colombiano del cliente (10 dígitos). */
@@ -31,11 +36,12 @@ export function sortWebOrders(orders: readonly WebOrder[]): WebOrder[] {
     CONFIRMED: 1,
     DISPATCHED: 2,
     DELIVERED: 3,
+    CANCELED: 4,
   };
   return [...orders].sort(
     (a, b) =>
       rank[a.status] - rank[b.status] ||
-      (a.status === 'DELIVERED'
+      (a.status === 'DELIVERED' || a.status === 'CANCELED'
         ? b.createdAt.localeCompare(a.createdAt)
         : a.createdAt.localeCompare(b.createdAt)),
   );

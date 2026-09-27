@@ -213,14 +213,14 @@ describe('panel de pedidos web', () => {
     expect(webOrderResponseSchema.parse(confirmed.body).order.status).toBe('CONFIRMED');
     expect((await patch('PENDING')).status).toBe(409);
     expect((await patch('DISPATCHED')).status).toBe(200);
-    expect((await patch('DELIVERED')).status).toBe(200);
+    // Entregado solo se alcanza al cobrar el pedido, no con un cambio de estado.
     expect((await patch('DELIVERED')).status).toBe(409);
 
     const filtered = await cashier.agent.get('/api/v1/web-orders?status=PENDING').expect(200);
     expect(listWebOrdersResponseSchema.parse(filtered.body).orders).toHaveLength(0);
 
     const audits = await AuditLogModel.find({ action: 'WEB_ORDER_STATUS_CHANGED' }).lean();
-    expect(audits).toHaveLength(3);
+    expect(audits).toHaveLength(2);
     expect(audits.map((audit) => audit.metadata)).toContainEqual({
       number: 1,
       from: 'PENDING',
@@ -231,7 +231,6 @@ describe('panel de pedidos web', () => {
       'PENDING',
       'CONFIRMED',
       'DISPATCHED',
-      'DELIVERED',
     ]);
   });
 

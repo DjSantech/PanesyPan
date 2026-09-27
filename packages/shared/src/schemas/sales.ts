@@ -107,6 +107,8 @@ export const saleSchema = z.object({
   customer: saleCustomerSchema.nullable(),
   /** Factura electrónica de la venta (null si la facturación electrónica estaba apagada). */
   einvoice: saleEInvoiceSchema.nullable(),
+  /** Número del pedido web que originó la venta (null = venta en el local). */
+  webOrderNumber: z.int().nullable(),
   updatedAt: z.iso.datetime(),
 });
 export type Sale = z.infer<typeof saleSchema>;

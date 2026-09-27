@@ -88,6 +88,8 @@ export interface SaleAttrs {
   clientRequestId: string | null;
   customer: SaleCustomerAttrs | null;
   einvoice: SaleEInvoiceAttrs | null;
+  /** Pedido web que originó la venta (null = venta en el local). */
+  webOrderNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -198,6 +200,7 @@ const saleSchema = new Schema<SaleAttrs>(
       ),
       default: null,
     },
+    webOrderNumber: { type: Number, default: null },
     einvoice: {
       type: new Schema<SaleEInvoiceAttrs>(
         {

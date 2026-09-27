@@ -17,6 +17,8 @@ const order = (number: number, status: WebOrder['status'], createdAt: string): W
   subtotal: 0,
   deliveryFee: null,
   total: 0,
+  sale: null,
+  cancelReason: null,
   createdAt,
   updatedAt: createdAt,
 });
