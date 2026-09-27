@@ -1,4 +1,9 @@
-import { formatCOP, type CreateWebOrderResponse, type WebOrderCustomer } from '@panesypan/shared';
+import {
+  formatCOP,
+  lunchChoiceLabel,
+  type CreateWebOrderResponse,
+  type WebOrderCustomer,
+} from '@panesypan/shared';
 
 /** Mensaje de WhatsApp con el número y los totales que devolvió la API. */
 export function buildOrderMessage(
@@ -6,7 +11,10 @@ export function buildOrderMessage(
   customer: WebOrderCustomer,
 ): string {
   const lines = order.lines.map(
-    (line) => `- ${String(line.quantity)} x ${line.name}: ${formatCOP(line.total)}`,
+    (line) =>
+      `- ${String(line.quantity)} x ${line.name}` +
+      (line.lunch !== null ? ` (${lunchChoiceLabel(line.lunch)})` : '') +
+      `: ${formatCOP(line.total)}`,
   );
   return [
     `Hola, acabo de hacer el pedido web #${String(order.number)}:`,
