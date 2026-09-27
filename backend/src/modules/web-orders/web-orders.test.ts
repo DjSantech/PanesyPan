@@ -5,6 +5,8 @@ import {
   isInDeliveryZone,
   listWebOrdersResponseSchema,
   OUT_OF_ZONE_MESSAGE,
+  saleSchema,
+  toBusinessDate,
   webOrderResponseSchema,
 } from '@panesypan/shared';
 import type { Express } from 'express';
@@ -23,7 +25,9 @@ import {
 import { createTestEnv, silentLogger } from '../../../test/helpers';
 import { createApp } from '../../app';
 import { AuditLogModel } from '../audit/audit-log.model';
-import { CategoryModel, ProductModel } from '../catalog/catalog.models';
+import { CashShiftModel } from '../cash/cash-shift.model';
+import { CategoryModel, DailyMenuModel, ProductModel } from '../catalog/catalog.models';
+import { SaleModel } from '../sales/sale.model';
 import { WebOrderModel } from './web-order.model';
 
 const ORIGIN = 'http://localhost:5173';
@@ -241,5 +245,177 @@ describe('panel de pedidos web', () => {
   it('el administrador también puede verlos', async () => {
     const admin = await loginAs('ADMIN');
     expect((await admin.agent.get('/api/v1/web-orders')).status).toBe(200);
+  });
+});
+
+describe('cobro y cancelación de pedidos web', () => {
+  let cashier: LoggedIn;
+  let lunch: Types.ObjectId;
+  let broth: Types.ObjectId;
+  const choice = { protein: 'Pollo asado', principle: 'Fríjoles', soup: 'Sancocho' };
+
+  beforeEach(async () => {
+    cashier = await loginAs('CASHIER');
+    const lunches = await category('Almuerzos', { kind: 'LUNCH' });
+    lunch = (await product('Almuerzo del día', lunches._id, { price: 14_000 }))._id;
+    broth = (await product('Caldo', lunches._id, { price: 6_000 }))._id;
+  });
+
+  const publishMenu = (extra: Record<string, unknown> = {}) =>
+    DailyMenuModel.create({
+      date: toBusinessDate(),
+      isPublished: true,
+      soups: [{ name: 'Sancocho' }],
+      principles: [{ name: 'Fríjoles' }, { name: 'Lentejas', isAvailable: false }],
+      proteins: [{ name: 'Pollo asado' }],
+      offerings: [
+        { productId: lunch, portions: 2, sold: 0 },
+        { productId: broth, portions: null, sold: 0, withChoices: false },
+      ],
+      ...extra,
+    });
+
+  const send = (path: string, body: object) =>
+    cashier.agent.post(`/api/v1${path}`).set('X-CSRF-Token', cashier.csrfToken).send(body);
+
+  async function confirmedOrder(lines: object[] = [{ productId: bread.toString(), quantity: 2 }]) {
+    const response = await postOrder(orderBody({ lines }));
+    expect(response.status).toBe(201);
+    const number = numberOf(response.body);
+    await WebOrderModel.updateOne({ number }, { $set: { status: 'CONFIRMED' } });
+    const order = await WebOrderModel.findOne({ number });
+    if (order === null) throw new Error('Sin pedido');
+    return order.id;
+  }
+
+  const checkoutBody = (expectedTotal: number, extra: object = {}) => ({
+    clientRequestId: randomUUID(),
+    expectedTotal,
+    payments: [{ method: 'CASH', amount: expectedTotal }],
+    deliveryFee: 3_000,
+    ...extra,
+  });
+
+  const checkout = (id: string, body: object) => send(`/web-orders/${id}/checkout`, body);
+  const openShift = () => send('/cash-shifts', { openingAmount: 100_000 }).expect(201);
+  const saleOf = (body: unknown) => saleSchema.parse((body as { sale: unknown }).sale);
+
+  it('cobra el pedido: venta en la caja con el número del pedido, domicilio aparte', async () => {
+    await openShift();
+    const id = await confirmedOrder();
+    const response = await checkout(id, checkoutBody(1_600));
+    expect(response.status).toBe(201);
+    const { order } = webOrderResponseSchema.parse({
+      order: (response.body as { order: unknown }).order,
+    });
+    const sale = saleOf(response.body);
+    expect(sale).toMatchObject({ status: 'PAID', total: 1_600, webOrderNumber: 1 });
+    expect(order).toMatchObject({
+      status: 'DELIVERED',
+      deliveryFee: 3_000,
+      sale: { id: sale.id, number: sale.number },
+    });
+    const stored = await SaleModel.findById(sale.id);
+    const shift = await CashShiftModel.findOne({ status: 'OPEN' });
+    expect(stored?.shiftId?.equals(shift?._id)).toBe(true);
+    const history = (await WebOrderModel.findById(id))?.statusHistory;
+    expect(history?.at(-1)?.status).toBe('DELIVERED');
+    expect(await AuditLogModel.countDocuments({ action: 'WEB_ORDER_CHARGED' })).toBe(1);
+    const list = await cashier.agent.get('/api/v1/web-orders').expect(200);
+    expect(listWebOrdersResponseSchema.parse(list.body).orders[0]?.sale?.number).toBe(sale.number);
+  });
+
+  it('es idempotente: el reintento devuelve la misma venta', async () => {
+    await openShift();
+    const id = await confirmedOrder();
+    const body = checkoutBody(1_600);
+    expect((await checkout(id, body)).status).toBe(201);
+    const again = await checkout(id, body);
+    expect(again.status).toBe(200);
+    expect(await SaleModel.countDocuments()).toBe(1);
+    expect((await checkout(id, checkoutBody(1_600))).status).toBe(409);
+  });
+
+  it('sin caja abierta o en estado inválido no cobra', async () => {
+    const id = await confirmedOrder();
+    expect((await checkout(id, checkoutBody(1_600))).status).toBe(409);
+    await openShift();
+    await WebOrderModel.updateOne({ _id: id }, { $set: { status: 'PENDING' } });
+    expect((await checkout(id, checkoutBody(1_600))).status).toBe(409);
+    expect(await SaleModel.countDocuments()).toBe(0);
+  });
+
+  it('usa el precio del pedido aunque el producto cambie; archivado → 409', async () => {
+    await openShift();
+    const id = await confirmedOrder();
+    await ProductModel.updateOne({ _id: bread }, { $set: { price: 1_000 } });
+    const response = await checkout(id, checkoutBody(1_600));
+    expect(response.status).toBe(201);
+    expect(saleOf(response.body).lines[0]?.unitPrice).toBe(800);
+
+    const other = await confirmedOrder();
+    await ProductModel.updateOne({ _id: bread }, { $set: { isActive: false } });
+    expect((await checkout(other, checkoutBody(2_000))).status).toBe(409);
+  });
+
+  it('el almuerzo descuenta porciones al cobrar y falla si se agotaron', async () => {
+    await publishMenu();
+    await openShift();
+    const line = { productId: lunch.toString(), quantity: 2, lunch: choice };
+    const first = await confirmedOrder([line]);
+    const second = await confirmedOrder([line]);
+    const sold = async () =>
+      (await DailyMenuModel.findOne({ date: toBusinessDate() }))?.offerings[0]?.sold;
+    expect(await sold()).toBe(0);
+    const response = await checkout(first, checkoutBody(28_000));
+    expect(response.status).toBe(201);
+    expect(saleOf(response.body).lines[0]?.lunch).toEqual(choice);
+    expect(await sold()).toBe(2);
+    const failed = await checkout(second, checkoutBody(28_000));
+    expect(failed.status).toBe(409);
+    expect(errorOf(failed.body).code).toBe('OUT_OF_STOCK');
+    expect((await WebOrderModel.findById(second))?.status).toBe('CONFIRMED');
+  });
+
+  it('cancela con motivo, pero no un pedido ya cobrado', async () => {
+    const id = await confirmedOrder();
+    const canceled = await send(`/web-orders/${id}/cancel`, { reason: 'No contestó' });
+    expect(canceled.status).toBe(200);
+    expect(webOrderResponseSchema.parse(canceled.body).order).toMatchObject({
+      status: 'CANCELED',
+      cancelReason: 'No contestó',
+    });
+    expect(await AuditLogModel.countDocuments({ action: 'WEB_ORDER_CANCELED' })).toBe(1);
+    expect((await send(`/web-orders/${id}/cancel`, { reason: 'Otra vez' })).status).toBe(409);
+
+    await openShift();
+    const paid = await confirmedOrder();
+    expect((await checkout(paid, checkoutBody(1_600))).status).toBe(201);
+    expect((await send(`/web-orders/${paid}/cancel`, { reason: 'Tarde' })).status).toBe(409);
+  });
+
+  it('pedido público con almuerzo: válido, sin elección, menú sin publicar y caldo', async () => {
+    const line = (extra: object) => ({ productId: lunch.toString(), quantity: 1, ...extra });
+    expect((await postOrder(orderBody({ lines: [line({ lunch: choice })] }))).status).toBe(409);
+
+    await publishMenu();
+    const ok = await postOrder(orderBody({ lines: [line({ lunch: choice })] }));
+    expect(ok.status).toBe(201);
+    expect(createWebOrderResponseSchema.parse(ok.body).order.lines[0]?.lunch).toEqual(choice);
+    expect((await DailyMenuModel.findOne())?.offerings[0]?.sold).toBe(0);
+
+    expect((await postOrder(orderBody({ lines: [line({})] }))).status).toBe(400);
+    const brothLine = { productId: broth.toString(), quantity: 1 };
+    expect((await postOrder(orderBody({ lines: [brothLine] }))).status).toBe(201);
+    const brothWithChoice = { ...brothLine, lunch: choice };
+    expect((await postOrder(orderBody({ lines: [brothWithChoice] }))).status).toBe(400);
+  });
+
+  it('pedido público con almuerzo agotado → 409', async () => {
+    await publishMenu({ offerings: [{ productId: lunch, portions: 1, sold: 1 }] });
+    const line = { productId: lunch.toString(), quantity: 1, lunch: choice };
+    const response = await postOrder(orderBody({ lines: [line] }));
+    expect(response.status).toBe(409);
+    expect(errorOf(response.body).code).toBe('OUT_OF_STOCK');
   });
 });
