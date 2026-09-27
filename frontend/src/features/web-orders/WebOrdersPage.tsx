@@ -9,7 +9,7 @@ import {
   type WebOrderStatus,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, MessageCircle, Phone, ShoppingBag, Wallet } from 'lucide-react';
+import { Ban, Bell, MessageCircle, Phone, Printer, ShoppingBag, Wallet } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ import { SaleDoneDialog } from '@/features/pos/SaleDoneDialog';
 import { useSettings } from '@/features/settings/settings.api';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
+import { printWebOrder } from './print-web-order';
 import { useWebOrdersRealtime } from './use-web-orders-realtime';
 import { CancelWebOrderDialog, WebOrderCheckoutDialog } from './WebOrderDialogs';
 import { listWebOrders, updateWebOrderStatus, webOrderKeys } from './web-orders.api';
@@ -45,6 +46,7 @@ function OrderCard({
   onAdvance,
   onCheckout,
   onCancel,
+  onPrint,
   advancing,
 }: {
   order: WebOrder;
@@ -52,6 +54,7 @@ function OrderCard({
   canSell: boolean;
   onCheckout: () => void;
   onCancel: () => void;
+  onPrint: (() => void) | null;
   onAdvance: (status: WebOrderStatus) => void;
   advancing: boolean;
 }) {
@@ -128,7 +131,7 @@ function OrderCard({
             )}
           </p>
         )}
-        {showNext || actions.checkout || actions.cancel ? (
+        {showNext || actions.checkout || actions.cancel || onPrint !== null ? (
           <div className="flex flex-wrap gap-2">
             {showNext ? (
               <Button onClick={() => onAdvance(next)} disabled={advancing}>
@@ -146,10 +149,40 @@ function OrderCard({
                 <Ban aria-hidden="true" /> Cancelar
               </Button>
             ) : null}
+            {onPrint === null ? null : (
+              <Button variant="ghost" onClick={onPrint}>
+                <Printer aria-hidden="true" /> Imprimir
+              </Button>
+            )}
           </div>
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+const notificationsSupported = typeof Notification !== 'undefined';
+
+/** Botón discreto para permitir las notificaciones del navegador (si hay soporte). */
+function EnableAlertsButton() {
+  const [permission, setPermission] = useState(() =>
+    notificationsSupported ? Notification.permission : 'denied',
+  );
+  if (permission !== 'default') return null;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => {
+        void Notification.requestPermission()
+          .then(setPermission)
+          .catch(() => {
+            setPermission('denied');
+          });
+      }}
+    >
+      <Bell aria-hidden="true" /> Activar avisos
+    </Button>
   );
 }
 
@@ -187,6 +220,7 @@ export function WebOrdersPage() {
     },
   });
 
+  const printSettings = settings.data;
   const filters: (WebOrderStatus | undefined)[] = [undefined, ...WEB_ORDER_STATUSES];
 
   return (
@@ -199,6 +233,9 @@ export function WebOrdersPage() {
             : 'Pedidos de hoy y los que siguen sin entregar. Se actualiza cada 30 segundos.'
         }
       />
+      <div className="-mt-2 mb-3">
+        <EnableAlertsButton />
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Filtrar por estado">
         {filters.map((item) => (
@@ -253,6 +290,13 @@ export function WebOrdersPage() {
                 onCancel={() => {
                   setCancelOrder(order);
                 }}
+                onPrint={
+                  printSettings === undefined
+                    ? null
+                    : () => {
+                        printWebOrder(order, printSettings);
+                      }
+                }
                 advancing={advance.isPending && advance.variables.id === order.id}
                 onAdvance={(next) => {
                   advance.mutate({ id: order.id, status: next });
@@ -295,6 +339,7 @@ export function WebOrdersPage() {
       <SaleDoneDialog
         sale={doneSale}
         settings={settings.data}
+        closeLabel="Listo"
         onClose={() => {
           setDoneSale(null);
         }}
