@@ -15,7 +15,7 @@ import {
   type Sale,
 } from '@panesypan/shared';
 import { BadgePercent, FileText, Split } from 'lucide-react';
-import { useState, type SubmitEvent } from 'react';
+import { useState, type ReactNode, type SubmitEvent } from 'react';
 import { Spinner } from '@/components/feedback';
 import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,10 @@ interface CheckoutDialogProps {
   onStale: (message: string) => void;
   /** Con facturación electrónica activa se puede facturar a nombre del cliente. */
   einvoiceEnabled?: boolean;
+  /** Campos extra que se muestran antes del descuento y los pagos. */
+  beforePayments?: ReactNode;
+  /** Mientras sea true no se puede cobrar (p. ej. falta un campo extra). */
+  blocked?: boolean;
 }
 
 /** Errores que significan "revisa el pedido" y no "reintenta el cobro". */
@@ -81,6 +85,8 @@ function CheckoutForm({
   onPaid,
   onStale,
   einvoiceEnabled = false,
+  beforePayments = null,
+  blocked = false,
 }: CheckoutDialogProps) {
   const [requestId] = useState(newRequestId);
   const [discountOn, setDiscountOn] = useState(false);
@@ -122,7 +128,8 @@ function CheckoutForm({
   const paidSoFar = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
   const reasonMissing = discount !== null && discountReason.trim().length < SALE_LIMITS.reasonMin;
-  const canSubmit = totals.total > 0 && discountError === null && !reasonMissing && settlement.ok;
+  const canSubmit =
+    !blocked && totals.total > 0 && discountError === null && !reasonMissing && settlement.ok;
 
   const customer = customerOn ? parseCustomer(customerDraft) : null;
 
@@ -174,6 +181,8 @@ function CheckoutForm({
             </p>
           ) : null}
         </div>
+
+        {beforePayments}
 
         {/* ── Descuento ── */}
         {discountOn ? (
