@@ -231,11 +231,14 @@ export async function createWebOrder(
   }
 }
 
-/** Pedidos de hoy y todos los que siguen sin entregar, más nuevos primero. */
+/** Pedidos de hoy y todos los que siguen abiertos (sin cobrar ni cancelar), más nuevos primero. */
 export async function listWebOrders(query: ListWebOrdersQuery, now = new Date()) {
   const { start } = businessDateRangeUtc(toBusinessDate(now));
   const filter: QueryFilter<WebOrderAttrs> = {
-    $or: [{ createdAt: trusted({ $gte: start }) }, { status: trusted({ $ne: 'DELIVERED' }) }],
+    $or: [
+      { createdAt: trusted({ $gte: start }) },
+      { status: trusted({ $nin: ['DELIVERED', 'CANCELED'] }) },
+    ],
   };
   if (query.status !== undefined) filter.status = query.status;
   const orders = await WebOrderModel.find(filter).sort({ createdAt: -1 }).limit(200);
