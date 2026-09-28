@@ -24,6 +24,7 @@ export interface Negocio {
   phone: string;
   instagram: string;
   facebook: string;
+  tiktok: string;
   coordinates: { lat: number; lng: number } | null;
   /** Costo de domicilio en COP; null = "a confirmar por WhatsApp". */
   deliveryFee: number | null;
@@ -40,10 +41,9 @@ export const negocio: Negocio = {
   whatsapp: '',
   // TODO(dueño): teléfono fijo o celular del negocio.
   phone: '',
-  // TODO(dueño): URL del perfil de Instagram.
-  instagram: '',
-  // TODO(dueño): URL de la página de Facebook.
-  facebook: '',
+  instagram: 'https://www.instagram.com/panesypan',
+  facebook: 'https://www.facebook.com/profile.php?id=61594512882670',
+  tiktok: 'https://www.tiktok.com/@panesypan',
   // TODO(dueño): coordenadas del local para el mapa.
   coordinates: null,
   // TODO(dueño): costo fijo del domicilio, si lo hay.

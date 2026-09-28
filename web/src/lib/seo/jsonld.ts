@@ -42,7 +42,7 @@ export function bakeryJsonLd(contact: ContactInfo): JsonLd {
     // Los horarios de negocio.ts son texto libre: se publican tal cual, solo si existen.
     openingHours: negocio.openingHours.map((h) => `${h.days}: ${h.hours}`),
     hasMap: contact.mapUrl,
-    sameAs: [negocio.instagram, negocio.facebook].filter(Boolean),
+    sameAs: [negocio.instagram, negocio.facebook, negocio.tiktok].filter(Boolean),
     areaServed: 'Dosquebradas, Risaralda',
   });
 }

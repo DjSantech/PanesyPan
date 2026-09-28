@@ -7,6 +7,7 @@ export function SiteFooter({ contact }: { contact: ContactInfo }) {
   const socials = [
     { href: negocio.instagram, label: 'Instagram' },
     { href: negocio.facebook, label: 'Facebook' },
+    { href: negocio.tiktok, label: 'TikTok' },
   ].filter((s) => s.href);
 
   return (
