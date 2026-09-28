@@ -57,7 +57,7 @@ function readLines(): AsyncIterable<string> {
 async function readHeader(): Promise<BackupHeader> {
   for await (const line of readLines()) {
     const parsed: unknown = JSON.parse(line);
-    if (!isBackupHeader(parsed)) fail('El archivo no es un respaldo de Panes & Panes');
+    if (!isBackupHeader(parsed)) fail('El archivo no es un respaldo de Panes & Pan');
     return parsed as BackupHeader;
   }
   return fail('El respaldo está vacío');

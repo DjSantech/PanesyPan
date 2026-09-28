@@ -1,4 +1,4 @@
-# Blueprint de Render para la API de Panes & Panes.
+# Blueprint de Render para la API de Panes & Pan.
 # Documentación: https://render.com/docs/blueprint-spec
 # Los valores marcados con "sync: false" se ingresan a mano en el panel de Render (son secretos).
 services:

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
-  "description": "Web pública de Panes & Panes (panesypan.com).",
+  "description": "Web pública de Panes & Pan (panesypan.com).",
   "type": "module",
   "scripts": {
     "dev": "next dev --port 3001",

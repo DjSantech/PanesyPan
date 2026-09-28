@@ -40,7 +40,7 @@ const TEXT_FIELDS: { key: TextField; label: string; placeholder: string; hint?: 
   {
     key: 'legalName',
     label: 'Razón social',
-    placeholder: 'Ej.: Panes y Panes S.A.S.',
+    placeholder: 'Ej.: Panes y Pan S.A.S.',
     hint: 'Vacío = solo el nombre comercial.',
   },
   { key: 'taxId', label: 'NIT', placeholder: 'Ej.: 900.123.456-7' },

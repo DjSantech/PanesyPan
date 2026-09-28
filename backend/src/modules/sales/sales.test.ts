@@ -135,13 +135,13 @@ describe('configuración del negocio', () => {
     expect(denied.status).toBe(403);
 
     const saved = await send(admin, 'patch', '/settings', {
-      legalName: 'Panes y Panes S.A.S.',
+      legalName: 'Panes y Pan S.A.S.',
       taxId: '900.123.456-7',
       ticketWidth: '58',
     });
     expect(saved.status).toBe(200);
     expect(businessSettingsResponseSchema.parse(saved.body).settings).toMatchObject({
-      legalName: 'Panes y Panes S.A.S.',
+      legalName: 'Panes y Pan S.A.S.',
       ticketWidth: '58',
       tableCount: 8,
     });

@@ -91,7 +91,7 @@ Datos del negocio configurables en **Ajustes** del sistema (`business_settings`)
 
 ```json
 {
-  "name": "Panes & Panes",
+  "name": "Panes & Pan",
   "address": "Dosquebradas, Risaralda",
   "phone": ""
 }

@@ -6,7 +6,7 @@ import { pageMetadata } from '@/lib/seo/site';
 export const metadata = pageMetadata({
   title: 'Nosotros',
   description:
-    'Conoce Panes & Panes, panadería de barrio en Dosquebradas, Risaralda: quiénes somos, horarios y cómo llegar.',
+    'Conoce Panes & Pan, panadería de barrio en Dosquebradas, Risaralda: quiénes somos, horarios y cómo llegar.',
   path: '/nosotros',
 });
 

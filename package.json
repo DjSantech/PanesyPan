@@ -2,7 +2,7 @@
   "name": "panesypan",
   "version": "0.1.0",
   "private": true,
-  "description": "Sistema POS, panel administrativo y web pública de Panes & Panes (Dosquebradas, Risaralda).",
+  "description": "Sistema POS, panel administrativo y web pública de Panes & Pan (Dosquebradas, Risaralda).",
   "license": "UNLICENSED",
   "type": "module",
   "packageManager": "pnpm@12.5.1",

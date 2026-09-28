@@ -16,9 +16,9 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon-32.png', 'apple-touch-icon.png', 'logo-panesypan-320.webp'],
       manifest: {
-        name: 'Panes & Panes · Sistema',
-        short_name: 'Panes & Panes',
-        description: 'Punto de venta y panel administrativo de Panes & Panes.',
+        name: 'Panes & Pan · Sistema',
+        short_name: 'Panes & Pan',
+        description: 'Punto de venta y panel administrativo de Panes & Pan.',
         lang: 'es-CO',
         start_url: '/',
         scope: '/',

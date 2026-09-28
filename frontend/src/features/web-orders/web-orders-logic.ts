@@ -31,7 +31,7 @@ export const NEXT_ACTION_LABEL: Record<WebOrderStatus, string | null> = {
 export function customerWhatsappUrl(phone: string, orderNumber: number): string {
   const digits = phone.replace(/\D/g, '');
   const text = encodeURIComponent(
-    `Hola, te escribimos de Panes & Panes por tu pedido web #${String(orderNumber)}.`,
+    `Hola, te escribimos de Panes & Pan por tu pedido web #${String(orderNumber)}.`,
   );
   return `https://wa.me/57${digits}?text=${text}`;
 }

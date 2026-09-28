@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
-  "description": "Sistema POS y panel administrativo de Panes & Panes.",
+  "description": "Sistema POS y panel administrativo de Panes & Pan.",
   "type": "module",
   "scripts": {
     "dev": "vite",

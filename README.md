@@ -1,6 +1,6 @@
-# Panes & Panes · Sistema POS y plataforma web
+# Panes & Pan · Sistema POS y plataforma web
 
-Punto de venta, panel administrativo y (próximamente) web pública con domicilios para **Panes & Panes**, panadería en Dosquebradas, Risaralda (Colombia).
+Punto de venta, panel administrativo y (próximamente) web pública con domicilios para **Panes & Pan**, panadería en Dosquebradas, Risaralda (Colombia).
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -35,7 +35,7 @@ Punto de venta, panel administrativo y (próximamente) web pública con domicili
 
 ## El negocio y el problema
 
-Panes & Panes vende panadería y repostería (pan, pandebonos, buñuelos, tortas), bebidas (café, chocolate, jugos, gaseosas), almuerzos (menú del día y ejecutivo) y caldos en la mañana. Cuenta con **8 mesas** además de la venta en mostrador y para llevar.
+Panes & Pan vende panadería y repostería (pan, pandebonos, buñuelos, tortas), bebidas (café, chocolate, jugos, gaseosas), almuerzos (menú del día y ejecutivo) y caldos en la mañana. Cuenta con **8 mesas** además de la venta en mostrador y para llevar.
 
 El negocio necesita:
 
@@ -758,4 +758,4 @@ Antes de cada commit: `pnpm check`.
 
 ## Licencia
 
-Copyright © 2026 Panes & Panes. **Todos los derechos reservados.** Software privado; consulta el archivo [LICENSE](LICENSE).
+Copyright © 2026 Panes & Pan. **Todos los derechos reservados.** Software privado; consulta el archivo [LICENSE](LICENSE).

@@ -1,5 +1,5 @@
 /**
- * Formato de los respaldos de Panes & Panes: un archivo .ndjson.gz con
+ * Formato de los respaldos de Panes & Pan: un archivo .ndjson.gz con
  *   1.ª línea  → encabezado (versión, fecha, colecciones con su cantidad e índices)
  *   resto      → un documento por línea: { "c": colección, "d": documento en EJSON canónico }
  * El EJSON canónico conserva los tipos de MongoDB (ObjectId, fechas, enteros), así que
