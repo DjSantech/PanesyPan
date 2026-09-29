@@ -128,7 +128,10 @@ export const canCheckoutWebOrder = (status: WebOrderStatus): boolean =>
 export const canCancelWebOrder = (status: WebOrderStatus): boolean =>
   status !== 'DELIVERED' && status !== 'CANCELED';
 
-// TODO(dueño): barrios de Dosquebradas donde hay domicilio
+/**
+ * Barrios con domicilio. Vacía = todo Dosquebradas (decisión del dueño): el cliente escribe su
+ * barrio y confirma que su dirección está en Dosquebradas. Llenarla restringe a esos barrios.
+ */
 export const DELIVERY_NEIGHBORHOODS: readonly string[] = [];
 
 export const WEB_ORDER_LIMITS = {

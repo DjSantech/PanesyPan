@@ -28,7 +28,7 @@ export interface Negocio {
   facebook: string;
   tiktok: string;
   coordinates: { lat: number; lng: number } | null;
-  /** Costo de domicilio en COP; null = "a confirmar por WhatsApp". */
+  /** Costo fijo de domicilio en COP; null = lo cotiza el domiciliario. */
   deliveryFee: number | null;
 }
 
@@ -46,8 +46,7 @@ export const negocio: Negocio = {
   instagram: 'https://www.instagram.com/panesypan',
   facebook: 'https://www.facebook.com/profile.php?id=61594512882670',
   tiktok: 'https://www.tiktok.com/@panesypan',
-  // TODO(dueño): coordenadas del local (opcional: sin ellas el mapa busca la dirección).
-  coordinates: null,
-  // TODO(dueño): costo fijo del domicilio, si lo hay.
+  coordinates: { lat: 4.8334263, lng: -75.6731614 },
+  // Domicilio solo en Dosquebradas; el valor lo cotiza el domiciliario en cada pedido.
   deliveryFee: null,
 };

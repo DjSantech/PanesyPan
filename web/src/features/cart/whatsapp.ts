@@ -20,7 +20,7 @@ export function buildOrderMessage(
     `Hola, acabo de hacer el pedido web #${String(order.number)}:`,
     ...lines,
     `Subtotal: ${formatCOP(order.subtotal)}`,
-    'Domicilio: a confirmar por WhatsApp',
+    'Domicilio: lo cotiza el domiciliario',
     `Nombre: ${customer.name}`,
     `Dirección: ${customer.address}`,
     `Barrio: ${customer.neighborhood}`,

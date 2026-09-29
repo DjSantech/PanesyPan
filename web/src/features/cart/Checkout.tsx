@@ -124,7 +124,9 @@ export function Checkout() {
       <section className="rounded-xl border bg-card p-6 shadow-sm" aria-live="polite">
         <h2 className="text-2xl font-bold">¡Pedido #{done.order.number} recibido!</h2>
         <p className="mt-2 text-lg">Total de productos: {formatCOP(done.order.subtotal)}</p>
-        <p className="text-muted-foreground">Domicilio: a confirmar por WhatsApp</p>
+        <p className="text-muted-foreground">
+          Domicilio: lo cotiza el domiciliario (solo Dosquebradas)
+        </p>
         {done.link !== null ? (
           <a
             href={done.link}
@@ -205,7 +207,7 @@ export function Checkout() {
           </div>
           <div className="flex justify-between text-muted-foreground">
             <dt>Domicilio</dt>
-            <dd>a confirmar por WhatsApp</dd>
+            <dd>lo cotiza el domiciliario</dd>
           </div>
         </dl>
         <p className="mt-2 text-sm text-muted-foreground">
