@@ -24,7 +24,7 @@ import { lockSession, logout, logoutEverywhere } from '../auth/auth.api';
 import { useIdleLock } from '../auth/use-idle-lock';
 import { useCurrentUser } from '../auth/use-session';
 import { useWebOrderAlerts } from '../web-orders/use-web-order-alerts';
-import { NAV_ITEMS } from './nav-items';
+import { mobileNavItems, NAV_ITEMS } from './nav-items';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Como el dispositivo', icon: Monitor },
@@ -48,7 +48,7 @@ export function AppLayout() {
   const items = NAV_ITEMS.filter(
     (item) => item.permission === undefined || hasPermission(user.role, item.permission),
   );
-  const mobileItems = items.filter((item) => item.mobile !== false);
+  const mobileItems = mobileNavItems(items);
   // El punto de venta usa todo el ancho de la tablet.
   const isPos = useMatch('/vender') !== null;
 
@@ -244,8 +244,16 @@ export function AppLayout() {
                     )
                   }
                 >
-                  <item.icon className="size-6" aria-hidden="true" />
-                  {item.label}
+                  <span className="relative">
+                    <item.icon className="size-6" aria-hidden="true" />
+                    {badgeFor(item.to) > 0 ? (
+                      <span className="absolute -top-1.5 -right-2.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-danger px-1 text-[0.65rem] font-extrabold text-white">
+                        {badgeFor(item.to)}
+                        <span className="sr-only"> pendientes</span>
+                      </span>
+                    ) : null}
+                  </span>
+                  {item.mobileLabel ?? item.label}
                 </NavLink>
               </li>
             ))}

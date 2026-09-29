@@ -17,29 +17,57 @@ import {
 export interface NavItem {
   to: string;
   label: string;
+  /** Texto corto para la barra del celular (por defecto, `label`). */
+  mobileLabel?: string;
   icon: LucideIcon;
   /** Sin permiso: visible para cualquier usuario con sesión. */
   permission?: Permission;
-  /** false = no va en la barra inferior del celular (se abre desde el inicio). */
-  mobile?: boolean;
+  /**
+   * Barra inferior del celular: true (por defecto) siempre va; 'if-room' solo si queda espacio;
+   * false nunca (se abre desde el inicio).
+   */
+  mobile?: boolean | 'if-room';
+}
+
+/** Máximo de elementos en la barra inferior del celular. */
+export const MOBILE_NAV_MAX = 5;
+
+/** Elementos de la barra del celular: los fijos y, si caben, los opcionales (en orden). */
+export function mobileNavItems<T extends Pick<NavItem, 'mobile'>>(items: readonly T[]): T[] {
+  const fixed = items.filter((item) => item.mobile === undefined || item.mobile === true).length;
+  let room = MOBILE_NAV_MAX - fixed;
+  return items.filter((item) => {
+    if (item.mobile === false) return false;
+    if (item.mobile !== 'if-room') return true;
+    if (room <= 0) return false;
+    room -= 1;
+    return true;
+  });
 }
 
 /**
- * En el celular caben máximo 5 elementos en la barra inferior. La cajera ve Vender, Ventas y
- * Catálogo e Inventario; el administrador además el inicio, y el resto desde los accesos del inicio.
+ * En el celular caben máximo 5 elementos en la barra inferior. La cajera ve Vender, Ventas,
+ * Catálogo, Pedidos web e Inventario; el administrador ve el inicio en lugar de Inventario (lo
+ * abre desde los accesos del inicio).
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Inicio', icon: House, permission: 'reports:read' },
   { to: '/vender', label: 'Vender', icon: ShoppingBasket, permission: 'pos:sell' },
   { to: '/ventas', label: 'Ventas', icon: ReceiptText, permission: 'pos:sell' },
   { to: '/catalogo', label: 'Catálogo', icon: Croissant, permission: 'catalog:read' },
-  { to: '/inventario', label: 'Inventario', icon: Boxes, permission: 'inventory:read' },
   {
     to: '/pedidos-web',
     label: 'Pedidos web',
+    mobileLabel: 'Pedidos',
     icon: ShoppingBag,
     permission: 'web-orders:read',
-    mobile: false,
+  },
+  {
+    to: '/inventario',
+    label: 'Inventario',
+    icon: Boxes,
+    permission: 'inventory:read',
+    mobile: 'if-room',
   },
   {
     to: '/menu-del-dia',
