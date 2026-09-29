@@ -10,6 +10,7 @@ import {
   type TaxCode,
   type UpdateProductRequest,
 } from '@panesypan/shared';
+import { useQuery } from '@tanstack/react-query';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { Spinner } from '@/components/feedback';
@@ -21,6 +22,7 @@ import { Field, Input, NativeSelect, Textarea } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 import { CheckboxField } from '@/components/ui/toggles';
 import { resizeImage } from '@/lib/image-resize';
+import { inventoryKeys, listInventory } from '../inventory/inventory.api';
 import { productImageUrl } from './catalog.api';
 
 type Errors = Partial<
@@ -75,8 +77,24 @@ export function ProductFormDialog({
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
   const [description, setDescription] = useState(product?.description ?? '');
   const [isFavorite, setIsFavorite] = useState(product?.isFavorite ?? false);
-  const [trackStock, setTrackStock] = useState(product?.trackStock ?? false);
-  const [initialStock, setInitialStock] = useState('');
+  const kindOf = (id: string) => categories.find((category) => category.id === id)?.kind;
+  // Nuevo: todo controla inventario menos los almuerzos (porciones del menú del día).
+  const [trackStock, setTrackStock] = useState(
+    product?.trackStock ?? kindOf(categoryId) !== 'LUNCH',
+  );
+  /** null = sin tocar (al editar se muestran las unidades actuales). */
+  const [stockText, setStockText] = useState<string | null>(null);
+
+  const inventory = useQuery({
+    queryKey: inventoryKeys.stock(false),
+    queryFn: ({ signal }) => listInventory(false, signal),
+    enabled: product?.trackStock === true,
+  });
+  const currentStock = editing
+    ? (inventory.data?.items.find((item) => item.productId === product.id)?.quantity ??
+      (product.trackStock ? undefined : 0))
+    : undefined;
+  const stockValue = stockText ?? (currentStock === undefined ? '' : String(currentStock));
   const [isVisibleOnline, setIsVisibleOnline] = useState(product?.isVisibleOnline ?? true);
   const [tax, setTax] = useState<TaxCode | null>(product?.tax ?? null);
   const [imageChange, setImageChange] = useState<ImageChange>({ kind: 'keep' });
@@ -111,7 +129,7 @@ export function ProductFormDialog({
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const stockText = initialStock.trim();
+    const stockInput = stockValue.trim();
     const parsed = createProductRequestSchema.safeParse({
       name,
       categoryId,
@@ -121,7 +139,7 @@ export function ProductFormDialog({
       trackStock,
       isVisibleOnline,
       tax,
-      initialStock: !editing && trackStock && stockText !== '' ? Number(stockText) : null,
+      initialStock: !editing && trackStock && stockInput !== '' ? Number(stockInput) : null,
     });
     if (!parsed.success) {
       const next: Errors = {};
@@ -158,6 +176,9 @@ export function ProductFormDialog({
       changes.isVisibleOnline = data.isVisibleOnline;
     }
     if (data.tax !== product.tax) changes.tax = data.tax;
+    if (trackStock && stockInput !== '' && Number(stockInput) !== currentStock) {
+      changes.stock = Number(stockInput);
+    }
     if (Object.keys(changes).length === 0 && imageChange.kind === 'keep') {
       onOpenChange(false);
       return;
@@ -252,6 +273,7 @@ export function ProductFormDialog({
                 value={categoryId}
                 onChange={(event) => {
                   setCategoryId(event.target.value);
+                  if (!editing) setTrackStock(kindOf(event.target.value) !== 'LUNCH');
                 }}
               >
                 {categories.map((category) => (
@@ -338,20 +360,24 @@ export function ProductFormDialog({
             checked={trackStock}
             onCheckedChange={setTrackStock}
           />
-          {!editing && trackStock ? (
+          {trackStock ? (
             <Field
               id="product-initial-stock"
               label="Unidades disponibles ahora"
               error={errors.initialStock}
-              hint="Con cuántas unidades arranca. Después se suman en Inventario → Producción."
+              hint={
+                editing
+                  ? 'Si cambias el número queda como un ajuste en Inventario (con tu nombre y la hora).'
+                  : 'Con cuántas unidades arranca. Después se suman en Inventario → Producción.'
+              }
             >
               <Input
                 {...fieldAria('product-initial-stock', errors.initialStock, true)}
                 inputMode="numeric"
-                placeholder="0"
-                value={initialStock}
+                placeholder={editing && currentStock === undefined ? 'Cargando…' : '0'}
+                value={stockValue}
                 onChange={(event) => {
-                  setInitialStock(event.target.value.replace(/\D/g, '').slice(0, 5));
+                  setStockText(event.target.value.replace(/\D/g, '').slice(0, 5));
                 }}
               />
             </Field>
