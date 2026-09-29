@@ -1,5 +1,6 @@
 import { negocio } from '@/config/negocio';
 import type { ContactInfo } from '@/lib/business';
+import { Code } from 'lucide-react';
 import Link from 'next/link';
 import { NAV_ITEMS } from './nav-items';
 
@@ -53,8 +54,19 @@ export function SiteFooter({ contact }: { contact: ContactInfo }) {
           </ul>
         )}
       </div>
-      <p className="border-t px-4 py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} {contact.name}
+      <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t px-4 py-4 text-center text-sm text-muted-foreground">
+        <span>
+          © {new Date().getFullYear()} {contact.name}
+        </span>
+        <a
+          href="https://github.com/DjSantech"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 hover:underline hover:text-foreground"
+        >
+          <Code aria-hidden="true" className="size-4" />
+          Hecho por: github.com/DjSantech
+        </a>
       </p>
     </footer>
   );
