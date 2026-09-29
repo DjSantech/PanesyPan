@@ -106,7 +106,9 @@ export async function deleteProductImage(id: string): Promise<Product> {
 
 /** URL completa de la imagen de un producto (la API devuelve solo la ruta). */
 export function productImageUrl(imagePath: string | null): string | null {
-  return imagePath === null ? null : `${getApiBaseUrl()}${imagePath}`;
+  if (imagePath === null) return null;
+  // Las fotos en Cloudinary llegan con URL completa; las antiguas, con ruta de la API.
+  return imagePath.startsWith('https://') ? imagePath : `${getApiBaseUrl()}${imagePath}`;
 }
 
 export async function setProductAvailability(id: string, isAvailable: boolean): Promise<Product> {

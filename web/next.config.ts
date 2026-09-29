@@ -2,10 +2,17 @@ import type { NextConfig } from 'next';
 
 type RemotePattern = NonNullable<NonNullable<NextConfig['images']>['remotePatterns']>[number];
 
-/** Las fotos de productos las sirve la API: se permite solo su origen. */
+/** Fotos de productos en Cloudinary (las nuevas) y en la API (las antiguas). */
+const CLOUDINARY_ORIGIN = 'https://res.cloudinary.com';
+const CLOUDINARY_PATTERN: RemotePattern = {
+  protocol: 'https',
+  hostname: 'res.cloudinary.com',
+  pathname: '/**',
+};
+
 function apiImagePatterns(): RemotePattern[] {
   const raw = process.env.NEXT_PUBLIC_API_URL;
-  if (!raw) return [];
+  if (!raw) return [CLOUDINARY_PATTERN];
   try {
     const url = new URL(raw);
     return [
@@ -15,9 +22,10 @@ function apiImagePatterns(): RemotePattern[] {
         port: url.port,
         pathname: '/api/v1/public/images/**',
       },
+      CLOUDINARY_PATTERN,
     ];
   } catch {
-    return [];
+    return [CLOUDINARY_PATTERN];
   }
 }
 
@@ -41,7 +49,7 @@ function contentSecurityPolicy(): string {
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob:${api ? ` ${api}` : ''}`,
+    `img-src 'self' data: blob: ${CLOUDINARY_ORIGIN}${api ? ` ${api}` : ''}`,
     "font-src 'self'",
     `connect-src 'self'${api ? ` ${api}` : ''}`,
     'frame-src https://www.google.com https://maps.google.com',
