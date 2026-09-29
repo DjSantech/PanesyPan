@@ -6,7 +6,7 @@ import {
   listProductsResponseSchema,
   productResponseSchema,
 } from '@panesypan/shared';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startTestDatabase } from '../../../test/database';
 import {
   createTestUser,
@@ -23,6 +23,7 @@ import request from 'supertest';
 import { InventoryItemModel, StockMovementModel } from '../inventory/inventory.models';
 import { CategoryModel, DailyMenuModel, ProductImageModel, ProductModel } from './catalog.models';
 import { CATALOG_SEED, seedCatalog } from './catalog.seed';
+import { configureImageStorage } from './image-storage';
 
 const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
 const errorCode = (body: unknown) => apiErrorResponseSchema.parse(body).error.code;
@@ -332,6 +333,91 @@ describe('ficha del producto: descripción, web, stock inicial e imagen', () => 
 
     const byCashier = await upload(cashier, product.id, PNG);
     expect(byCashier.status).toBe(403);
+  });
+});
+
+describe('fotos en Cloudinary', () => {
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const calls: { url: string; form: FormData }[] = [];
+  let uploads = 0;
+
+  beforeEach(() => {
+    calls.length = 0;
+    uploads = 0;
+    configureImageStorage(
+      createTestEnv({
+        CLOUDINARY_CLOUD_NAME: 'demo',
+        CLOUDINARY_API_KEY: '123',
+        CLOUDINARY_API_SECRET: 'secreto',
+      }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init: { body: FormData }) => {
+        calls.push({ url, form: init.body });
+        if (url.endsWith('/destroy')) return Promise.resolve(Response.json({ result: 'ok' }));
+        uploads += 1;
+        return Promise.resolve(
+          Response.json({
+            secure_url: `https://res.cloudinary.com/demo/image/upload/v1/panesypan/productos/f${String(uploads)}.png`,
+            public_id: `panesypan/productos/f${String(uploads)}`,
+          }),
+        );
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    configureImageStorage(createTestEnv());
+  });
+
+  const upload = (id: string) =>
+    admin.agent
+      .post(`/api/v1/products/${id}/image`)
+      .set('X-CSRF-Token', admin.csrfToken)
+      .set('Content-Type', 'image/png')
+      .send(PNG);
+
+  it('sube la foto a Cloudinary, guarda solo el enlace y borra la anterior', async () => {
+    const bakery = await createCategory('Panadería');
+    const product = await createProduct('Pan Coco', bakery.id);
+
+    const first = await upload(product.id);
+    expect(first.status).toBe(200);
+    expect(productResponseSchema.parse(first.body).product.imagePath).toBe(
+      'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v1/panesypan/productos/f1.png',
+    );
+    expect(await ProductImageModel.countDocuments()).toBe(0);
+    const sent = calls[0]?.form;
+    expect(sent?.get('folder')).toBe('panesypan/productos');
+    expect(sent?.get('api_key')).toBe('123');
+    expect(sent?.has('api_secret')).toBe(false);
+
+    await upload(product.id).expect(200);
+    const destroyed = calls.find((call) => call.url.endsWith('/destroy'));
+    expect(destroyed?.form.get('public_id')).toBe('panesypan/productos/f1');
+
+    const removed = await admin.agent
+      .delete(`/api/v1/products/${product.id}/image`)
+      .set('X-CSRF-Token', admin.csrfToken);
+    expect(productResponseSchema.parse(removed.body).product.imagePath).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith('/destroy'))).toHaveLength(2);
+  });
+
+  it('si Cloudinary falla, avisa y no cambia la foto', async () => {
+    const bakery = await createCategory('Panadería');
+    const product = await createProduct('Pan Leche', bakery.id);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(Response.json({ error: { message: 'x' } }, { status: 500 }))),
+    );
+    const response = await upload(product.id);
+    expect(response.status).toBe(503);
+    expect((await ProductModel.findById(product.id))?.image).toBeNull();
   });
 });
 

@@ -62,6 +62,12 @@ const envSchema = z.object({
   FACTUS_USERNAME: z.preprocess(emptyToUndefined, z.string().optional()),
   FACTUS_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
 
+  // Fotos de productos en Cloudinary. Las tres van juntas; sin ellas las fotos se guardan en
+  // MongoDB (desarrollo y pruebas). El secreto nunca sale del servidor.
+  CLOUDINARY_CLOUD_NAME: z.preprocess(emptyToUndefined, z.string().optional()),
+  CLOUDINARY_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  CLOUDINARY_API_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+
   // Render inyecta automáticamente el commit desplegado.
   RENDER_GIT_COMMIT: z.preprocess(emptyToUndefined, z.string().optional()),
 });
@@ -113,6 +119,20 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   ) {
     throw new EnvValidationError(
       'Para usar Factus define FACTUS_CLIENT_ID, FACTUS_CLIENT_SECRET, FACTUS_USERNAME y FACTUS_PASSWORD juntos',
+    );
+  }
+
+  const cloudinaryVars = [
+    env.CLOUDINARY_CLOUD_NAME,
+    env.CLOUDINARY_API_KEY,
+    env.CLOUDINARY_API_SECRET,
+  ];
+  if (
+    cloudinaryVars.some((value) => value !== undefined) &&
+    cloudinaryVars.some((value) => value === undefined)
+  ) {
+    throw new EnvValidationError(
+      'Para usar Cloudinary define CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET juntos',
     );
   }
 

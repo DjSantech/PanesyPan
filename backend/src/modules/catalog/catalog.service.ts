@@ -11,6 +11,7 @@ import {
   type UpdateProductRequest,
 } from '@panesypan/shared';
 import { mongo, trusted, Types, type QueryFilter } from 'mongoose';
+import { destroyImage, uploadImage, type UploadedImage } from '../../lib/cloudinary';
 import { AppError } from '../../lib/errors';
 import { escapeRegex } from '../../lib/regex';
 import { recordAudit } from '../audit/audit.service';
@@ -24,6 +25,7 @@ import {
   type ProductAttrs,
   type ProductDocument,
 } from './catalog.models';
+import { cloudinaryCredentials, PRODUCT_IMAGES_FOLDER } from './image-storage';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
 const notFound = (what: string): AppError =>
@@ -74,8 +76,31 @@ const IMAGE_EXTENSIONS: Readonly<Record<ProductImageType, string>> = {
  * Ruta pública de la imagen. Lleva la extensión para que Cloudflare la guarde en caché, y el id
  * cambia con cada subida, así nunca se sirve una imagen vieja.
  */
-export const productImagePath = (image: { id: Types.ObjectId; contentType: ProductImageType }) =>
+export const productImagePath = (image: {
+  id: Types.ObjectId;
+  contentType: ProductImageType;
+  url?: string | null;
+}): string =>
+  image.url ??
   `/api/v1/public/images/${image.id.toString()}.${IMAGE_EXTENSIONS[image.contentType]}`;
+
+type StoredImage = NonNullable<ProductDocument['image']>;
+
+/** Borra una imagen que ya no se usa. Si Cloudinary falla, solo se registra: no bloquea. */
+async function deleteStoredImage(image: StoredImage, ctx: ActorContext): Promise<void> {
+  if (typeof image.publicId === 'string') {
+    const credentials = cloudinaryCredentials();
+    if (credentials === null) return;
+    await destroyImage(credentials, image.publicId).catch((error: unknown) => {
+      ctx.logger?.warn(
+        { reason: error instanceof Error ? error.message : String(error) },
+        'No se pudo borrar la imagen anterior de Cloudinary',
+      );
+    });
+    return;
+  }
+  await ProductImageModel.deleteOne({ _id: image.id });
+}
 
 export function toProductDto(product: ProductDocument): Product {
   return {
@@ -395,15 +420,35 @@ export async function setProductImage(
     throw new AppError(400, 'VALIDATION_ERROR', 'La imagen debe ser JPG, PNG o WebP.');
   }
   const previous = product.image;
-  const image = await ProductImageModel.create({
-    productId: product._id,
-    contentType,
-    data,
-    size: data.length,
-  });
-  product.image = { id: image._id, contentType };
+  const credentials = cloudinaryCredentials();
+  if (credentials === null) {
+    const image = await ProductImageModel.create({
+      productId: product._id,
+      contentType,
+      data,
+      size: data.length,
+    });
+    product.image = { id: image._id, contentType, url: null, publicId: null };
+  } else {
+    let uploaded: UploadedImage;
+    try {
+      uploaded = await uploadImage(credentials, { data, contentType }, PRODUCT_IMAGES_FOLDER);
+    } catch (error) {
+      ctx.logger?.error(
+        { reason: error instanceof Error ? error.message : String(error) },
+        'No se pudo subir la imagen a Cloudinary',
+      );
+      throw new AppError(503, 'SERVICE_UNAVAILABLE', 'No se pudo subir la foto. Intenta de nuevo.');
+    }
+    product.image = {
+      id: new Types.ObjectId(),
+      contentType,
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+    };
+  }
   await product.save();
-  if (previous !== null) await ProductImageModel.deleteOne({ _id: previous.id });
+  if (previous !== null) await deleteStoredImage(previous, ctx);
 
   await audit(ctx, {
     action: 'PRODUCT_UPDATED',
@@ -421,7 +466,7 @@ export async function removeProductImage(id: string, ctx: ActorContext): Promise
   if (previous === null) return toProductDto(product);
   product.image = null;
   await product.save();
-  await ProductImageModel.deleteOne({ _id: previous.id });
+  await deleteStoredImage(previous, ctx);
   await audit(ctx, {
     action: 'PRODUCT_UPDATED',
     entity: productEntity(product),

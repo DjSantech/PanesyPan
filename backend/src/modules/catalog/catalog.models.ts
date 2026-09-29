@@ -55,8 +55,16 @@ export interface ProductAttrs {
   /** Impuesto para la factura electrónica; null = el impuesto general de Ajustes. */
   tax: TaxCode | null;
   description: string;
-  /** Imagen actual (se guarda aparte, en ProductImage); cambia de id con cada subida. */
-  image: { id: Types.ObjectId; contentType: ProductImageType } | null;
+  /**
+   * Imagen actual; cambia de id con cada subida. Con `url` está en Cloudinary (`publicId` sirve
+   * para borrarla); sin `url` está en MongoDB, en ProductImage.
+   */
+  image: {
+    id: Types.ObjectId;
+    contentType: ProductImageType;
+    url?: string | null;
+    publicId?: string | null;
+  } | null;
   isVisibleOnline: boolean;
   isActive: boolean;
   sortOrder: number;
@@ -85,6 +93,8 @@ const productSchema = new Schema<ProductAttrs>(
         {
           id: { type: Schema.Types.ObjectId, required: true },
           contentType: { type: String, enum: PRODUCT_IMAGE_TYPES, required: true },
+          url: { type: String, default: null },
+          publicId: { type: String, default: null },
         },
         { _id: false },
       ),
