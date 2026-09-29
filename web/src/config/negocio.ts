@@ -10,6 +10,8 @@ export interface OpeningHours {
   days: string;
   /** Ej.: "6:00 a. m. – 8:00 p. m.". */
   hours: string;
+  /** Mismo horario en formato schema.org para Google (ej. "Mo-Sa 06:00-20:00"). */
+  schema: string;
 }
 
 export interface Negocio {
@@ -32,19 +34,19 @@ export interface Negocio {
 
 export const negocio: Negocio = {
   name: BUSINESS_NAME,
-  // TODO(dueño): dirección exacta del local.
-  address: '',
+  address: 'Avenida Simón Bolívar, Calle 33 # 14-85, Guadalupe',
   city: 'Dosquebradas, Risaralda',
-  // TODO(dueño): días y horario de atención.
-  openingHours: [],
-  // TODO(dueño): número de WhatsApp del negocio.
-  whatsapp: '',
+  openingHours: [
+    { days: 'Lunes a sábado', hours: '6:00 a. m. – 9:00 p. m.', schema: 'Mo-Sa 06:00-21:00' },
+    { days: 'Domingo', hours: '7:00 a. m. – 5:00 p. m.', schema: 'Su 07:00-17:00' },
+  ],
+  whatsapp: '573122447518',
   // TODO(dueño): teléfono fijo o celular del negocio.
   phone: '',
   instagram: 'https://www.instagram.com/panesypan',
   facebook: 'https://www.facebook.com/profile.php?id=61594512882670',
   tiktok: 'https://www.tiktok.com/@panesypan',
-  // TODO(dueño): coordenadas del local para el mapa.
+  // TODO(dueño): coordenadas del local (opcional: sin ellas el mapa busca la dirección).
   coordinates: null,
   // TODO(dueño): costo fijo del domicilio, si lo hay.
   deliveryFee: null,

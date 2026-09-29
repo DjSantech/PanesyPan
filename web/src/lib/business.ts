@@ -20,6 +20,9 @@ export async function getContactInfo(): Promise<ContactInfo> {
   const digits = phone.replace(/\D/g, '');
   const coords = negocio.coordinates;
   const coordText = coords ? `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}` : null;
+  // Sin coordenadas, el mapa busca la dirección.
+  const mapQuery =
+    coordText ?? (address ? encodeURIComponent(`${address}, ${negocio.city}, Colombia`) : null);
   return {
     name: negocio.name,
     address,
@@ -27,7 +30,7 @@ export async function getContactInfo(): Promise<ContactInfo> {
     phone,
     whatsappUrl: negocio.whatsapp ? `https://wa.me/${negocio.whatsapp}` : null,
     phoneUrl: digits ? `tel:${digits}` : null,
-    mapUrl: coordText ? `https://www.google.com/maps/search/?api=1&query=${coordText}` : null,
-    mapEmbedUrl: coordText ? `https://www.google.com/maps?q=${coordText}&output=embed` : null,
+    mapUrl: mapQuery ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}` : null,
+    mapEmbedUrl: mapQuery ? `https://www.google.com/maps?q=${mapQuery}&output=embed` : null,
   };
 }
