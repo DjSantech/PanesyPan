@@ -75,3 +75,10 @@ services:
         sync: false
       - key: FACTUS_PASSWORD
         sync: false
+      # Fotos de productos en Cloudinary (las tres juntas).
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

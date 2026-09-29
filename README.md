@@ -207,30 +207,33 @@ Los archivos `.env` **nunca** se suben al repositorio. Cada app tiene su `.env.e
 
 ### API (`backend/.env`)
 
-| Variable               | Descripción                                                                                                 | Ejemplo                                                 |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `NODE_ENV`             | `development`, `test` o `production`                                                                        | `development`                                           |
-| `PORT`                 | Puerto HTTP (Render lo define solo)                                                                         | `4000`                                                  |
-| `LOG_LEVEL`            | Nivel de logs de pino                                                                                       | `info`                                                  |
-| `MONGODB_URI`          | Cadena de conexión a MongoDB                                                                                | `mongodb+srv://USUARIO:CLAVE@cluster.xxxxx.mongodb.net` |
-| `MONGODB_DB_NAME`      | Nombre de la base de datos                                                                                  | `panesypan`                                             |
-| `CORS_ORIGINS`         | Orígenes permitidos, separados por coma. En producción es obligatorio y todos deben usar https              | `https://sistema.panesypan.com`                         |
-| `TRUST_PROXY_HOPS`     | Proxies de confianza (0 en local, 1 en Render)                                                              | `1`                                                     |
-| `ORIGIN_VERIFY_SECRET` | Secreto del header `X-Origin-Verify` que agrega Cloudflare. Obligatorio en producción, mínimo 32 caracteres | `(generado, ver abajo)`                                 |
-| `RATE_LIMIT_WINDOW_MS` | Ventana del límite general, en ms                                                                           | `60000`                                                 |
-| `RATE_LIMIT_MAX`       | Peticiones por IP en esa ventana                                                                            | `600`                                                   |
-| `AUTH_RATE_LIMIT_MAX`  | Intentos fallidos de login o PIN por IP cada 15 minutos                                                     | `30`                                                    |
-| `JWT_ACCESS_SECRET`    | Secreto para firmar la sesión. Obligatorio, mínimo 32 caracteres, distinto de `CSRF_SECRET`                 | `(generado)`                                            |
-| `CSRF_SECRET`          | Secreto para el token anti-CSRF. Obligatorio, mínimo 32 caracteres                                          | `(generado)`                                            |
-| `SEED_ADMIN_USERNAME`  | Usuario del primer administrador (solo se usa si no existe ninguno)                                         | `admin`                                                 |
-| `SEED_ADMIN_PASSWORD`  | Contraseña inicial del primer administrador; se cambia en el primer ingreso. Bórrala después                | `(una frase larga)`                                     |
-| `SEED_ADMIN_NAME`      | Nombre visible del primer administrador (opcional)                                                          | `Administrador`                                         |
-| `SEED_ADMIN_EMAIL`     | Correo del primer administrador (opcional)                                                                  | `duena@correo.com`                                      |
-| `FACTUS_ENV`           | Ambiente de Factus: `sandbox` (habilitación) o `production`                                                 | `sandbox`                                               |
-| `FACTUS_CLIENT_ID`     | Credencial de la API de Factus (opcional; sin las cuatro solo hay proveedor simulado)                       | `(panel de Factus)`                                     |
-| `FACTUS_CLIENT_SECRET` | Credencial de la API de Factus                                                                              | `(panel de Factus)`                                     |
-| `FACTUS_USERNAME`      | Usuario (correo) de la cuenta de Factus                                                                     | `facturacion@panesypan.com`                             |
-| `FACTUS_PASSWORD`      | Contraseña de la cuenta de Factus                                                                           | `(panel de Factus)`                                     |
+| Variable                | Descripción                                                                                                 | Ejemplo                                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `NODE_ENV`              | `development`, `test` o `production`                                                                        | `development`                                           |
+| `PORT`                  | Puerto HTTP (Render lo define solo)                                                                         | `4000`                                                  |
+| `LOG_LEVEL`             | Nivel de logs de pino                                                                                       | `info`                                                  |
+| `MONGODB_URI`           | Cadena de conexión a MongoDB                                                                                | `mongodb+srv://USUARIO:CLAVE@cluster.xxxxx.mongodb.net` |
+| `MONGODB_DB_NAME`       | Nombre de la base de datos                                                                                  | `panesypan`                                             |
+| `CORS_ORIGINS`          | Orígenes permitidos, separados por coma. En producción es obligatorio y todos deben usar https              | `https://sistema.panesypan.com`                         |
+| `TRUST_PROXY_HOPS`      | Proxies de confianza (0 en local, 1 en Render)                                                              | `1`                                                     |
+| `ORIGIN_VERIFY_SECRET`  | Secreto del header `X-Origin-Verify` que agrega Cloudflare. Obligatorio en producción, mínimo 32 caracteres | `(generado, ver abajo)`                                 |
+| `RATE_LIMIT_WINDOW_MS`  | Ventana del límite general, en ms                                                                           | `60000`                                                 |
+| `RATE_LIMIT_MAX`        | Peticiones por IP en esa ventana                                                                            | `600`                                                   |
+| `AUTH_RATE_LIMIT_MAX`   | Intentos fallidos de login o PIN por IP cada 15 minutos                                                     | `30`                                                    |
+| `JWT_ACCESS_SECRET`     | Secreto para firmar la sesión. Obligatorio, mínimo 32 caracteres, distinto de `CSRF_SECRET`                 | `(generado)`                                            |
+| `CSRF_SECRET`           | Secreto para el token anti-CSRF. Obligatorio, mínimo 32 caracteres                                          | `(generado)`                                            |
+| `SEED_ADMIN_USERNAME`   | Usuario del primer administrador (solo se usa si no existe ninguno)                                         | `admin`                                                 |
+| `SEED_ADMIN_PASSWORD`   | Contraseña inicial del primer administrador; se cambia en el primer ingreso. Bórrala después                | `(una frase larga)`                                     |
+| `SEED_ADMIN_NAME`       | Nombre visible del primer administrador (opcional)                                                          | `Administrador`                                         |
+| `SEED_ADMIN_EMAIL`      | Correo del primer administrador (opcional)                                                                  | `duena@correo.com`                                      |
+| `FACTUS_ENV`            | Ambiente de Factus: `sandbox` (habilitación) o `production`                                                 | `sandbox`                                               |
+| `FACTUS_CLIENT_ID`      | Credencial de la API de Factus (opcional; sin las cuatro solo hay proveedor simulado)                       | `(panel de Factus)`                                     |
+| `FACTUS_CLIENT_SECRET`  | Credencial de la API de Factus                                                                              | `(panel de Factus)`                                     |
+| `FACTUS_USERNAME`       | Usuario (correo) de la cuenta de Factus                                                                     | `facturacion@panesypan.com`                             |
+| `FACTUS_PASSWORD`       | Contraseña de la cuenta de Factus                                                                           | `(panel de Factus)`                                     |
+| `CLOUDINARY_CLOUD_NAME` | Cuenta de Cloudinary donde se guardan las fotos de productos (opcional; sin las tres, van a MongoDB)        | `(panel de Cloudinary)`                                 |
+| `CLOUDINARY_API_KEY`    | API Key de Cloudinary                                                                                       | `(panel de Cloudinary)`                                 |
+| `CLOUDINARY_API_SECRET` | API Secret de Cloudinary (solo en el servidor)                                                              | `(panel de Cloudinary)`                                 |
 
 Para generar un secreto seguro:
 
