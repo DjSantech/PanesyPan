@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth';
@@ -12,10 +13,11 @@ import { AppLayout } from '@/features/layout/AppLayout';
  * bajo demanda para que la tablet del POS descargue lo mínimo.
  */
 export const router = createBrowserRouter([
-  { path: '/ingresar', element: <LoginPage /> },
+  { path: '/ingresar', element: <LoginPage />, errorElement: <RouteErrorBoundary /> },
   {
     path: '/',
     element: <RequireAuth />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: 'cambiar-clave', element: <ChangePasswordPage /> },
       { path: 'crear-pin', element: <SetPinPage /> },

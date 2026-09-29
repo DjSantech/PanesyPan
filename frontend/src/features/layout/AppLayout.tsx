@@ -1,5 +1,5 @@
 import { BUSINESS_NAME, hasPermission, USER_ROLE_LABELS } from '@panesypan/shared';
-import { CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
+import { Code, CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -220,6 +220,23 @@ export function AppLayout() {
       >
         <Outlet />
       </main>
+
+      <footer
+        className={cn(
+          'py-4 text-center text-xs text-muted-foreground',
+          mobileItems.length > 1 && 'pb-24 md:pb-4',
+        )}
+      >
+        <a
+          href="https://github.com/DjSantech"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
+        >
+          <Code aria-hidden="true" className="size-3.5" />
+          Hecho por: github.com/DjSantech
+        </a>
+      </footer>
 
       {mobileItems.length > 1 ? (
         <nav
