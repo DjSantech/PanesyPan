@@ -1,6 +1,7 @@
 'use client';
 
 import { Menu, X } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -48,6 +49,7 @@ export function SiteHeader({ businessName }: { businessName: string }) {
           <ul className="flex items-center gap-1">{links}</ul>
         </nav>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
           <CartIndicator />
           <button
             type="button"

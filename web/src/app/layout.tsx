@@ -3,6 +3,7 @@ import '@fontsource-variable/playfair-display';
 import './globals.css';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
+import { THEME_STORAGE_KEY } from '@/lib/theme';
 import { getContactInfo } from '@/lib/business';
 import { JsonLdScript } from '@/lib/seo/JsonLdScript';
 import { bakeryJsonLd } from '@/lib/seo/jsonld';
@@ -24,10 +25,16 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image' },
 };
 
+/** Aplica el tema guardado antes de pintar, para que no parpadee (claro por defecto). */
+const THEME_SCRIPT = `try{if(localStorage.getItem('${THEME_STORAGE_KEY}')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}`;
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const contact = await getContactInfo();
   return (
-    <html lang="es-CO">
+    <html lang="es-CO" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-dvh flex-col">
         <JsonLdScript data={bakeryJsonLd(contact)} />
         <a
