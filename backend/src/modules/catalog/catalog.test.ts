@@ -253,9 +253,42 @@ describe('ficha del producto: descripción, web, stock inicial e imagen', () => 
       name: 'Tinto',
       categoryId: drinks.id,
       price: 1_500,
+      trackStock: false,
       initialStock: 10,
     }).expect(201);
     expect(await InventoryItemModel.countDocuments()).toBe(0);
+  });
+
+  it('por defecto todo controla inventario menos los almuerzos', async () => {
+    const snacks = await createCategory('Paquetes');
+    const lunch = await createCategory('Almuerzos', 'LUNCH');
+    expect((await createProduct('Papas de limón', snacks.id)).trackStock).toBe(true);
+    expect((await createProduct('Almuerzo', lunch.id, 14_000)).trackStock).toBe(false);
+  });
+
+  it('al editar se puede cambiar el stock y queda como ajuste', async () => {
+    const drinks = await createCategory('Bebidas');
+    const soda = await createProduct('Gaseosa 400 ml', drinks.id, 3_000);
+
+    const edited = await send(admin, 'patch', `/products/${soda.id}`, { price: 3_500, stock: 24 });
+    expect(edited.status).toBe(200);
+    expect(productResponseSchema.parse(edited.body).product.price).toBe(3_500);
+    expect((await InventoryItemModel.findOne({ productId: soda.id }))?.quantity).toBe(24);
+    const movement = await StockMovementModel.findOne({ productId: soda.id, type: 'ADJUSTMENT' });
+    expect(movement).toMatchObject({ delta: 24, note: 'Ajuste al editar el producto' });
+
+    // Solo el stock también se puede editar.
+    await send(admin, 'patch', `/products/${soda.id}`, { stock: 20 }).expect(200);
+    expect((await InventoryItemModel.findOne({ productId: soda.id }))?.quantity).toBe(20);
+
+    const untracked = await send(admin, 'post', '/products', {
+      name: 'Tinto',
+      categoryId: drinks.id,
+      price: 1_500,
+      trackStock: false,
+    });
+    const tinto = productResponseSchema.parse(untracked.body).product;
+    expect((await send(admin, 'patch', `/products/${tinto.id}`, { stock: 5 })).status).toBe(400);
   });
 
   it('sube, reemplaza y quita la imagen; la imagen es pública y con caché larga', async () => {

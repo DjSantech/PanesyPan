@@ -259,7 +259,7 @@ export async function createProduct(
       price: input.price,
       isAvailable: input.isAvailable ?? true,
       isFavorite: input.isFavorite ?? false,
-      trackStock: input.trackStock ?? false,
+      trackStock: input.trackStock ?? category.kind !== 'LUNCH',
       tax: input.tax ?? null,
       description: input.description ?? '',
       isVisibleOnline: input.isVisibleOnline ?? true,

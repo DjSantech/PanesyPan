@@ -121,8 +121,24 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
     res.status(201).json({ product });
   });
   router.patch('/products/:id', ...canManage, async (req, res) => {
-    const input = parseBody(req, updateProductRequestSchema);
-    res.json({ product: await updateProduct(parseIdParam(req), input, actorContext(req)) });
+    const { stock, ...changes } = parseBody(req, updateProductRequestSchema);
+    const id = parseIdParam(req);
+    const ctx = actorContext(req);
+    const product =
+      Object.keys(changes).length > 0
+        ? await updateProduct(id, changes, ctx)
+        : await getProduct(id);
+    // El stock editado queda como un ajuste en el libro de inventario (con quién y cuándo).
+    if (stock !== undefined) {
+      if (!product.trackStock) {
+        throw new AppError(400, 'VALIDATION_ERROR', `"${product.name}" no controla inventario.`);
+      }
+      await adjustStock(
+        { productId: product.id, newQuantity: stock, note: 'Ajuste al editar el producto' },
+        ctx,
+      );
+    }
+    res.json({ product });
   });
   // La imagen llega tal cual en el cuerpo (el navegador ya la redujo); el tipo real se valida.
   router.post(

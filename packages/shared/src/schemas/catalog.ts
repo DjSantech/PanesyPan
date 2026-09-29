@@ -68,6 +68,12 @@ export const PRODUCT_IMAGE_TYPES = ['image/webp', 'image/jpeg', 'image/png'] as 
 export type ProductImageType = (typeof PRODUCT_IMAGE_TYPES)[number];
 export const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
+/** Unidades en inventario de un producto. */
+const stockQuantitySchema = z
+  .int('El stock debe ser un número entero')
+  .min(0, 'El stock no puede ser negativo')
+  .max(10_000, 'El stock es demasiado alto');
+
 /** Precio final en pesos (ya incluye impuestos). */
 export const priceSchema = z
   .int('El precio debe ser un número entero de pesos')
@@ -112,17 +118,13 @@ export const createProductRequestSchema = z.strictObject({
   price: priceSchema,
   isAvailable: z.boolean().default(true),
   isFavorite: z.boolean().default(false),
-  trackStock: z.boolean().default(false),
+  /** Sin indicar: todo controla inventario menos los almuerzos (porciones del menú del día). */
+  trackStock: z.boolean().optional(),
   tax: z.enum(TAX_CODES).nullable().default(null),
   description: descriptionSchema.default(''),
   isVisibleOnline: z.boolean().default(true),
   /** Unidades con las que arranca el inventario (solo si controla inventario). */
-  initialStock: z
-    .int('El stock debe ser un número entero')
-    .min(0, 'El stock no puede ser negativo')
-    .max(10_000, 'El stock es demasiado alto')
-    .nullable()
-    .default(null),
+  initialStock: stockQuantitySchema.nullable().default(null),
 });
 export type CreateProductRequest = z.input<typeof createProductRequestSchema>;
 
@@ -137,6 +139,8 @@ export const updateProductRequestSchema = z
     description: descriptionSchema.optional(),
     isVisibleOnline: z.boolean().optional(),
     isActive: z.boolean().optional(),
+    /** Unidades en inventario (queda como ajuste en el libro); solo si controla inventario. */
+    stock: stockQuantitySchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;

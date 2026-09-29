@@ -120,6 +120,8 @@ export async function seedCatalog(
         categoryId: category._id,
         price: seedProduct.price,
         isFavorite: seedProduct.favorite ?? false,
+        // Todo controla inventario menos los almuerzos (porciones del menú del día).
+        trackStock: seedCategory.kind !== 'LUNCH',
         sortOrder: productIndex + 1,
       });
       result.productsCreated += 1;
