@@ -12,6 +12,9 @@ export function getSiteUrl(): string {
 export const SITE_NAME = BUSINESS_NAME;
 export const SITE_LOCALE = 'es_CO';
 
+/** Imagen para compartir (web/src/app/opengraph-image.tsx), la misma en todas las páginas. */
+const SHARE_IMAGE = { url: '/opengraph-image', width: 1200, height: 630, alt: BUSINESS_NAME };
+
 export interface PageSeo {
   /** Título sin el sufijo de la marca. */
   title: string;
@@ -34,8 +37,15 @@ export function pageMetadata({ title, description, path }: PageSeo): Metadata {
       title: fullTitle,
       description,
       url: path,
+      // Al definir openGraph por página, Next no hereda la imagen del inicio: se repite aquí.
+      images: [SHARE_IMAGE],
     },
-    twitter: { card: 'summary_large_image', title: fullTitle, description },
+    twitter: {
+      card: 'summary_large_image',
+      title: fullTitle,
+      description,
+      images: [SHARE_IMAGE.url],
+    },
   };
 }
 

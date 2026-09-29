@@ -25,6 +25,8 @@ export function bakeryJsonLd(contact: ContactInfo): JsonLd {
     '@type': 'Bakery',
     '@id': `${url}/#negocio`,
     name: contact.name,
+    // Como aparece en Google Maps (con "y" en lugar de "&").
+    alternateName: 'Panes y Pan',
     url,
     logo,
     image: [logo, `${url}/opengraph-image`],
