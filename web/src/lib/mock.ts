@@ -69,7 +69,7 @@ export function mockDailyMenu(): DailyMenuResponse {
         { name: 'Otro principio (agotado)', isAvailable: false },
       ],
       proteins: [{ name: 'Proteína de ejemplo', isAvailable: true }],
-      juice: 'Jugo de ejemplo',
+      drinks: [{ name: 'Jugo de ejemplo', isAvailable: true }],
       notes: 'Menú de ejemplo para desarrollo.',
       items: [
         {

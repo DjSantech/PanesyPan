@@ -12,6 +12,7 @@ export interface LunchOptions {
   soups: DailyMenuOption[];
   principles: DailyMenuOption[];
   proteins: DailyMenuOption[];
+  drinks: DailyMenuOption[];
 }
 
 /** Si solo hay una opción disponible, queda elegida. */
@@ -20,8 +21,8 @@ function onlyOption(options: DailyMenuOption[]): string | null {
   return available.length === 1 ? (available[0]?.name ?? null) : null;
 }
 
-function initialSoup(soups: DailyMenuOption[]): string | null {
-  return soups.some((o) => o.isAvailable) ? onlyOption(soups) : NO_SOUP;
+function initialDeclinable(options: DailyMenuOption[]): string | null {
+  return options.some((o) => o.isAvailable) ? onlyOption(options) : NO_SOUP;
 }
 
 function ChoiceGroup({
@@ -30,18 +31,19 @@ function ChoiceGroup({
   options,
   value,
   onChange,
-  withNoSoup = false,
+  declineLabel,
 }: {
   title: string;
   name: string;
   options: DailyMenuOption[];
   value: string | null;
   onChange: (value: string) => void;
-  withNoSoup?: boolean;
+  /** Texto del botón para declinar (p. ej. "Sin sopa"); sin esto, no se puede declinar. */
+  declineLabel?: string;
 }) {
   const choices = [
     ...options.filter((o) => o.isAvailable).map((o) => ({ value: o.name, label: o.name })),
-    ...(withNoSoup ? [{ value: NO_SOUP, label: 'Sin sopa' }] : []),
+    ...(declineLabel === undefined ? [] : [{ value: NO_SOUP, label: declineLabel }]),
   ];
   const soldOut = options.filter((o) => !o.isAvailable);
   return (
@@ -97,19 +99,26 @@ export function LunchOrderButton({
   const [protein, setProtein] = useState<string | null>(null);
   const [principle, setPrinciple] = useState<string | null>(null);
   const [soup, setSoup] = useState<string | null>(null);
+  const [drink, setDrink] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
-  const ready = protein !== null && principle !== null && soup !== null;
+  const ready = protein !== null && principle !== null && soup !== null && drink !== null;
 
   function open() {
     setProtein(onlyOption(options.proteins));
     setPrinciple(onlyOption(options.principles));
-    setSoup(initialSoup(options.soups));
+    setSoup(initialDeclinable(options.soups));
+    setDrink(initialDeclinable(options.drinks));
     dialogRef.current?.showModal();
   }
 
   function confirm() {
-    if (protein === null || principle === null || soup === null) return;
-    const lunch: LunchChoice = { protein, principle, soup: soup === NO_SOUP ? null : soup };
+    if (protein === null || principle === null || soup === null || drink === null) return;
+    const lunch: LunchChoice = {
+      protein,
+      principle,
+      soup: soup === NO_SOUP ? null : soup,
+      drink: drink === NO_SOUP ? null : drink,
+    };
     addToCart(product, lunch);
     dialogRef.current?.close();
     setAdded(true);
@@ -167,7 +176,15 @@ export function LunchOrderButton({
             options={options.soups}
             value={soup}
             onChange={setSoup}
-            withNoSoup
+            declineLabel="Sin sopa"
+          />
+          <ChoiceGroup
+            title="4. Bebida"
+            name={`${titleId}-bebida`}
+            options={options.drinks}
+            value={drink}
+            onChange={setDrink}
+            declineLabel="Sin bebida"
           />
           <button
             type="button"
@@ -177,7 +194,7 @@ export function LunchOrderButton({
           >
             {ready
               ? `Agregar almuerzo · ${formatCOP(product.price)}`
-              : 'Elige proteína, principio y sopa'}
+              : 'Elige proteína, principio, sopa y bebida'}
           </button>
         </div>
       </dialog>

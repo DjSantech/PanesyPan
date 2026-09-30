@@ -93,16 +93,12 @@ export default async function DailyMenuPage() {
               ))}
             </ul>
           )}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <OptionGroup title="Sopas" options={menu.soups} />
             <OptionGroup title="Principios" options={menu.principles} />
             <OptionGroup title="Proteínas" options={menu.proteins} />
+            <OptionGroup title="Bebidas" options={menu.drinks} />
           </div>
-          {menu.juice && (
-            <p className="text-lg">
-              <strong>Jugo:</strong> {menu.juice}
-            </p>
-          )}
           {menu.notes && <p className="text-muted-foreground">{menu.notes}</p>}
         </div>
       )}

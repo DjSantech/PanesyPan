@@ -40,7 +40,7 @@ export interface DailyMenu {
   soups: DailyMenuOption[];
   principles: DailyMenuOption[];
   proteins: DailyMenuOption[];
-  juice: string;
+  drinks: DailyMenuOption[];
   notes: string;
   items: DailyMenuItem[];
 }

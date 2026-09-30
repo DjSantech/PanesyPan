@@ -4,7 +4,7 @@ import { addLine, lineKey, parseStoredCart, setLineQuantity, type CartItem } fro
 
 const almuerzo = { id: 'a1', name: 'Almuerzo', price: 14_000 };
 const pan = { id: 'p1', name: 'Pan Coco', price: 800 };
-const pollo = { protein: 'Pollo', principle: 'Fríjoles', soup: 'Sancocho' };
+const pollo = { protein: 'Pollo', principle: 'Fríjoles', soup: 'Sancocho', drink: null };
 
 describe('carrito de la web', () => {
   it('mismo producto y misma elección suman; otra elección es otra línea', () => {

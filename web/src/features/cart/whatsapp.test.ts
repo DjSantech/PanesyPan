@@ -12,7 +12,7 @@ describe('mensaje de WhatsApp del pedido', () => {
         unitPrice: 14_000,
         quantity: 1,
         total: 14_000,
-        lunch: { protein: 'Pollo', principle: 'Fríjoles', soup: null },
+        lunch: { protein: 'Pollo', principle: 'Fríjoles', soup: null, drink: null },
       },
     ],
     subtotal: 14_000,
@@ -31,7 +31,7 @@ describe('mensaje de WhatsApp del pedido', () => {
   it('incluye el número, la elección del almuerzo y el domicilio a cotizar', () => {
     const message = buildOrderMessage(order, customer);
     expect(message).toContain('pedido web #17');
-    expect(message).toContain('Almuerzo (Pollo · Fríjoles · Sin sopa)');
+    expect(message).toContain('Almuerzo (Pollo · Fríjoles · Sin sopa · Sin bebida)');
     expect(message).toContain('Domicilio: lo cotiza el domiciliario');
     expect(message).not.toContain('Nota:');
   });
