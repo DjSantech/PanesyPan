@@ -1,3 +1,4 @@
+// (sin cambios de comportamiento; solo para forzar un nuevo despliegue)
 import '@fontsource-variable/nunito-sans';
 import '@fontsource-variable/playfair-display';
 import './index.css';
