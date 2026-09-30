@@ -60,7 +60,7 @@ export const publicDailyMenuSchema = z
     soups: z.array(publicMenuOptionSchema),
     principles: z.array(publicMenuOptionSchema),
     proteins: z.array(publicMenuOptionSchema),
-    juice: z.string(),
+    drinks: z.array(publicMenuOptionSchema),
     notes: z.string(),
     items: z.array(publicMenuItemSchema),
   })

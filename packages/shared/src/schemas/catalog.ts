@@ -173,7 +173,8 @@ export const dailyMenuSchema = z.object({
   soups: z.array(menuOptionSchema),
   principles: z.array(menuOptionSchema),
   proteins: z.array(menuOptionSchema),
-  juice: z.string(),
+  /** Bebidas del día (jugos, gaseosas...); igual que sopas: se puede declinar. */
+  drinks: z.array(menuOptionSchema),
   notes: z.string(),
   offerings: z.array(
     dailyMenuOfferingSchema.extend({ name: z.string(), price: z.int(), sold: z.int() }),
@@ -199,7 +200,7 @@ export const upsertDailyMenuRequestSchema = z.strictObject({
   soups: menuOptionsInputSchema,
   principles: menuOptionsInputSchema,
   proteins: menuOptionsInputSchema,
-  juice: menuTextSchema.default(''),
+  drinks: menuOptionsInputSchema,
   notes: z.string().trim().max(300).default(''),
   offerings: z
     .array(dailyMenuOfferingSchema.extend({ withChoices: z.boolean().default(true) }).strict())
@@ -216,16 +217,23 @@ export type UpsertDailyMenuRequest = z.input<typeof upsertDailyMenuRequestSchema
 
 // ── Elección del almuerzo al vender ────────────────────────────────
 
-/** Lo que el cliente pide del almuerzo: proteína, principio y (si quiere) sopa. */
+/** Lo que el cliente pide del almuerzo: proteína, principio y (si quiere) sopa y bebida. */
 export const lunchChoiceSchema = z.strictObject({
   protein: menuTextSchema.min(1, 'Elige la proteína'),
   principle: menuTextSchema.min(1, 'Elige el principio'),
   /** null = sin sopa. */
   soup: menuTextSchema.min(1).nullable(),
+  /** null = sin bebida. */
+  drink: menuTextSchema.min(1).nullable(),
 });
 export type LunchChoice = z.infer<typeof lunchChoiceSchema>;
 
 /** Texto de la elección para la cuenta, la comanda y el tiquete. */
 export function lunchChoiceLabel(choice: LunchChoice): string {
-  return [choice.protein, choice.principle, choice.soup ?? 'Sin sopa'].join(' · ');
+  return [
+    choice.protein,
+    choice.principle,
+    choice.soup ?? 'Sin sopa',
+    choice.drink ?? 'Sin bebida',
+  ].join(' · ');
 }
