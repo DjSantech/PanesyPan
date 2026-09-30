@@ -27,6 +27,7 @@ import { useSettings } from '../settings/settings.api';
 import { useCartStore } from './cart.store';
 import { CashPanelDialog, CloseShiftDialog, MovementDialog } from './CashDialogs';
 import { CheckoutDialog, type CheckoutPayload } from './CheckoutDialog';
+import { BrothDialog } from './BrothDialog';
 import { LunchDialog } from './LunchDialog';
 import { OrderPanel, type OrderLineView } from './OrderPanel';
 import {
@@ -176,6 +177,7 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
   const [mode, setMode] = useState<Mode>('counter');
   const [tabId, setTabId] = useState<string | null>(null);
   const [lunchFor, setLunchFor] = useState<PosProduct | null>(null);
+  const [brothFor, setBrothFor] = useState<PosProduct | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [doneSale, setDoneSale] = useState<Sale | null>(null);
   const [orderSheet, setOrderSheet] = useState(false);
@@ -209,19 +211,26 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
     },
   });
 
-  const addProduct = (product: PosProduct, lunch: LunchChoice | null) => {
+  const addProduct = (product: PosProduct, lunch: LunchChoice | null, note = '') => {
     if (selectedTab !== null) {
       tabAction.mutate(() =>
-        addTabLine(selectedTab.id, { productId: product.id, quantity: 1, lunch }),
+        addTabLine(selectedTab.id, { productId: product.id, quantity: 1, lunch, note }),
       );
     } else {
-      addToCart(product.id, '', lunch);
+      addToCart(product.id, note, lunch);
     }
   };
+
+  // Caldo (sin elección de proteína/principio): si hay sopas configuradas hoy, se elige cuál es.
+  const hasBrothChoices = (catalog.menu?.soups ?? []).some((soup) => soup.isAvailable);
 
   const pickProduct = (product: PosProduct) => {
     if (product.withChoices) {
       setLunchFor(product);
+      return;
+    }
+    if (product.isLunch && hasBrothChoices) {
+      setBrothFor(product);
       return;
     }
     addProduct(product, null);
@@ -547,17 +556,30 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
       </Dialog>
 
       {catalog.menu === undefined ? null : (
-        <LunchDialog
-          product={lunchFor}
-          menu={catalog.menu}
-          onOpenChange={(open) => {
-            if (!open) setLunchFor(null);
-          }}
-          onChoose={(product, lunch) => {
-            setLunchFor(null);
-            addProduct(product, lunch);
-          }}
-        />
+        <>
+          <LunchDialog
+            product={lunchFor}
+            menu={catalog.menu}
+            onOpenChange={(open) => {
+              if (!open) setLunchFor(null);
+            }}
+            onChoose={(product, lunch, note) => {
+              setLunchFor(null);
+              addProduct(product, lunch, note);
+            }}
+          />
+          <BrothDialog
+            product={brothFor}
+            menu={catalog.menu}
+            onOpenChange={(open) => {
+              if (!open) setBrothFor(null);
+            }}
+            onChoose={(product, note) => {
+              setBrothFor(null);
+              addProduct(product, null, note);
+            }}
+          />
+        </>
       )}
 
       <CashPanelDialog

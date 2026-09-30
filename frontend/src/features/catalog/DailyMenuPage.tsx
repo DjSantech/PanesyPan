@@ -128,17 +128,20 @@ function TodaySummary({
   soups,
   principles,
   proteins,
+  drinks,
   isPublished,
 }: {
   soups: MenuOption[];
   principles: MenuOption[];
   proteins: MenuOption[];
+  drinks: MenuOption[];
   isPublished: boolean;
 }) {
   const groups = [
     { label: 'Sopas', options: soups },
     { label: 'Principios', options: principles },
     { label: 'Proteínas', options: proteins },
+    { label: 'Bebidas', options: drinks },
   ];
   return (
     <Card>
@@ -148,7 +151,7 @@ function TodaySummary({
           El almuerzo trae una proteína, un principio y sopa (si el cliente la quiere).
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-3">
+      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {groups.map((group) => {
           const named = group.options.filter((option) => option.name.trim() !== '');
           return (
@@ -175,7 +178,7 @@ function TodaySummary({
           );
         })}
         {isPublished ? null : (
-          <Alert tone="pending" className="sm:col-span-3">
+          <Alert tone="pending" className="sm:col-span-2 lg:col-span-4">
             Este menú es un borrador: en Vender no aparecen los almuerzos hasta que lo publiques.
           </Alert>
         )}
@@ -284,7 +287,7 @@ function MenuForm({
   const [soups, setSoups] = useState(menu.soups);
   const [principles, setPrinciples] = useState(menu.principles);
   const [proteins, setProteins] = useState(menu.proteins);
-  const [juice, setJuice] = useState(menu.juice);
+  const [drinks, setDrinks] = useState(menu.drinks);
   const [notes, setNotes] = useState(menu.notes);
   const [isPublished, setIsPublished] = useState(menu.isPublished);
   const [offerings, setOfferings] = useState<Offering[]>(() =>
@@ -323,7 +326,7 @@ function MenuForm({
       soups: cleanOptions(soups),
       principles: cleanOptions(principles),
       proteins: cleanOptions(proteins),
-      juice,
+      drinks: cleanOptions(drinks),
       notes,
       isPublished,
       offerings: offerings
@@ -342,6 +345,7 @@ function MenuForm({
         soups={soups}
         principles={principles}
         proteins={proteins}
+        drinks={drinks}
         isPublished={menu.isPublished}
       />
 
@@ -366,22 +370,19 @@ function MenuForm({
         options={proteins}
         onChange={setProteins}
       />
+      <OptionList
+        title="Bebidas"
+        singular="Bebida"
+        placeholder="Ej.: Jugo de mora"
+        options={drinks}
+        onChange={setDrinks}
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Extras (opcional)</CardTitle>
+          <CardTitle>Notas (opcional)</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field id="menu-juice" label="Jugo">
-            <Input
-              id="menu-juice"
-              placeholder="Ej.: Mora"
-              value={juice}
-              onChange={(event) => {
-                setJuice(event.target.value);
-              }}
-            />
-          </Field>
+        <CardContent>
           <Field id="menu-notes" label="Notas">
             <Input
               id="menu-notes"

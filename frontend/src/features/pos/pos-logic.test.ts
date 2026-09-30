@@ -30,7 +30,7 @@ const menu = (overrides: Partial<DailyMenu> = {}): DailyMenu => ({
   soups: [],
   principles: [],
   proteins: [],
-  juice: '',
+  drinks: [],
   notes: '',
   offerings: [],
   isPublished: true,
@@ -107,7 +107,7 @@ describe('pedido de mostrador', () => {
 
   it('suma el mismo producto y separa el almuerzo por lo que eligió el cliente', () => {
     const { add } = useCartStore.getState();
-    const pollo = { protein: 'Pollo', principle: 'Fríjoles', soup: 'Sancocho' };
+    const pollo = { protein: 'Pollo', principle: 'Fríjoles', soup: 'Sancocho', drink: null };
     add('bono');
     add('bono');
     add('corriente', '', pollo);
@@ -115,8 +115,8 @@ describe('pedido de mostrador', () => {
     add('corriente', '', { ...pollo, soup: null });
     expect(useCartStore.getState().lines.map((line) => [line.key, line.quantity])).toEqual([
       ['bono||', 2],
-      ['corriente|Pollo · Fríjoles · Sancocho|', 2],
-      ['corriente|Pollo · Fríjoles · Sin sopa|', 1],
+      ['corriente|Pollo · Fríjoles · Sancocho · Sin bebida|', 2],
+      ['corriente|Pollo · Fríjoles · Sin sopa · Sin bebida|', 1],
     ]);
   });
 
