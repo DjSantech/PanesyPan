@@ -66,7 +66,7 @@ Menú del día de **hoy** (hora de Colombia). Si no existe o no está publicado,
     "soups": [{ "name": "Sancocho", "isAvailable": true }],
     "principles": [{ "name": "Fríjoles", "isAvailable": true }],
     "proteins": [{ "name": "Pollo asado", "isAvailable": false }],
-    "juice": "Mora",
+    "drinks": [{ "name": "Mora", "isAvailable": true }],
     "notes": "",
     "items": [
       {
