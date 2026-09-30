@@ -1,7 +1,7 @@
 import { negocio } from '@/config/negocio';
 import type { ContactInfo } from '@/lib/business';
-import { Code } from 'lucide-react';
 import Link from 'next/link';
+import { GitHubIcon } from './GitHubIcon';
 import { NAV_ITEMS } from './nav-items';
 
 export function SiteFooter({ contact }: { contact: ContactInfo }) {
@@ -64,7 +64,7 @@ export function SiteFooter({ contact }: { contact: ContactInfo }) {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 hover:underline hover:text-foreground"
         >
-          <Code aria-hidden="true" className="size-4" />
+          <GitHubIcon aria-hidden="true" className="size-4" />
           Hecho por: github.com/DjSantech
         </a>
       </p>
