@@ -58,7 +58,9 @@ const isDuplicateKey = (error: unknown): boolean =>
   error instanceof mongo.MongoServerError && error.code === 11000;
 
 const plainLunch = (lunch: WebOrderLineAttrs['lunch']) =>
-  lunch === null ? null : { protein: lunch.protein, principle: lunch.principle, soup: lunch.soup };
+  lunch === null
+    ? null
+    : { protein: lunch.protein, principle: lunch.principle, soup: lunch.soup, drink: lunch.drink };
 
 export function toPublicWebOrder(order: WebOrderDocument): CreateWebOrderResponse['order'] {
   return {

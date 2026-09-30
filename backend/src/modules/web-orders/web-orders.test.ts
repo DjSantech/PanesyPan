@@ -252,7 +252,7 @@ describe('cobro y cancelación de pedidos web', () => {
   let cashier: LoggedIn;
   let lunch: Types.ObjectId;
   let broth: Types.ObjectId;
-  const choice = { protein: 'Pollo asado', principle: 'Fríjoles', soup: 'Sancocho' };
+  const choice = { protein: 'Pollo asado', principle: 'Fríjoles', soup: 'Sancocho', drink: null };
 
   beforeEach(async () => {
     cashier = await loginAs('CASHIER');

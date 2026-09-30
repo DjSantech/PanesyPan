@@ -89,7 +89,7 @@ export async function getPublicDailyMenu(now = new Date()): Promise<PublicDailyM
       soups: plain(options.soups),
       principles: plain(options.principles),
       proteins: plain(options.proteins),
-      juice: menu.juice,
+      drinks: plain(options.drinks),
       notes: menu.notes,
       items,
     },

@@ -144,6 +144,7 @@ export function assertLunchChoice(
   check(options.proteins, lunch.protein, 'una proteína');
   check(options.principles, lunch.principle, 'un principio');
   if (lunch.soup !== null) check(options.soups, lunch.soup, 'una sopa');
+  if (lunch.drink !== null) check(options.drinks, lunch.drink, 'una bebida');
 }
 
 export async function adjustPortions(

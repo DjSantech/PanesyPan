@@ -32,16 +32,20 @@ export function assertMenuDate(date: string): void {
 const toOptions = (options: readonly MenuOptionAttrs[]): MenuOptionAttrs[] =>
   options.map((option) => ({ name: option.name, isAvailable: option.isAvailable }));
 
-/** Sopas, principios y proteínas del menú; convierte los menús guardados con el formato anterior. */
+/**
+ * Sopas, principios, proteínas y bebidas del menú; convierte los menús guardados con el
+ * formato anterior (una sola sopa, un solo principio y un jugo en texto libre).
+ */
 export function menuOptionsOf(
   menu: DailyMenuDocument,
-): Pick<DailyMenu, 'soups' | 'principles' | 'proteins'> {
+): Pick<DailyMenu, 'soups' | 'principles' | 'proteins' | 'drinks'> {
   const legacy = (value: string | undefined): MenuOptionAttrs[] =>
     value === undefined || value.trim() === '' ? [] : [{ name: value.trim(), isAvailable: true }];
   return {
     soups: menu.soups.length > 0 ? toOptions(menu.soups) : legacy(menu.soup),
     principles: menu.principles.length > 0 ? toOptions(menu.principles) : legacy(menu.principle),
     proteins: toOptions(menu.proteins),
+    drinks: menu.drinks.length > 0 ? toOptions(menu.drinks) : legacy(menu.juice),
   };
 }
 
@@ -52,7 +56,7 @@ async function toDailyMenuDto(date: string, menu: DailyMenuDocument | null): Pro
       soups: [],
       principles: [],
       proteins: [],
-      juice: '',
+      drinks: [],
       notes: '',
       offerings: [],
       isPublished: false,
@@ -66,7 +70,6 @@ async function toDailyMenuDto(date: string, menu: DailyMenuDocument | null): Pro
   return {
     date: menu.date,
     ...menuOptionsOf(menu),
-    juice: menu.juice,
     notes: menu.notes,
     offerings: menu.offerings.map((offering) => {
       const product = byId.get(offering.productId.toString());
@@ -153,13 +156,13 @@ export async function upsertDailyMenu(
         soups: data.soups,
         principles: data.principles,
         proteins: data.proteins,
-        juice: data.juice,
+        drinks: data.drinks,
         notes: data.notes,
         offerings,
         isPublished: data.isPublished,
         updatedBy: new Types.ObjectId(ctx.actor.id),
       },
-      $unset: { soup: 1, principle: 1, sides: 1 },
+      $unset: { soup: 1, principle: 1, sides: 1, juice: 1 },
     },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   );

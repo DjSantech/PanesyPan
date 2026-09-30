@@ -431,7 +431,7 @@ describe('menú del día', () => {
       soups: [{ name: 'Sancocho' }, { name: 'Ajiaco' }],
       principles: [{ name: 'Fríjoles' }],
       proteins: [{ name: 'Pollo' }, { name: 'Cerdo', isAvailable: false }],
-      juice: 'Mora',
+      drinks: [{ name: 'Mora' }],
       offerings: [
         { productId: corriente.id, portions: 40 },
         { productId: caldo.id, portions: null, withChoices: false },

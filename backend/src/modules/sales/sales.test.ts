@@ -428,6 +428,7 @@ describe('almuerzos con porciones', () => {
       soups: [{ name: 'Sancocho' }],
       principles: [{ name: 'Fríjoles' }, { name: 'Lentejas', isAvailable: false }],
       proteins: [{ name: 'Pollo asado' }, { name: 'Cerdo' }],
+      drinks: [{ name: 'Limonada' }, { name: 'Gaseosa', isAvailable: false }],
       offerings: [
         { productId: products.lunch, portions: 2, sold: 0 },
         { productId: products.broth, portions: null, sold: 0, withChoices: false },
@@ -435,7 +436,12 @@ describe('almuerzos con porciones', () => {
     });
   });
 
-  const choice = { protein: 'Pollo asado', principle: 'Fríjoles', soup: 'Sancocho' };
+  const choice = {
+    protein: 'Pollo asado',
+    principle: 'Fríjoles',
+    soup: 'Sancocho',
+    drink: 'Limonada',
+  };
 
   const soldPortions = async () =>
     (await DailyMenuModel.findOne({ date: toBusinessDate() }))?.offerings[0]?.sold;
@@ -450,7 +456,7 @@ describe('almuerzos con porciones', () => {
     expect(first.status).toBe(201);
     expect(saleOf(first.body).lines[0]).toMatchObject({
       isLunch: true,
-      note: 'Pollo asado · Fríjoles · Sancocho',
+      note: 'Pollo asado · Fríjoles · Sancocho · Limonada',
       lunch: choice,
     });
     expect(await soldPortions()).toBe(2);
@@ -525,9 +531,19 @@ describe('almuerzos con porciones', () => {
     expect(unknown.status).toBe(400);
     expect(errorOf(unknown.body).message).toMatch(/Pescado no es una proteína/);
 
-    const noSoup = await sell({ ...choice, soup: null });
+    const drinkSoldOut = await sell({ ...choice, drink: 'Gaseosa' });
+    expect(drinkSoldOut.status).toBe(409);
+    expect(errorOf(drinkSoldOut.body).message).toBe('Se acabó Gaseosa');
+
+    const unknownDrink = await sell({ ...choice, drink: 'Té' });
+    expect(unknownDrink.status).toBe(400);
+    expect(errorOf(unknownDrink.body).message).toMatch(/Té no es una bebida/);
+
+    const noSoup = await sell({ ...choice, soup: null, drink: null });
     expect(noSoup.status).toBe(201);
-    expect(saleOf(noSoup.body).lines[0]?.note).toBe('Pollo asado · Fríjoles · Sin sopa');
+    expect(saleOf(noSoup.body).lines[0]?.note).toBe(
+      'Pollo asado · Fríjoles · Sin sopa · Sin bebida',
+    );
   });
 
   it('el caldo solo se vende con su precio y sin elegir nada', async () => {
@@ -565,8 +581,8 @@ describe('almuerzos con porciones', () => {
     const last = await add({ ...choice, protein: 'Cerdo' });
     expect(last.status).toBe(200);
     expect(saleOf(last.body).lines.map((line) => line.note)).toEqual([
-      'Pollo asado · Fríjoles · Sancocho',
-      'Cerdo · Fríjoles · Sancocho',
+      'Pollo asado · Fríjoles · Sancocho · Limonada',
+      'Cerdo · Fríjoles · Sancocho · Limonada',
     ]);
   });
 });

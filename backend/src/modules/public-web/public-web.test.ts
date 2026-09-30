@@ -150,7 +150,7 @@ describe('GET /public/menu-del-dia', () => {
       soups: [{ name: 'Sancocho', isAvailable: true }],
       principles: [{ name: 'Fríjoles', isAvailable: true }],
       proteins: [{ name: 'Pollo asado', isAvailable: false }],
-      juice: 'Mora',
+      drinks: [{ name: 'Mora', isAvailable: true }],
       notes: '',
       items: [
         { productId: full.id, name: 'Almuerzo', price: 14_000, withChoices: true, soldOut: true },

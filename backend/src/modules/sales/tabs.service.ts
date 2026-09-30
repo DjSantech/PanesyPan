@@ -60,7 +60,12 @@ function pickLine(line: SaleLineAttrs): SaleLineAttrs {
     lunch:
       line.lunch === null
         ? null
-        : { protein: line.lunch.protein, principle: line.lunch.principle, soup: line.lunch.soup },
+        : {
+            protein: line.lunch.protein,
+            principle: line.lunch.principle,
+            soup: line.lunch.soup,
+            drink: line.lunch.drink,
+          },
   };
 }
 

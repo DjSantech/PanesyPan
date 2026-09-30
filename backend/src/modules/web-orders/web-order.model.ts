@@ -9,7 +9,7 @@ export interface WebOrderLineAttrs {
   quantity: number;
   total: number;
   /** Proteína, principio y sopa (solo almuerzos con elección). */
-  lunch: { protein: string; principle: string; soup: string | null } | null;
+  lunch: { protein: string; principle: string; soup: string | null; drink: string | null } | null;
 }
 
 export interface WebOrderStatusChange {
@@ -58,6 +58,7 @@ const lineSchema = new Schema<WebOrderLineAttrs>(
           protein: { type: String, required: true },
           principle: { type: String, required: true },
           soup: { type: String, default: null },
+          drink: { type: String, default: null },
         },
         { _id: false },
       ),

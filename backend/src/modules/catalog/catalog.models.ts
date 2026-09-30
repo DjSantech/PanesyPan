@@ -157,11 +157,12 @@ export interface DailyMenuAttrs {
   soups: MenuOptionAttrs[];
   principles: MenuOptionAttrs[];
   proteins: MenuOptionAttrs[];
-  /** Formato anterior (una sola sopa y un solo principio): se leen si aún no hay listas. */
+  drinks: MenuOptionAttrs[];
+  /** Formato anterior (una sola sopa, un solo principio y un jugo en texto libre): legado. */
   soup?: string;
   principle?: string;
   sides?: string[];
-  juice: string;
+  juice?: string;
   notes: string;
   offerings: {
     productId: Types.ObjectId;
@@ -181,10 +182,11 @@ const dailyMenuSchema = new Schema<DailyMenuAttrs>(
     soups: { type: [menuOptionSchema], default: [] },
     principles: { type: [menuOptionSchema], default: [] },
     proteins: { type: [menuOptionSchema], default: [] },
+    drinks: { type: [menuOptionSchema], default: [] },
     soup: { type: String },
     principle: { type: String },
     sides: { type: [String], default: undefined },
-    juice: { type: String, default: '' },
+    juice: { type: String },
     notes: { type: String, default: '' },
     offerings: {
       type: [

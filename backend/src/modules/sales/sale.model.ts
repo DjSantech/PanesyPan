@@ -34,7 +34,7 @@ export interface SaleLineAttrs {
   /** Día del menú del que se descontó la porción (solo almuerzos). */
   menuDate: string | null;
   /** Proteína, principio y sopa elegidos (solo almuerzos con elección). */
-  lunch: { protein: string; principle: string; soup: string | null } | null;
+  lunch: { protein: string; principle: string; soup: string | null; drink: string | null } | null;
 }
 
 /** Cliente que pidió la factura a su nombre. */
@@ -124,6 +124,7 @@ const lineSchema = new Schema<SaleLineAttrs>({
         protein: { type: String, required: true },
         principle: { type: String, required: true },
         soup: { type: String, default: null },
+        drink: { type: String, default: null },
       },
       { _id: false },
     ),
