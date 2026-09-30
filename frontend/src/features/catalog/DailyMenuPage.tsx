@@ -11,7 +11,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Soup, Trash2 } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
-import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
+import { ErrorState, PageHeader, Spinner } from '@/components/feedback';
+import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/form';
 import {
@@ -23,10 +24,12 @@ import {
   CardTitle,
   Skeleton,
 } from '@/components/ui/surface';
-import { Switch } from '@/components/ui/toggles';
+import { CheckboxField, Switch } from '@/components/ui/toggles';
 import { errorMessage } from '@/lib/api-errors';
 import {
   catalogKeys,
+  createCategory,
+  createProduct,
   getDailyMenu,
   listCategories,
   listProducts,
@@ -185,6 +188,88 @@ const cleanOptions = (options: MenuOption[]): MenuOption[] =>
   options
     .map((option) => ({ ...option, name: option.name.trim() }))
     .filter((option) => option.name !== '');
+
+/**
+ * Cuando todavía no hay categoría ni productos de almuerzo, los crea aquí mismo (con el precio
+ * que ponga el administrador) para no mandarlo al Catálogo a hacerlo a mano.
+ */
+function QuickLunchSetup() {
+  const queryClient = useQueryClient();
+  const [price, setPrice] = useState<number | null>(null);
+  const [withBroth, setWithBroth] = useState(true);
+  const [brothPrice, setBrothPrice] = useState<number | null>(null);
+
+  const setup = useMutation({
+    mutationFn: async () => {
+      if (price === null || (withBroth && brothPrice === null)) {
+        throw new Error('Escribe el precio del almuerzo (y del caldo, si lo vendes aparte).');
+      }
+      const categories = await listCategories(false);
+      const category =
+        categories.find((item) => item.kind === 'LUNCH') ??
+        (await createCategory({ name: 'Almuerzos', kind: 'LUNCH' }));
+      await createProduct({ name: 'Almuerzo', categoryId: category.id, price });
+      if (withBroth && brothPrice !== null) {
+        await createProduct({ name: 'Caldo', categoryId: category.id, price: brothPrice });
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: catalogKeys.categories(false) });
+      await queryClient.invalidateQueries({ queryKey: catalogKeys.products({ status: 'active' }) });
+      toast.success('Listo: ya puedes armar el menú del día');
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <Soup className="size-8 text-muted-foreground" aria-hidden="true" />
+        <CardTitle>Primero, crea el almuerzo</CardTitle>
+        <CardDescription>
+          Todavía no existe el producto "Almuerzo". Ponle un precio y lo creamos aquí mismo, listo
+          para armar el menú de hoy. Después puedes editarlo desde el Catálogo si quieres.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <Field id="quick-lunch-price" label="Precio del almuerzo">
+          <PriceInput
+            id="quick-lunch-price"
+            placeholder="Ej.: 14.000"
+            value={price}
+            onValueChange={setPrice}
+          />
+        </Field>
+        <CheckboxField
+          id="quick-lunch-broth"
+          label="También vendo el caldo aparte"
+          description="Aparte del que ya viene incluido en el almuerzo."
+          checked={withBroth}
+          onCheckedChange={setWithBroth}
+        />
+        {withBroth ? (
+          <Field id="quick-lunch-broth-price" label="Precio del caldo">
+            <PriceInput
+              id="quick-lunch-broth-price"
+              placeholder="Ej.: 6.000"
+              value={brothPrice}
+              onValueChange={setBrothPrice}
+            />
+          </Field>
+        ) : null}
+        {setup.isError ? <Alert tone="danger">{errorMessage(setup.error)}</Alert> : null}
+        <Button
+          className="justify-self-start"
+          disabled={setup.isPending}
+          onClick={() => {
+            setup.mutate();
+          }}
+        >
+          {setup.isPending ? <Spinner /> : <Plus aria-hidden="true" />} Crear y continuar
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 function MenuForm({
   date,
@@ -448,11 +533,7 @@ export function DailyMenuPage() {
           }}
         />
       ) : lunchProducts.length === 0 ? (
-        <EmptyState
-          icon={Soup}
-          title="No hay productos de almuerzo"
-          description='Crea en el Catálogo, dentro de la categoría Almuerzos, el producto "Almuerzo" (y "Caldo" si lo vendes aparte).'
-        />
+        <QuickLunchSetup />
       ) : (
         <MenuForm
           key={`${date}-${menu.data.updatedAt ?? 'nuevo'}`}
