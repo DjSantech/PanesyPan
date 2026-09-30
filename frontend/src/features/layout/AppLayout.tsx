@@ -1,5 +1,6 @@
 import { BUSINESS_NAME, hasPermission, USER_ROLE_LABELS } from '@panesypan/shared';
-import { Code, CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
+import { CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
+import { GitHubIcon } from '@/components/GitHubIcon';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -233,7 +234,7 @@ export function AppLayout() {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
         >
-          <Code aria-hidden="true" className="size-3.5" />
+          <GitHubIcon aria-hidden="true" className="size-3.5" />
           Hecho por: github.com/DjSantech
         </a>
       </footer>
