@@ -1,4 +1,5 @@
 import { slugify, type CategoryKind } from '@panesypan/shared';
+import { InventoryItemModel } from '../inventory/inventory.models';
 import { CategoryModel, ProductModel } from './catalog.models';
 
 interface SeedProduct {
@@ -80,6 +81,14 @@ export const CATALOG_SEED: readonly SeedCategory[] = [
   { name: 'Caldos', kind: 'STANDARD', products: [] },
 ];
 
+export interface SeedOptions {
+  /**
+   * Existencias con las que arrancan los productos nuevos que controlan inventario. Es para
+   * las pruebas y las demostraciones: no deja movimiento en el libro de inventario.
+   */
+  initialStock?: number;
+}
+
 export interface SeedResult {
   categoriesCreated: number;
   productsCreated: number;
@@ -92,6 +101,7 @@ export interface SeedResult {
  */
 export async function seedCatalog(
   seed: readonly SeedCategory[] = CATALOG_SEED,
+  { initialStock = 0 }: SeedOptions = {},
 ): Promise<SeedResult> {
   const result: SeedResult = { categoriesCreated: 0, productsCreated: 0, productsSkipped: 0 };
 
@@ -114,16 +124,20 @@ export async function seedCatalog(
         result.productsSkipped += 1;
         continue;
       }
-      await ProductModel.create({
+      // Todo controla inventario menos los almuerzos (porciones del menú del día).
+      const trackStock = seedCategory.kind !== 'LUNCH';
+      const product = await ProductModel.create({
         name: seedProduct.name,
         slug: productSlug,
         categoryId: category._id,
         price: seedProduct.price,
         isFavorite: seedProduct.favorite ?? false,
-        // Todo controla inventario menos los almuerzos (porciones del menú del día).
-        trackStock: seedCategory.kind !== 'LUNCH',
+        trackStock,
         sortOrder: productIndex + 1,
       });
+      if (trackStock && initialStock > 0) {
+        await InventoryItemModel.create({ productId: product._id, quantity: initialStock });
+      }
       result.productsCreated += 1;
     }
   }

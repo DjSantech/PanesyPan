@@ -1,7 +1,8 @@
 /**
  * Levanta el entorno de las pruebas de punta a punta, aislado del desarrollo:
  *   1. MongoDB en memoria (replica set, para las transacciones) · datos que se borran al terminar
- *   2. Catálogo de la panadería (el mismo seed que `npm run seed:catalog`)
+ *   2. Catálogo de la panadería (el mismo seed que `npm run seed:catalog`), con existencias
+ *      para poder vender: todo controla inventario y sin stock la venta se rechaza
  *   3. La API en el puerto de pruebas, que crea el administrador inicial
  * Playwright lo arranca solo (ver playwright.config.ts) y lo apaga al terminar.
  */
@@ -34,10 +35,14 @@ const env: NodeJS.ProcessEnv = {
 };
 
 /** Ejecuta un archivo TypeScript del backend con tsx (el mismo que usa `npm run dev`). */
-const runBackend = (file: string): ChildProcess =>
-  spawn(process.execPath, ['--import', 'tsx', file], { cwd: backendDir, env, stdio: 'inherit' });
+const runBackend = (file: string, ...args: string[]): ChildProcess =>
+  spawn(process.execPath, ['--import', 'tsx', file, ...args], {
+    cwd: backendDir,
+    env,
+    stdio: 'inherit',
+  });
 
-const seed = runBackend('scripts/seed-catalog.ts');
+const seed = runBackend('scripts/seed-catalog.ts', '--stock=100');
 const [seedCode] = (await once(seed, 'exit')) as [number | null];
 if (seedCode !== 0) {
   await replSet.stop();
