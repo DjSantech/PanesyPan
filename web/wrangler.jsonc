@@ -14,5 +14,11 @@
   // no se cobra, solo dejan de guardarse páginas nuevas ese día). Sin esto, el menú del día se
   // quedaría con lo que había al compilar. Sin "id": wrangler crea el espacio al desplegar.
   "kv_namespaces": [{ "binding": "NEXT_INC_CACHE_KV" }],
+  // URLs públicas (no son secretos). Van aquí y no en el panel: `wrangler deploy` borra las
+  // variables del panel que no estén en este archivo.
+  "vars": {
+    "NEXT_PUBLIC_API_URL": "https://api.panesypan.com",
+    "NEXT_PUBLIC_SITE_URL": "https://panesypan.com",
+  },
   "observability": { "enabled": true },
 }
