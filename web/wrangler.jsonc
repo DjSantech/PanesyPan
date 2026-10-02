@@ -12,8 +12,9 @@
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "panes-y-pan-web" }],
   // Caché de las páginas en Workers KV (plan gratis, sin tarjeta: si se llega al límite diario
   // no se cobra, solo dejan de guardarse páginas nuevas ese día). Sin esto, el menú del día se
-  // quedaría con lo que había al compilar. Sin "id": wrangler crea el espacio al desplegar.
-  "kv_namespaces": [{ "binding": "NEXT_INC_CACHE_KV" }],
+  // quedaría con lo que había al compilar. El "id" va fijo: OpenNext llena la caché antes de
+  // `wrangler deploy`, así que el espacio tiene que existir antes (panes-y-pan-web-cache).
+  "kv_namespaces": [{ "binding": "NEXT_INC_CACHE_KV", "id": "8ea3b3c0c3684edfb17451c6fc1edd94" }],
   // URLs públicas (no son secretos). Van aquí y no en el panel: `wrangler deploy` borra las
   // variables del panel que no estén en este archivo.
   "vars": {
