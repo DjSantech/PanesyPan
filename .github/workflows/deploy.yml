@@ -1,0 +1,52 @@
+name: Deploy a Cloudflare
+
+on:
+  push:
+    branches: [cloudflare]
+  workflow_dispatch: # permite desplegar a mano desde la pestaña Actions
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  web:
+    name: panes-y-pan-web (panesypan.com)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4   # usa la versión de "packageManager" del package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm --filter @panesypan/web exec opennextjs-cloudflare build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.panesypan.com
+          NEXT_PUBLIC_SITE_URL: https://panesypan.com
+      - name: Deploy
+        run: pnpm --filter @panesypan/web exec opennextjs-cloudflare deploy
+
+  sistema:
+    name: panes-y-pan-sistema (sistema.panesypan.com)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm --filter @panesypan/frontend build
+        env:
+          VITE_API_URL: https://api.panesypan.com
+      - name: Deploy
+        run: pnpm --filter @panesypan/frontend exec wrangler deploy
