@@ -1,3 +1,4 @@
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
 import type { NextConfig } from 'next';
 
 type RemotePattern = NonNullable<NonNullable<NextConfig['images']>['remotePatterns']>[number];
@@ -67,6 +68,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@panesypan/shared'],
   images: {
     remotePatterns: apiImagePatterns(),
+    // Las fotos ya llegan optimizadas desde Cloudinary (f_auto,q_auto); en Cloudflare el
+    // optimizador de Next necesitaría un servicio aparte.
+    unoptimized: true,
   },
   headers() {
     return Promise.resolve([
@@ -90,3 +94,6 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Da acceso a los bindings de Cloudflare (R2, etc.) durante `next dev`.
+initOpenNextCloudflareForDev();

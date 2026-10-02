@@ -18,3 +18,5 @@ overrides:
 allowBuilds:
   esbuild: true
   mongodb-memory-server: false
+  # workerd: el runtime de Cloudflare Workers que usa wrangler (descarga su binario al instalar).
+  workerd: true

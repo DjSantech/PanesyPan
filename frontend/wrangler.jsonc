@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Sistema POS (sistema.panesypan.com): app de Vite sin servidor; el Worker solo sirve los
+  // archivos compilados en dist/. Las cabeceras de seguridad están en public/_headers.
+  "name": "panes-y-pan-sistema",
+  "compatibility_date": "2026-09-30",
+  "assets": {
+    "directory": "./dist",
+    // Cualquier ruta del sistema (/vender, /ventas…) carga index.html y la resuelve React Router.
+    "not_found_handling": "single-page-application",
+  },
+  "observability": { "enabled": true },
+}

@@ -7,6 +7,8 @@ build/
 out/
 .turbo/
 .vercel/
+.open-next/
+.wrangler/
 coverage/
 test-results/
 playwright-report/
@@ -19,6 +21,7 @@ blob-report/
 .env
 .env.*
 !.env.example
+.dev.vars*
 *.pem
 *.key
 *.crt

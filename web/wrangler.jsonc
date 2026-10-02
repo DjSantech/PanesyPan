@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Web pública (panesypan.com) como Cloudflare Worker con OpenNext.
+  // El nombre debe coincidir con el del Worker en el panel y con WORKER_SELF_REFERENCE.
+  "name": "panes-y-pan-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-30",
+  // global_fetch_strictly_public: las llamadas a api.panesypan.com (misma zona) salen por
+  // internet y pasan por la regla de Cloudflare que agrega la cabecera X-Origin-Verify.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "panes-y-pan-web" }],
+  // Caché de las páginas (catálogo cada 5 min, menú del día cada 60 s): sin esto, el menú se
+  // quedaría con lo que había al compilar.
+  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "panes-y-pan-web-cache" }],
+  "observability": { "enabled": true },
+}
