@@ -2,7 +2,7 @@ name: Deploy a Cloudflare
 
 on:
   push:
-    branches: [cloudflare]
+    branches: [main]
   workflow_dispatch: # permite desplegar a mano desde la pestaña Actions
 
 concurrency:
