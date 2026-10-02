@@ -10,8 +10,9 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "panes-y-pan-web" }],
-  // Caché de las páginas (catálogo cada 5 min, menú del día cada 60 s): sin esto, el menú se
-  // quedaría con lo que había al compilar.
-  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "panes-y-pan-web-cache" }],
+  // Caché de las páginas en Workers KV (plan gratis, sin tarjeta: si se llega al límite diario
+  // no se cobra, solo dejan de guardarse páginas nuevas ese día). Sin esto, el menú del día se
+  // quedaría con lo que había al compilar. Sin "id": wrangler crea el espacio al desplegar.
+  "kv_namespaces": [{ "binding": "NEXT_INC_CACHE_KV" }],
   "observability": { "enabled": true },
 }

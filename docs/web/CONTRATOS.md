@@ -16,11 +16,13 @@ Contratos entre la web pública (`web/`, Next.js, panesypan.com) y la API (`back
 
 | Ruta                              | `Cache-Control`                                                    | Revalidación en la web |
 | --------------------------------- | ------------------------------------------------------------------ | ---------------------- |
-| `GET /api/v1/public/catalogo`     | `public, max-age=60, s-maxage=300, stale-while-revalidate=600`     | `revalidate: 300`      |
-| `GET /api/v1/public/menu-del-dia` | `public, max-age=30, s-maxage=60, stale-while-revalidate=120`      | `revalidate: 60`       |
+| `GET /api/v1/public/catalogo`     | `public, max-age=60, s-maxage=300, stale-while-revalidate=600`     | `revalidate: 900`      |
+| `GET /api/v1/public/menu-del-dia` | `public, max-age=30, s-maxage=60, stale-while-revalidate=120`      | `revalidate: 300`      |
 | `GET /api/v1/public/negocio`      | `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400` | `revalidate: 3600`     |
 | `POST /api/v1/public/pedidos`     | `no-store`                                                         | sin caché              |
 | `GET /api/v1/public/images/:file` | ya existe (`immutable`, 1 año)                                     | —                      |
+
+La web guarda sus páginas en Workers KV (Cloudflare, plan gratis): los tiempos de revalidación están pensados para no pasar de las 1.000 escrituras diarias del plan.
 
 ## (a) Rutas públicas de lectura
 

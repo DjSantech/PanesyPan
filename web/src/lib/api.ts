@@ -9,6 +9,7 @@ export function getApiUrl(): string | null {
 
 /**
  * Pide una ruta pública con la revalidación del contrato (docs/web/CONTRATOS.md, "Caché").
+ * Los tiempos cuidan las 1.000 escrituras diarias gratis de Workers KV (caché de las páginas).
  * Si no hay API configurada o la petición falla, usa los datos de ejemplo.
  */
 async function fetchPublic<T>(path: string, revalidate: number, fallback: () => T): Promise<T> {
@@ -25,11 +26,11 @@ async function fetchPublic<T>(path: string, revalidate: number, fallback: () => 
 }
 
 export function getCatalog(): Promise<CatalogResponse> {
-  return fetchPublic('catalogo', 300, () => mockCatalog);
+  return fetchPublic('catalogo', 900, () => mockCatalog);
 }
 
 export function getDailyMenu(): Promise<DailyMenuResponse> {
-  return fetchPublic('menu-del-dia', 60, mockDailyMenu);
+  return fetchPublic('menu-del-dia', 300, mockDailyMenu);
 }
 
 export function getBusiness(): Promise<BusinessResponse> {
