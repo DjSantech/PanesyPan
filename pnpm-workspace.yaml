@@ -20,3 +20,5 @@ allowBuilds:
   mongodb-memory-server: false
   # workerd: el runtime de Cloudflare Workers que usa wrangler (descarga su binario al instalar).
   workerd: true
+  # ffmpeg-static (videos tutoriales): ffmpeg se descarga solo al generar videos, no en el CI.
+  ffmpeg-static: false
