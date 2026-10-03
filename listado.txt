@@ -1,0 +1,10 @@
+COSAS POR HACER
+
+VIDEOS TUTORIALES DEL SISTEMA
+[ ] Subir los 13 videos de .local/videos/ a YouTube como "No listado" y crear una lista de reproduccion.
+[ ] Compartir los enlaces con la cajera y el personal por WhatsApp.
+[ ] Guardar una copia de los videos en Google Drive u OneDrive (no van a GitHub: pesan ~106 MB y
+    inflan el historial del repositorio; la carpeta .local/ esta ignorada a proposito).
+[ ] Mas adelante: agregar una seccion "Ayuda" en el sistema con los enlaces a los videos.
+[ ] Cuando cambie una pantalla del sistema, regenerar el video afectado con: pnpm videos <filtro>
+    (el generador esta en e2e/tutoriales/, ver su README.md).
