@@ -9,7 +9,15 @@ import {
   type Sale,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Ban, Banknote, ShoppingBasket, Wallet } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  Ban,
+  Banknote,
+  HandCoins,
+  ShoppingBasket,
+  Wallet,
+} from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
@@ -454,6 +462,16 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
               }}
             >
               <Banknote aria-hidden="true" /> Caja
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-danger/50 text-danger hover:bg-danger/10"
+              onClick={() => {
+                setMovementOpen(true);
+              }}
+            >
+              <HandCoins aria-hidden="true" /> Egreso
             </Button>
           </div>
         </div>

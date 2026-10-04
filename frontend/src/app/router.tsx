@@ -39,6 +39,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'proveedores',
+            lazy: async () => {
+              const { SuppliersPage } = await import('@/features/suppliers/SuppliersPage');
+              return {
+                element: (
+                  <RequirePermission permission="suppliers:manage">
+                    <SuppliersPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'auditoria',
             lazy: async () => {
               const { AuditPage } = await import('@/features/audit/AuditPage');

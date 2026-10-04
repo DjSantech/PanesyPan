@@ -7,13 +7,26 @@ import {
   DENOMINATIONS,
   formatCOP,
   formatTimeCO,
+  slugify,
   type CashMovement,
   type CashMovementType,
   type CashShift,
   type Denomination,
+  type Supplier,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Lock, Minus, Plus } from 'lucide-react';
+import {
+  Bike,
+  CheckCircle2,
+  Ellipsis,
+  Flame,
+  Lock,
+  Minus,
+  Plus,
+  Snowflake,
+  Truck,
+  Zap,
+} from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/feedback';
@@ -24,6 +37,7 @@ import { Field, Input } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
+import { listSuppliers, suppliersKeys } from '../suppliers/suppliers.api';
 import { ApprovalDialog } from './ApprovalDialog';
 import { closeShift, createMovement, listMovements, posKeys } from './pos.api';
 import { useApprovedAction } from './use-approved-action';
@@ -135,24 +149,70 @@ export function MovementDialog({ open, onOpenChange }: DialogProps) {
   );
 }
 
+/** En qué se gastó: los atajos más comunes de la panadería, en botones grandes. */
+const EXPENSE_KINDS = [
+  { id: 'supplier', label: 'Proveedor', icon: Truck },
+  { id: 'gas', label: 'Gas', icon: Flame },
+  { id: 'ice', label: 'Hielo', icon: Snowflake },
+  { id: 'delivery', label: 'Domicilio', icon: Bike },
+  { id: 'services', label: 'Servicios', icon: Zap },
+  { id: 'other', label: 'Otro', icon: Ellipsis },
+] as const;
+type ExpenseKind = (typeof EXPENSE_KINDS)[number]['id'];
+
+interface MovementErrors {
+  amount?: string;
+  reason?: string;
+  supplier?: string;
+}
+
 function MovementForm({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const [type, setType] = useState<CashMovementType>('EXPENSE');
+  const [kind, setKind] = useState<ExpenseKind>('supplier');
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
   const [amount, setAmount] = useState<number | null>(null);
-  const [reason, setReason] = useState('');
-  const [errors, setErrors] = useState<{ amount?: string; reason?: string }>({});
+  const [note, setNote] = useState('');
+  const [errors, setErrors] = useState<MovementErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
+
+  const suppliers = useQuery({
+    queryKey: suppliersKeys.list({ status: 'active' }),
+    queryFn: ({ signal }) => listSuppliers({ status: 'active' }, signal),
+  });
+  const isExpense = type === 'EXPENSE';
+  const payingSupplier = isExpense && kind === 'supplier';
+  const term = slugify(supplierSearch);
+  const shownSuppliers = (suppliers.data ?? []).filter(
+    (item) => term === '' || slugify(item.name).includes(term),
+  );
+
+  // El motivo se arma solo con lo que se eligió: "Pago a Alpina · factura 123".
+  const kindLabel = EXPENSE_KINDS.find((item) => item.id === kind)?.label ?? '';
+  const baseReason = !isExpense
+    ? ''
+    : payingSupplier
+      ? supplier === null
+        ? ''
+        : `Pago a ${supplier.name}`
+      : kind === 'other'
+        ? ''
+        : kindLabel;
+  const reason = [baseReason, note.trim()].filter(Boolean).join(' · ');
 
   const action = useApprovedAction<CashMovement>({
     run: (pin) =>
       createMovement({
         type,
         amount: amount ?? 0,
-        reason: reason.trim(),
+        reason,
+        ...(payingSupplier && supplier !== null ? { supplierId: supplier.id } : {}),
         ...(pin === undefined ? {} : { approverPin: pin }),
       }),
     onSuccess: (movement) => {
       void queryClient.invalidateQueries({ queryKey: posKeys.shift });
+      void queryClient.invalidateQueries({ queryKey: posKeys.movements });
       toast.success(`${CASH_MOVEMENT_LABELS[movement.type]} registrado`);
       onDone();
     },
@@ -164,23 +224,23 @@ function MovementForm({ onDone }: { onDone: () => void }) {
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFailure(null);
+    const next: MovementErrors = {};
+    if (payingSupplier && supplier === null) next.supplier = 'Elige a quién le pagas';
     const parsed = createCashMovementRequestSchema.safeParse({
       type,
       amount: amount ?? 0,
       reason,
     });
     if (!parsed.success) {
-      const next: { amount?: string; reason?: string } = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0];
         if ((key === 'amount' || key === 'reason') && next[key] === undefined) {
           next[key] = issue.message;
         }
       }
-      setErrors(next);
-      return;
     }
-    setErrors({});
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
     action.execute();
   };
 
@@ -203,6 +263,7 @@ function MovementForm({ onDone }: { onDone: () => void }) {
               aria-checked={type === value}
               onClick={() => {
                 setType(value);
+                setErrors({});
               }}
               className={cn(
                 'h-11 rounded-lg text-sm font-bold focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
@@ -213,31 +274,141 @@ function MovementForm({ onDone }: { onDone: () => void }) {
             </button>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">
-          {type === 'EXPENSE'
-            ? 'Gasto menor pagado con la caja (hielo, gas, un domicilio…). Sobre el tope de Ajustes pide la autorización de un administrador.'
-            : 'Efectivo que se saca para guardarlo. Siempre lo autoriza un administrador.'}
-        </p>
+
+        {isExpense ? (
+          <div className="grid gap-2">
+            <p className="text-sm font-bold">¿En qué fue?</p>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="En qué se gastó">
+              {EXPENSE_KINDS.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === id}
+                  onClick={() => {
+                    setKind(id);
+                    setErrors({});
+                  }}
+                  className={cn(
+                    'flex h-20 flex-col items-center justify-center gap-1 rounded-xl border text-sm font-bold focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                    kind === id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-card text-foreground hover:bg-muted',
+                  )}
+                >
+                  <Icon className="size-6" aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Gasto menor pagado con la caja. Sobre el tope de Ajustes pide la autorización de un
+              administrador.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Efectivo que se saca para guardarlo. Siempre lo autoriza un administrador.
+          </p>
+        )}
+
+        {payingSupplier ? (
+          <div className="grid gap-2">
+            <p className="text-sm font-bold">¿A quién le pagas?</p>
+            {supplier === null ? (
+              <>
+                <Input
+                  type="search"
+                  aria-label="Buscar proveedor"
+                  placeholder="Buscar proveedor…"
+                  value={supplierSearch}
+                  onChange={(event) => {
+                    setSupplierSearch(event.target.value);
+                  }}
+                />
+                {suppliers.isPending ? (
+                  <Spinner label="Cargando proveedores…" />
+                ) : suppliers.isError ? (
+                  <Alert tone="danger">{errorMessage(suppliers.error)}</Alert>
+                ) : shownSuppliers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {suppliers.data.length === 0
+                      ? 'Todavía no hay proveedores: pídele al administrador que los cree en Proveedores.'
+                      : 'No se encontró ese proveedor.'}
+                  </p>
+                ) : (
+                  <ul className="grid max-h-44 gap-1.5 overflow-y-auto" aria-label="Proveedores">
+                    {shownSuppliers.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSupplier(item);
+                            setErrors({});
+                          }}
+                          className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-card px-3 text-left text-sm font-bold hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                          <Truck className="size-4 text-muted-foreground" aria-hidden="true" />
+                          {item.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary bg-primary/10 px-3 py-2">
+                <p className="flex items-center gap-2 font-extrabold text-primary">
+                  <Truck className="size-4" aria-hidden="true" /> {supplier.name}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSupplier(null);
+                  }}
+                >
+                  Cambiar
+                </Button>
+              </div>
+            )}
+            {errors.supplier === undefined ? null : (
+              <p role="alert" className="text-sm font-bold text-danger">
+                {errors.supplier}
+              </p>
+            )}
+          </div>
+        ) : null}
+
         <Field id="movement-amount" label="Monto" error={errors.amount}>
           <PriceInput
             id="movement-amount"
-            autoFocus
             className="h-14 text-2xl"
             value={amount}
             onValueChange={setAmount}
             aria-invalid={errors.amount === undefined ? undefined : true}
           />
         </Field>
-        <Field id="movement-reason" label="Motivo" error={errors.reason}>
+        <Field
+          id="movement-note"
+          label={baseReason === '' ? 'Motivo' : 'Nota (opcional)'}
+          error={errors.reason}
+        >
           <Input
-            id="movement-reason"
-            maxLength={200}
+            id="movement-note"
+            maxLength={120}
             placeholder={
-              type === 'EXPENSE' ? 'Ej.: bolsa de hielo' : 'Ej.: guardar en la caja fuerte'
+              !isExpense
+                ? 'Ej.: guardar en la caja fuerte'
+                : payingSupplier
+                  ? 'Ej.: factura 1234'
+                  : kind === 'other'
+                    ? 'Ej.: bolsas para domicilios'
+                    : 'Ej.: pagado a Juan'
             }
-            value={reason}
+            value={note}
             onChange={(event) => {
-              setReason(event.target.value);
+              setNote(event.target.value);
             }}
             aria-invalid={errors.reason === undefined ? undefined : true}
           />

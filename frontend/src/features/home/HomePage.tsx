@@ -10,6 +10,7 @@ import {
   Settings,
   ShoppingBasket,
   Soup,
+  Truck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -56,6 +57,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     title: 'Menú del día',
     description: 'Sopa, principio, proteínas y porciones de almuerzo.',
     icon: Soup,
+  },
+  {
+    to: '/proveedores',
+    title: 'Proveedores',
+    description: 'La lista de proveedores a los que se les paga desde la caja.',
+    icon: Truck,
   },
   {
     to: '/usuarios',
