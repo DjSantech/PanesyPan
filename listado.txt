@@ -20,3 +20,7 @@ INVENTARIO CARGADO DESDE TRYTIENDAS (4 oct 2026)
 [ ] El costo de cada producto no se cargo (el sistema no tiene campo de costo todavia).
 [ ] Cuando se corrija, contar el inventario fisico y ajustar el stock desde Inventario.
 [ ] Los productos en "Otros" (257): pasarlos a una categoria mejor si se quiere.
+
+PROVEEDORES Y EGRESOS (4 oct 2026)
+[ ] Revisar la lista en Proveedores (se cargaron 15 desde Trytiendas): completar telefonos y ciudades.
+[ ] Probar un egreso a un proveedor desde Vender > Egreso.

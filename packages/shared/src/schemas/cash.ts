@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { isDenomination } from '../cash/cash-math';
 import { PAYMENT_METHODS } from '../constants/payment-methods';
 import { PRICE_LIMITS } from '../money/money';
-import { businessDateSchema } from './common';
+import { businessDateSchema, objectIdSchema } from './common';
 
 /**
  * Turno de caja: la cajera lo abre con una base en efectivo y todas sus ventas quedan
@@ -86,6 +86,8 @@ export const cashMovementSchema = z.object({
   createdBy: z.string(),
   /** Administrador que lo autorizó (si hizo falta o si lo hizo él mismo). */
   approvedBy: z.string().nullable(),
+  /** Proveedor al que se le pagó (solo en egresos); null si no aplica o la API aún no lo envía. */
+  supplier: z.string().nullable().default(null),
   createdAt: z.iso.datetime(),
 });
 export type CashMovement = z.infer<typeof cashMovementSchema>;
@@ -104,6 +106,8 @@ export const createCashMovementRequestSchema = z.strictObject({
     .trim()
     .min(3, 'Escribe el motivo (mínimo 3 caracteres)')
     .max(200, 'Máximo 200 caracteres'),
+  /** Proveedor al que se le paga (solo egresos). */
+  supplierId: objectIdSchema.optional(),
   /** PIN de un administrador: obligatorio en los retiros y en los egresos sobre el tope. */
   approverPin: z.string().optional(),
 });

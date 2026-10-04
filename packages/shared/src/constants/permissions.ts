@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   'reports:read',
   'sales:void:approve',
   'settings:manage',
+  'suppliers:manage',
   'einvoice:manage',
   'web-orders:read',
   'web-orders:manage',

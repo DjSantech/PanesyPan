@@ -25,5 +25,6 @@ export * from './schemas/public-web';
 export * from './schemas/reports';
 export * from './schemas/sales';
 export * from './schemas/settings';
+export * from './schemas/suppliers';
 export * from './schemas/users';
 export * from './text/text';

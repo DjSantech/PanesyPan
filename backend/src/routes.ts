@@ -6,6 +6,7 @@ import type { AuthGuards } from './modules/auth/auth.middleware';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
+import { createSuppliersRouter } from './modules/suppliers/suppliers.routes';
 import { createPublicRouter } from './modules/catalog/public.routes';
 import { createPublicWebRouter } from './modules/public-web/public-web.routes';
 import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
@@ -53,6 +54,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   router.use('/users', createUsersRouter(withLogger({ config: authConfig, guards })));
   router.use('/audit-logs', createAuditRouter(guards));
   router.use(createCatalogRouter(withLogger({ config: authConfig, guards })));
+  router.use('/suppliers', createSuppliersRouter(withLogger({ config: authConfig, guards })));
   router.use('/settings', createSettingsRouter(withLogger({ config: authConfig, guards })));
   router.use(
     '/cash-shifts',
