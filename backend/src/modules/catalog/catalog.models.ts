@@ -55,6 +55,8 @@ export interface ProductAttrs {
   /** Impuesto para la factura electrónica; null = el impuesto general de Ajustes. */
   tax: TaxCode | null;
   description: string;
+  /** Código de barras o interno; único entre los productos que lo tienen. */
+  code?: string | null;
   /**
    * Imagen actual; cambia de id con cada subida. Con `url` está en Cloudinary (`publicId` sirve
    * para borrarla); sin `url` está en MongoDB, en ProductImage.
@@ -88,6 +90,7 @@ const productSchema = new Schema<ProductAttrs>(
     trackStock: { type: Boolean, default: false },
     tax: { type: String, enum: [...TAX_CODES, null], default: null },
     description: { type: String, default: '', maxlength: 300 },
+    code: { type: String, default: null, trim: true, maxlength: 40 },
     image: {
       type: new Schema(
         {
@@ -108,6 +111,11 @@ const productSchema = new Schema<ProductAttrs>(
 );
 productSchema.index({ slug: 1 }, { unique: true });
 productSchema.index({ categoryId: 1, isActive: 1, sortOrder: 1, name: 1 });
+// Único solo entre los que tienen código (muchos productos no lo tienen).
+productSchema.index(
+  { code: 1 },
+  { unique: true, partialFilterExpression: { code: { $type: 'string' } } },
+);
 
 export const ProductModel = model<ProductAttrs>('Product', productSchema);
 export type ProductDocument = HydratedDocument<ProductAttrs>;

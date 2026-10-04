@@ -34,6 +34,18 @@ const notFound = (what: string): AppError =>
 const isDuplicateKey = (error: unknown): boolean =>
   error instanceof mongo.MongoServerError && error.code === 11000;
 
+/** Un producto duplicado puede chocar por el nombre (slug) o por el código. */
+const duplicateProductError = (error: unknown): Error | null => {
+  if (!isDuplicateKey(error)) return null;
+  const pattern = (error as mongo.MongoServerError).keyPattern as
+    Record<string, unknown> | undefined;
+  return conflict(
+    pattern !== undefined && 'code' in pattern
+      ? 'Ya existe un producto con ese código'
+      : 'Ya existe un producto con ese nombre',
+  );
+};
+
 const categoryEntity = (category: CategoryDocument) => ({
   type: 'CATEGORY',
   id: category.id,
@@ -114,6 +126,7 @@ export function toProductDto(product: ProductDocument): Product {
     trackStock: product.trackStock,
     tax: product.tax ?? null,
     description: product.description,
+    code: product.code ?? null,
     imagePath: product.image === null ? null : productImagePath(product.image),
     isVisibleOnline: product.isVisibleOnline,
     isActive: product.isActive,
@@ -255,10 +268,13 @@ export async function listProducts(query: ListProductsQuery): Promise<Product[]>
   if (query.status !== 'all') filter.isActive = query.status === 'active';
   if (query.categoryId !== undefined) filter.categoryId = new Types.ObjectId(query.categoryId);
   if (query.search !== undefined && query.search.length > 0) {
-    // Busca sin tildes: "almojabana" encuentra "Almojábana".
-    filter.slug = new RegExp(escapeRegex(slugify(query.search)), 'i');
+    // Busca sin tildes ("almojabana" encuentra "Almojábana") y también por código.
+    filter.$or = [
+      { slug: new RegExp(escapeRegex(slugify(query.search)), 'i') },
+      { code: new RegExp(escapeRegex(query.search), 'i') },
+    ];
   }
-  const products = await ProductModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(1_000);
+  const products = await ProductModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(5_000);
   return products.map(toProductDto);
 }
 
@@ -287,11 +303,11 @@ export async function createProduct(
       trackStock: input.trackStock ?? category.kind !== 'LUNCH',
       tax: input.tax ?? null,
       description: input.description ?? '',
+      code: input.code ?? null,
       isVisibleOnline: input.isVisibleOnline ?? true,
     });
   } catch (error) {
-    if (isDuplicateKey(error)) throw conflict('Ya existe un producto con ese nombre');
-    throw error;
+    throw duplicateProductError(error) ?? error;
   }
   await audit(ctx, {
     action: 'PRODUCT_CREATED',
@@ -336,6 +352,10 @@ export async function updateProduct(
     changes.description = { from: product.description, to: input.description };
     product.description = input.description;
   }
+  if (input.code !== undefined && input.code !== (product.code ?? null)) {
+    changes.code = { from: product.code ?? null, to: input.code };
+    product.code = input.code;
+  }
   if (input.tax !== undefined && input.tax !== (product.tax ?? null)) {
     changes.tax = { from: product.tax ?? null, to: input.tax };
     product.tax = input.tax;
@@ -347,8 +367,7 @@ export async function updateProduct(
   try {
     await product.save();
   } catch (error) {
-    if (isDuplicateKey(error)) throw conflict('Ya existe un producto con ese nombre');
-    throw error;
+    throw duplicateProductError(error) ?? error;
   }
 
   // El cambio de precio queda como evento propio: es lo que más se revisa en la auditoría.

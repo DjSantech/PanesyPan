@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "import:traitiendas": "tsx --env-file-if-exists=.env scripts/import-traitiendas.ts",
     "images:to-cloudinary": "tsx --env-file-if-exists=.env scripts/migrate-images-cloudinary.ts"
   },
   "dependencies": {

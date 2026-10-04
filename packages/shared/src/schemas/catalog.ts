@@ -58,6 +58,14 @@ export type ReorderCategoriesRequest = z.infer<typeof reorderCategoriesRequestSc
 
 /** Descripción corta del producto: la ven las meseras en el POS y los clientes en la web. */
 export const PRODUCT_DESCRIPTION_MAX = 300;
+/** Código de barras o interno del producto (el que trae el lector o el sistema anterior). */
+export const PRODUCT_CODE_MAX = 40;
+const productCodeSchema = z
+  .string()
+  .trim()
+  .min(1, 'El código no puede estar vacío')
+  .max(PRODUCT_CODE_MAX, `Máximo ${String(PRODUCT_CODE_MAX)} caracteres`);
+
 const descriptionSchema = z
   .string()
   .trim()
@@ -92,6 +100,8 @@ export const productSchema = z.object({
   /** Impuesto del producto; null = el impuesto general de Ajustes. */
   tax: z.enum(TAX_CODES).nullable(),
   description: z.string(),
+  /** Código de barras o interno; null si no tiene (también si la API aún no lo envía). */
+  code: z.string().nullable().default(null),
   /** Ruta de la imagen en la API (se le antepone la URL de la API), o null sin imagen. */
   imagePath: z.string().nullable(),
   /** Aparece en la web pública (Fase 2). */
@@ -122,6 +132,7 @@ export const createProductRequestSchema = z.strictObject({
   trackStock: z.boolean().optional(),
   tax: z.enum(TAX_CODES).nullable().default(null),
   description: descriptionSchema.default(''),
+  code: productCodeSchema.nullable().default(null),
   isVisibleOnline: z.boolean().default(true),
   /** Unidades con las que arranca el inventario (solo si controla inventario). */
   initialStock: stockQuantitySchema.nullable().default(null),
@@ -137,6 +148,7 @@ export const updateProductRequestSchema = z
     trackStock: z.boolean().optional(),
     tax: z.enum(TAX_CODES).nullable().optional(),
     description: descriptionSchema.optional(),
+    code: productCodeSchema.nullable().optional(),
     isVisibleOnline: z.boolean().optional(),
     isActive: z.boolean().optional(),
     /** Unidades en inventario (queda como ajuste en el libro); solo si controla inventario. */

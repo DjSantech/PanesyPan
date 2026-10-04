@@ -128,6 +128,39 @@ describe('productos', () => {
     expect(found.items.map((item) => item.name)).toEqual(['Almojábana']);
   });
 
+  it('guarda el código del producto, lo busca y no deja repetirlo', async () => {
+    const drinks = await createCategory('Bebidas');
+    const created = await send(admin, 'post', '/products', {
+      name: 'Gatorade tropical',
+      categoryId: drinks.id,
+      price: 5_000,
+      code: '7702192422051',
+    });
+    expect(created.status).toBe(201);
+    const product = productResponseSchema.parse(created.body).product;
+    expect(product.code).toBe('7702192422051');
+
+    const byCode = listProductsResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/products?search=7702192')).body,
+    );
+    expect(byCode.items.map((item) => item.name)).toEqual(['Gatorade tropical']);
+
+    const repeated = await send(admin, 'post', '/products', {
+      name: 'Otro producto',
+      categoryId: drinks.id,
+      price: 3_000,
+      code: '7702192422051',
+    });
+    expect(repeated.status).toBe(409);
+    expect(JSON.stringify(repeated.body)).toContain('ese código');
+
+    // Varios productos sin código no chocan entre sí, y el código se puede quitar.
+    await createProduct('Sin código 1', drinks.id);
+    await createProduct('Sin código 2', drinks.id);
+    const cleared = await send(admin, 'patch', `/products/${product.id}`, { code: null });
+    expect(productResponseSchema.parse(cleared.body).product.code).toBeNull();
+  });
+
   it('valida precio, nombre y categoría', async () => {
     const bread = await createCategory('Panadería');
     const decimal = await send(admin, 'post', '/products', {
@@ -231,6 +264,7 @@ describe('ficha del producto: descripción, web, stock inicial e imagen', () => 
     expect(product).toMatchObject({
       description: 'Horneado con queso costeño, sale caliente a las 6 a. m.',
       isVisibleOnline: false,
+      code: null,
       imagePath: null,
     });
     expect((await InventoryItemModel.findOne({ productId: product.id }))?.quantity).toBe(40);

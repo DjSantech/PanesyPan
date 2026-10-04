@@ -81,7 +81,14 @@ function ProductRow({
         {product.description === '' ? null : (
           <p className="line-clamp-1 text-sm text-muted-foreground">{product.description}</p>
         )}
-        <p className="text-lg font-extrabold text-primary">{formatCOP(product.price)}</p>
+        <p className="text-lg font-extrabold text-primary">
+          {formatCOP(product.price)}
+          {product.code === null ? null : (
+            <span className="ml-2 text-xs font-semibold text-muted-foreground">
+              Cód. {product.code}
+            </span>
+          )}
+        </p>
       </div>
       {product.isActive ? (
         <div className="flex flex-col items-center gap-1">

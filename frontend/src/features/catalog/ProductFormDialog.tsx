@@ -1,6 +1,7 @@
 import {
   createProductRequestSchema,
   PRICE_LIMITS,
+  PRODUCT_CODE_MAX,
   PRODUCT_DESCRIPTION_MAX,
   TAX_CODE_LABELS,
   TAX_CODES,
@@ -26,7 +27,7 @@ import { inventoryKeys, listInventory } from '../inventory/inventory.api';
 import { productImageUrl } from './catalog.api';
 
 type Errors = Partial<
-  Record<'name' | 'categoryId' | 'price' | 'description' | 'initialStock', string>
+  Record<'name' | 'categoryId' | 'price' | 'description' | 'code' | 'initialStock', string>
 >;
 
 /** Qué hacer con la imagen al guardar. */
@@ -76,6 +77,7 @@ export function ProductFormDialog({
   );
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
   const [description, setDescription] = useState(product?.description ?? '');
+  const [code, setCode] = useState(product?.code ?? '');
   const [isFavorite, setIsFavorite] = useState(product?.isFavorite ?? false);
   const kindOf = (id: string) => categories.find((category) => category.id === id)?.kind;
   // Nuevo: todo controla inventario menos los almuerzos (porciones del menú del día).
@@ -135,6 +137,7 @@ export function ProductFormDialog({
       categoryId,
       price: price ?? Number.NaN,
       description,
+      code: code.trim() === '' ? null : code,
       isFavorite,
       trackStock,
       isVisibleOnline,
@@ -150,6 +153,7 @@ export function ProductFormDialog({
             key === 'categoryId' ||
             key === 'price' ||
             key === 'description' ||
+            key === 'code' ||
             key === 'initialStock') &&
           next[key] === undefined
         ) {
@@ -170,6 +174,7 @@ export function ProductFormDialog({
     if (data.categoryId !== product.categoryId) changes.categoryId = data.categoryId;
     if (data.price !== product.price) changes.price = data.price;
     if (data.description !== product.description) changes.description = data.description;
+    if (data.code !== product.code) changes.code = data.code;
     if (data.isFavorite !== product.isFavorite) changes.isFavorite = data.isFavorite;
     if (data.trackStock !== product.trackStock) changes.trackStock = data.trackStock;
     if (data.isVisibleOnline !== product.isVisibleOnline) {
@@ -296,6 +301,24 @@ export function ProductFormDialog({
               />
             </Field>
           </div>
+
+          <Field
+            id="product-code"
+            label="Código (opcional)"
+            error={errors.code}
+            hint="El de barras o el que usabas antes. Con el lector, la caja lo encuentra al escanearlo."
+          >
+            <Input
+              {...fieldAria('product-code', errors.code, true)}
+              inputMode="text"
+              maxLength={PRODUCT_CODE_MAX}
+              placeholder="Ej.: 7702004016614"
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value);
+              }}
+            />
+          </Field>
 
           <Field
             id="product-description"
