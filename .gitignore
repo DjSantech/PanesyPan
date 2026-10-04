@@ -67,3 +67,4 @@ backups/
 
 # Inventario exportado del sistema anterior (precios y costos del negocio)
 docs/inventario_*.csv
+docs/proveedores_*.csv
