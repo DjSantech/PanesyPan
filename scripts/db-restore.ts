@@ -17,7 +17,7 @@ import { parseArgs } from 'node:util';
 import { createGunzip } from 'node:zlib';
 import { BSON, MongoClient, type Db, type Document } from 'mongodb';
 import { isBackupHeader, type BackupHeader, type BackupLine } from './backup-format';
-import { errorMessage, readDatabaseEnv } from './db-env';
+import { connectWithDnsFallback, errorMessage, readDatabaseEnv } from './db-env';
 
 const TAG = 'restore';
 const BATCH_SIZE = 500;
@@ -114,7 +114,7 @@ const client = new MongoClient(uri, {
 try {
   const header = await readHeader();
   console.log(`[${TAG}] Respaldo del ${header.createdAt} (base "${header.dbName}") → "${dbName}"`);
-  await client.connect();
+  await connectWithDnsFallback(client);
   const db = client.db(dbName);
   await prepareTarget(db, header);
 

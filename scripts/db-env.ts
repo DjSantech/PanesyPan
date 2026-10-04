@@ -2,8 +2,10 @@
  * Conexión a MongoDB para los scripts de mantenimiento (keep-alive, respaldo, restauración).
  * Lee MONGODB_URI y MONGODB_DB_NAME del entorno; si no existen, los toma de backend/.env.
  */
+import { setServers } from 'node:dns';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { MongoClient } from 'mongodb';
 
 export interface DatabaseEnv {
   uri: string;
@@ -28,3 +30,18 @@ export function readDatabaseEnv(tag: string): DatabaseEnv {
 /** Mensaje de un error sin datos sensibles (el driver nunca incluye la contraseña). */
 export const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+/**
+ * Conecta el cliente. Algunos routers/ISP rechazan las consultas DNS SRV de `mongodb+srv://`
+ * (querySrv ECONNREFUSED / ETIMEOUT): en ese caso se reintenta una vez con DNS públicos,
+ * igual que hace la API (backend/src/config/database.ts).
+ */
+export async function connectWithDnsFallback(client: MongoClient): Promise<void> {
+  try {
+    await client.connect();
+  } catch (error) {
+    if (!/querySrv|queryTxt/.test(errorMessage(error))) throw error;
+    setServers(['1.1.1.1', '8.8.8.8']);
+    await client.connect();
+  }
+}

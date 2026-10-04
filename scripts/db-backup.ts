@@ -27,7 +27,7 @@ import {
   type BackupCollection,
   type BackupHeader,
 } from './backup-format';
-import { errorMessage, readDatabaseEnv } from './db-env';
+import { connectWithDnsFallback, errorMessage, readDatabaseEnv } from './db-env';
 
 const TAG = 'backup';
 const DEFAULT_KEEP = 10;
@@ -93,7 +93,7 @@ const finalPath = join(outDir, fileName);
 const partialPath = `${finalPath}.partial`;
 
 try {
-  await client.connect();
+  await connectWithDnsFallback(client);
   const db = client.db(dbName);
   const session = client.startSession({ snapshot: true });
   try {
