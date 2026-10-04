@@ -8,3 +8,15 @@ VIDEOS TUTORIALES DEL SISTEMA
 [ ] Mas adelante: agregar una seccion "Ayuda" en el sistema con los enlaces a los videos.
 [ ] Cuando cambie una pantalla del sistema, regenerar el video afectado con: pnpm videos <filtro>
     (el generador esta en e2e/tutoriales/, ver su README.md).
+
+INVENTARIO CARGADO DESDE TRYTIENDAS (4 oct 2026)
+[ ] Revisar el reporte .local/import-traitiendas.csv (186 avisos): precios en 0, nombres repetidos,
+    costo mayor que el precio, nombres que eran un codigo.
+[ ] Los 27 productos archivados (precio 0 o nombre sin sentido): corregirlos en Catalogo y activarlos.
+[ ] Los 26 nombres repetidos quedaron como productos separados (se distinguen por el codigo): borrar o
+    archivar los sobrantes.
+[ ] Los productos nuevos NO salen en la pagina web (son mas de mil articulos de tienda): activar
+    "Sale en la web" solo en los que quieras mostrar.
+[ ] El costo de cada producto no se cargo (el sistema no tiene campo de costo todavia).
+[ ] Cuando se corrija, contar el inventario fisico y ajustar el stock desde Inventario.
+[ ] Los productos en "Otros" (257): pasarlos a una categoria mejor si se quiere.
