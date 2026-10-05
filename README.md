@@ -10,7 +10,7 @@ Punto de venta, panel administrativo y (próximamente) web pública con domicili
 ![Licencia](https://img.shields.io/badge/licencia-privada-8B4513)
 
 ---
-
+...
 ## Contenido
 
 - [El negocio y el problema](#el-negocio-y-el-problema)
