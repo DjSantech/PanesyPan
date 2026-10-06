@@ -185,6 +185,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       })),
       producedToday: inventory.items.reduce((sum, item) => sum + item.producedToday, 0),
       wastedToday: inventory.items.reduce((sum, item) => sum + item.wastedToday, 0),
+      stockValue: inventory.totalValue ?? 0,
     },
   };
 }

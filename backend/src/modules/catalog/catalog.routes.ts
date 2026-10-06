@@ -10,6 +10,7 @@ import {
   updateCategoryRequestSchema,
   updateProductRequestSchema,
   upsertDailyMenuRequestSchema,
+  type Product,
 } from '@panesypan/shared';
 import express, { Router, type Request } from 'express';
 import type { Logger } from 'pino';
@@ -65,6 +66,10 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   const canRead = [guards.authenticate(), guards.requirePermission('catalog:read')];
   const canManage = [guards.authenticate(), guards.requirePermission('catalog:manage')];
 
+  /** El costo y el margen son del administrador: la cajera recibe el producto sin costo. */
+  const forViewer = (req: Request, product: Product): Product =>
+    hasPermission(getAuth(req).user.role, 'catalog:manage') ? product : { ...product, cost: null };
+
   const actorContext = (req: Request): ActorContext => {
     const ctx: ActorContext = {
       actor: getAuth(req).user,
@@ -98,10 +103,10 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   // ── Productos ──
   router.get('/products', ...canRead, async (req, res) => {
     const query = parseQuery(req, listProductsQuerySchema);
-    res.json({ items: await listProducts(query) });
+    res.json({ items: (await listProducts(query)).map((product) => forViewer(req, product)) });
   });
   router.get('/products/:id', ...canRead, async (req, res) => {
-    res.json({ product: await getProduct(parseIdParam(req)) });
+    res.json({ product: forViewer(req, await getProduct(parseIdParam(req))) });
   });
   router.post('/products', ...canManage, async (req, res) => {
     const input = parseBody(req, createProductRequestSchema);
@@ -162,9 +167,12 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
     guards.requirePermission('catalog:availability'),
     async (req, res) => {
       const { isAvailable } = parseBody(req, setAvailabilityRequestSchema);
-      res.json({
-        product: await setProductAvailability(parseIdParam(req), isAvailable, actorContext(req)),
-      });
+      const product = await setProductAvailability(
+        parseIdParam(req),
+        isAvailable,
+        actorContext(req),
+      );
+      res.json({ product: forViewer(req, product) });
     },
   );
 

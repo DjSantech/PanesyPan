@@ -52,6 +52,8 @@ export const inventoryItemSchema = z.object({
   name: z.string(),
   categoryName: z.string(),
   quantity: z.int().nonnegative(),
+  /** Costo unitario del producto (null sin costo o si quien consulta no puede verlo). */
+  cost: z.int().nullable(),
   /** 0 = sin alerta. */
   minStock: z.int().nonnegative(),
   /** Hay un mínimo definido y el stock llegó a él o quedó por debajo. */
@@ -72,6 +74,10 @@ export type ListInventoryQuery = z.infer<typeof listInventoryQuerySchema>;
 export const listInventoryResponseSchema = z.object({
   items: z.array(inventoryItemSchema),
   lowStockCount: z.int().nonnegative(),
+  /** Inventario valorizado: Σ stock × costo de lo que tiene costo (null para la cajera). */
+  totalValue: z.int().nullable(),
+  /** Productos con stock que todavía no tienen costo (no suman al valor). */
+  withoutCost: z.int().nonnegative(),
 });
 export type ListInventoryResponse = z.infer<typeof listInventoryResponseSchema>;
 

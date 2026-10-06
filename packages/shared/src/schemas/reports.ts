@@ -94,6 +94,8 @@ export const dashboardSummarySchema = z.object({
     lowStock: z.array(dashboardLowStockSchema),
     producedToday: z.int().nonnegative(),
     wastedToday: z.int().nonnegative(),
+    /** Inventario valorizado al costo. */
+    stockValue: moneySchema,
   }),
 });
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;

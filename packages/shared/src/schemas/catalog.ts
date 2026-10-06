@@ -80,12 +80,26 @@ export const priceSchema = z
   .min(PRICE_LIMITS.min, `El precio mínimo es $ ${String(PRICE_LIMITS.min)}`)
   .max(PRICE_LIMITS.max, 'El precio es demasiado alto');
 
+/** Costo unitario (lo que le cuesta a la panadería); 0 vale para lo que se regala o produce. */
+export const costSchema = z
+  .int('El costo debe ser un número entero de pesos')
+  .min(0, 'El costo no puede ser negativo')
+  .max(PRICE_LIMITS.max, 'El costo es demasiado alto');
+
+/** Margen sobre el precio de venta, en porcentaje entero (null sin costo o sin precio). */
+export function marginPercent(price: number, cost: number | null): number | null {
+  if (cost === null || price <= 0) return null;
+  return Math.round(((price - cost) / price) * 100);
+}
+
 export const productSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
   categoryId: z.string(),
   price: z.int(),
+  /** Costo unitario; null si no se ha registrado o si quien consulta no puede verlo (cajera). */
+  cost: z.int().nullable(),
   isAvailable: z.boolean(),
   isFavorite: z.boolean(),
   trackStock: z.boolean(),
@@ -116,6 +130,7 @@ export const createProductRequestSchema = z.strictObject({
   name: catalogNameSchema,
   categoryId: objectIdSchema,
   price: priceSchema,
+  cost: costSchema.nullable().default(null),
   isAvailable: z.boolean().default(true),
   isFavorite: z.boolean().default(false),
   /** Sin indicar: todo controla inventario menos los almuerzos (porciones del menú del día). */
@@ -133,6 +148,7 @@ export const updateProductRequestSchema = z
     name: catalogNameSchema.optional(),
     categoryId: objectIdSchema.optional(),
     price: priceSchema.optional(),
+    cost: costSchema.nullable().optional(),
     isFavorite: z.boolean().optional(),
     trackStock: z.boolean().optional(),
     tax: z.enum(TAX_CODES).nullable().optional(),

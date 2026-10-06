@@ -4,6 +4,7 @@ import {
   inventoryItemResponseSchema,
   listInventoryResponseSchema,
   listMovementsResponseSchema,
+  productResponseSchema,
   slugify,
   type AuditAction,
 } from '@panesypan/shared';
@@ -309,5 +310,32 @@ describe('ventas e inventario', () => {
     expect(statuses).toEqual([409, 'ok']);
     expect(await stockOf(products.bread)).toBe(0);
     expect(await SaleModel.countDocuments({ status: 'PAID' })).toBe(1);
+  });
+});
+
+describe('costo e inventario valorizado', () => {
+  it('el administrador ve el costo y el valor del inventario; la cajera no', async () => {
+    await send(admin, 'patch', `/products/${products.bread}`, { cost: 900 }).expect(200);
+    await produce(cashier, products.bread, 10).expect(201);
+    await produce(cashier, products.fritter, 4).expect(201);
+
+    const forAdmin = listInventoryResponseSchema.parse(
+      (await admin.agent.get('/api/v1/inventory')).body,
+    );
+    expect(forAdmin.totalValue).toBe(9_000);
+    expect(forAdmin.withoutCost).toBe(1);
+    expect(forAdmin.items.find((item) => item.productId === products.bread)?.cost).toBe(900);
+
+    const forCashier = listInventoryResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/inventory')).body,
+    );
+    expect(forCashier.totalValue).toBeNull();
+    expect(forCashier.items.every((item) => item.cost === null)).toBe(true);
+
+    const product = productResponseSchema.parse(
+      (await cashier.agent.get(`/api/v1/products/${products.bread}`)).body,
+    ).product;
+    expect(product.cost).toBeNull();
+    expect(await auditCount('PRODUCT_UPDATED')).toBe(1);
   });
 });

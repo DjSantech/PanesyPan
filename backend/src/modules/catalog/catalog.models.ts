@@ -47,6 +47,8 @@ export interface ProductAttrs {
   slug: string;
   categoryId: Types.ObjectId;
   price: number;
+  /** Costo unitario (null sin registrar). */
+  cost: number | null;
   /** false = agotado por hoy (lo puede marcar la cajera). */
   isAvailable: boolean;
   isFavorite: boolean;
@@ -82,6 +84,15 @@ const productSchema = new Schema<ProductAttrs>(
       required: true,
       min: 0,
       validate: { validator: Number.isSafeInteger, message: 'El precio debe ser entero' },
+    },
+    cost: {
+      type: Number,
+      default: null,
+      min: 0,
+      validate: {
+        validator: (value: number | null) => value === null || Number.isSafeInteger(value),
+        message: 'El costo debe ser entero',
+      },
     },
     isAvailable: { type: Boolean, default: true },
     isFavorite: { type: Boolean, default: false },

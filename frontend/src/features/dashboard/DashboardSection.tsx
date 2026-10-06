@@ -329,7 +329,8 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
             </ul>
           )}
           <p className="mt-3 text-sm text-muted-foreground">
-            Producido hoy: {inventory.producedToday} · mermas: {inventory.wastedToday}
+            Producido hoy: {inventory.producedToday} · mermas: {inventory.wastedToday} · inventario
+            valorizado: {formatCOP(inventory.stockValue)}
           </p>
         </Panel>
       </div>

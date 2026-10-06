@@ -1,5 +1,6 @@
 import {
   createProductRequestSchema,
+  marginPercent,
   PRICE_LIMITS,
   PRODUCT_DESCRIPTION_MAX,
   TAX_CODE_LABELS,
@@ -26,7 +27,7 @@ import { inventoryKeys, listInventory } from '../inventory/inventory.api';
 import { productImageUrl } from './catalog.api';
 
 type Errors = Partial<
-  Record<'name' | 'categoryId' | 'price' | 'description' | 'initialStock', string>
+  Record<'name' | 'categoryId' | 'price' | 'cost' | 'description' | 'initialStock', string>
 >;
 
 /** Qué hacer con la imagen al guardar. */
@@ -75,6 +76,8 @@ export function ProductFormDialog({
     product?.categoryId ?? defaultCategoryId ?? categories[0]?.id ?? '',
   );
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
+  const [cost, setCost] = useState<number | null>(product?.cost ?? null);
+  const margin = price === null ? null : marginPercent(price, cost);
   const [description, setDescription] = useState(product?.description ?? '');
   const [isFavorite, setIsFavorite] = useState(product?.isFavorite ?? false);
   const kindOf = (id: string) => categories.find((category) => category.id === id)?.kind;
@@ -134,6 +137,7 @@ export function ProductFormDialog({
       name,
       categoryId,
       price: price ?? Number.NaN,
+      cost,
       description,
       isFavorite,
       trackStock,
@@ -149,6 +153,7 @@ export function ProductFormDialog({
           (key === 'name' ||
             key === 'categoryId' ||
             key === 'price' ||
+            key === 'cost' ||
             key === 'description' ||
             key === 'initialStock') &&
           next[key] === undefined
@@ -169,6 +174,7 @@ export function ProductFormDialog({
     if (data.name !== product.name) changes.name = data.name;
     if (data.categoryId !== product.categoryId) changes.categoryId = data.categoryId;
     if (data.price !== product.price) changes.price = data.price;
+    if (data.cost !== product.cost) changes.cost = data.cost;
     if (data.description !== product.description) changes.description = data.description;
     if (data.isFavorite !== product.isFavorite) changes.isFavorite = data.isFavorite;
     if (data.trackStock !== product.trackStock) changes.trackStock = data.trackStock;
@@ -293,6 +299,22 @@ export function ProductFormDialog({
                 {...fieldAria('product-price', errors.price, true)}
                 value={price}
                 onValueChange={setPrice}
+              />
+            </Field>
+            <Field
+              id="product-cost"
+              label="Costo (opcional)"
+              error={errors.cost}
+              hint={
+                margin === null
+                  ? 'Lo que le cuesta a la panadería. Solo lo ve el administrador.'
+                  : `Margen: ${String(margin)} % del precio de venta.`
+              }
+            >
+              <PriceInput
+                {...fieldAria('product-cost', errors.cost, true)}
+                value={cost}
+                onValueChange={setCost}
               />
             </Field>
           </div>

@@ -1,5 +1,6 @@
 import {
   formatCOP,
+  marginPercent,
   type Category,
   type CreateProductRequest,
   type Product,
@@ -81,7 +82,15 @@ function ProductRow({
         {product.description === '' ? null : (
           <p className="line-clamp-1 text-sm text-muted-foreground">{product.description}</p>
         )}
-        <p className="text-lg font-extrabold text-primary">{formatCOP(product.price)}</p>
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-lg font-extrabold text-primary">{formatCOP(product.price)}</span>
+          {product.cost === null ? null : (
+            <span className="text-sm text-muted-foreground">
+              Costo {formatCOP(product.cost)} · margen{' '}
+              {String(marginPercent(product.price, product.cost) ?? 0)} %
+            </span>
+          )}
+        </p>
       </div>
       {product.isActive ? (
         <div className="flex flex-col items-center gap-1">

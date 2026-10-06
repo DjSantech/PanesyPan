@@ -91,12 +91,18 @@ async function buildItems(products: readonly ProductDocument[]): Promise<Invento
       name: product.name,
       categoryName: categoryName.get(product.categoryId.toString()) ?? '',
       quantity,
+      cost: product.cost ?? null,
       minStock,
       isLow: isLowStock(quantity, minStock),
       producedToday: today.get(`${product.id}|PRODUCTION`) ?? 0,
       wastedToday: today.get(`${product.id}|WASTE`) ?? 0,
     };
   });
+}
+
+/** Inventario valorizado: stock × costo de los productos que tienen costo. */
+export function stockValueOf(items: readonly Pick<InventoryItem, 'quantity' | 'cost'>[]): number {
+  return items.reduce((sum, item) => sum + item.quantity * (item.cost ?? 0), 0);
 }
 
 async function findTrackedProduct(productId: string): Promise<ProductDocument> {
@@ -127,7 +133,12 @@ export async function listInventory(query: ListInventoryQuery): Promise<ListInve
   const products = await ProductModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(1_000);
   const all = await buildItems(products);
   const items = query.lowStock === 'true' ? all.filter((item) => item.isLow) : all;
-  return { items, lowStockCount: all.filter((item) => item.isLow).length };
+  return {
+    items,
+    lowStockCount: all.filter((item) => item.isLow).length,
+    totalValue: stockValueOf(all),
+    withoutCost: all.filter((item) => item.cost === null && item.quantity > 0).length,
+  };
 }
 
 export async function listMovements(query: ListMovementsQuery): Promise<StockMovement[]> {

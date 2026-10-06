@@ -1,10 +1,12 @@
 import {
   adjustStockRequestSchema,
+  hasPermission,
   listInventoryQuerySchema,
   listMovementsQuerySchema,
   registerProductionRequestSchema,
   registerWasteRequestSchema,
   setMinStockRequestSchema,
+  type InventoryItem,
 } from '@panesypan/shared';
 import { Router, type Request } from 'express';
 import type { Logger } from 'pino';
@@ -53,19 +55,38 @@ export function createInventoryRouter(deps: InventoryRouterDeps): Router {
     return ctx;
   };
 
+  /** El costo y el valor del inventario los ve solo quien administra el inventario. */
+  const canSeeCost = (req: Request): boolean =>
+    hasPermission(getAuth(req).user.role, 'inventory:manage');
+  const itemForViewer = (req: Request, item: InventoryItem): InventoryItem =>
+    canSeeCost(req) ? item : { ...item, cost: null };
+
   router.get('/', ...canRead, async (req, res) => {
-    res.json(await listInventory(parseQuery(req, listInventoryQuerySchema)));
+    const result = await listInventory(parseQuery(req, listInventoryQuerySchema));
+    res.json(
+      canSeeCost(req)
+        ? result
+        : {
+            ...result,
+            items: result.items.map((item) => itemForViewer(req, item)),
+            totalValue: null,
+          },
+    );
   });
   router.get('/movements', ...canRead, async (req, res) => {
     res.json({ items: await listMovements(parseQuery(req, listMovementsQuerySchema)) });
   });
   router.post('/production', ...canRecord, async (req, res) => {
     const input = parseBody(req, registerProductionRequestSchema);
-    res.status(201).json({ item: await registerProduction(input, actorContext(req)) });
+    res
+      .status(201)
+      .json({ item: itemForViewer(req, await registerProduction(input, actorContext(req))) });
   });
   router.post('/waste', ...canRecord, async (req, res) => {
     const input = parseBody(req, registerWasteRequestSchema);
-    res.status(201).json({ item: await registerWaste(input, actorContext(req)) });
+    res
+      .status(201)
+      .json({ item: itemForViewer(req, await registerWaste(input, actorContext(req))) });
   });
   router.post('/adjustments', ...canManage, async (req, res) => {
     const input = parseBody(req, adjustStockRequestSchema);

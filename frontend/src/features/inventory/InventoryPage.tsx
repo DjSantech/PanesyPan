@@ -1,4 +1,5 @@
 import {
+  formatCOP,
   STOCK_MOVEMENT_LABELS,
   WASTE_REASON_LABELS,
   type InventoryItem,
@@ -270,6 +271,8 @@ export function InventoryPage() {
 
   const items = inventory.data?.items ?? [];
   const lowStockCount = inventory.data?.lowStockCount ?? 0;
+  const totalValue = inventory.data?.totalValue ?? null;
+  const withoutCost = inventory.data?.withoutCost ?? 0;
 
   return (
     <div>
@@ -277,6 +280,16 @@ export function InventoryPage() {
         title="Inventario"
         description="Existencias de productos terminados, producción del día y mermas."
       />
+
+      {totalValue === null ? null : (
+        <p className="mb-4 rounded-2xl bg-muted px-4 py-3 text-sm">
+          <span className="font-bold">Inventario valorizado al costo: </span>
+          <span className="text-lg font-extrabold tabular-nums">{formatCOP(totalValue)}</span>
+          {withoutCost === 0
+            ? null
+            : ` · ${String(withoutCost)} ${withoutCost === 1 ? 'producto con stock no tiene' : 'productos con stock no tienen'} costo (no suman). Ponlo en el catálogo.`}
+        </p>
+      )}
 
       {lowStockCount > 0 ? (
         <Alert tone="danger" className="mb-4">

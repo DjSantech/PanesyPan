@@ -109,6 +109,7 @@ export function toProductDto(product: ProductDocument): Product {
     slug: product.slug,
     categoryId: product.categoryId.toString(),
     price: product.price,
+    cost: product.cost ?? null,
     isAvailable: product.isAvailable,
     isFavorite: product.isFavorite,
     trackStock: product.trackStock,
@@ -282,6 +283,7 @@ export async function createProduct(
       slug,
       categoryId: category._id,
       price: input.price,
+      cost: input.cost ?? null,
       isAvailable: input.isAvailable ?? true,
       isFavorite: input.isFavorite ?? false,
       trackStock: input.trackStock ?? category.kind !== 'LUNCH',
@@ -324,6 +326,10 @@ export async function updateProduct(
   }
   if (input.price !== undefined && input.price !== product.price) {
     product.price = input.price;
+  }
+  if (input.cost !== undefined && input.cost !== (product.cost ?? null)) {
+    changes.cost = { from: product.cost ?? null, to: input.cost };
+    product.cost = input.cost;
   }
   for (const field of ['isFavorite', 'trackStock', 'isActive', 'isVisibleOnline'] as const) {
     const value = input[field];
