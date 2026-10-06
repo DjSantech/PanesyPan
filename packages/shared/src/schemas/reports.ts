@@ -102,12 +102,14 @@ export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 
 // ── Exportes ───────────────────────────────────────────────────────
 
-export const EXPORT_KINDS = ['sales', 'cash', 'inventory'] as const;
+export const EXPORT_KINDS = ['sales', 'cash', 'movements', 'purchases', 'inventory'] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
 
 export const EXPORT_LABELS: Readonly<Record<ExportKind, string>> = {
   sales: 'Ventas',
   cash: 'Cajas y arqueos',
+  movements: 'Egresos, retiros e ingresos de caja',
+  purchases: 'Compras a proveedores',
   inventory: 'Movimientos de inventario',
 };
 
@@ -130,3 +132,78 @@ export const exportQuerySchema = z
     { message: `El rango máximo es de ${String(EXPORT_MAX_DAYS)} días`, path: ['to'] },
   );
 export type ExportQuery = z.infer<typeof exportQuerySchema>;
+
+// ── Reporte del negocio (rango de días) ────────────────────────────
+
+/** Máximo de días del reporte del negocio (un año). */
+export const BUSINESS_REPORT_MAX_DAYS = 366;
+
+export const businessReportQuerySchema = z
+  .strictObject({ from: businessDateSchema, to: businessDateSchema })
+  .refine((value) => value.from <= value.to, {
+    message: 'La fecha inicial no puede ser posterior a la final',
+    path: ['from'],
+  })
+  .refine(
+    (value) =>
+      (Date.parse(`${value.to}T00:00:00Z`) - Date.parse(`${value.from}T00:00:00Z`)) / 86_400_000 <
+      BUSINESS_REPORT_MAX_DAYS,
+    { message: 'El rango máximo es de un año', path: ['to'] },
+  );
+export type BusinessReportQuery = z.infer<typeof businessReportQuerySchema>;
+
+const namedAmountSchema = z.object({ name: z.string(), amount: z.int(), count: z.int() });
+
+/**
+ * Cómo le fue al negocio en un rango de días. La utilidad es ESTIMADA: el costo de lo vendido
+ * usa el costo actual de cada producto (el que no tiene costo no se descuenta).
+ */
+export const businessReportSchema = z.object({
+  from: businessDateSchema,
+  to: businessDateSchema,
+  salesCount: z.int(),
+  salesTotal: z.int(),
+  returnsTotal: z.int(),
+  netSales: z.int(),
+  /** Costo de lo vendido (unidades vendidas − devueltas, al costo actual). */
+  costOfSales: z.int(),
+  /** Unidades vendidas de productos sin costo registrado (no suman al costo). */
+  unitsWithoutCost: z.int(),
+  /** Egresos de caja (sin los que generan las compras de productos, que ya van en el costo). */
+  expensesTotal: z.int(),
+  /** Insumos comprados a proveedores que no están en el catálogo. */
+  suppliesTotal: z.int(),
+  /** Mermas y autoconsumo valorizados al costo. */
+  wasteValue: z.int(),
+  selfConsumptionValue: z.int(),
+  /** Ventas netas − costo de lo vendido − egresos − insumos − mermas − autoconsumo. */
+  estimatedProfit: z.int(),
+  /** Retiros del dueño (no son gasto: no restan a la utilidad). */
+  withdrawalsTotal: z.int(),
+  incomesTotal: z.int(),
+  byDay: z.array(z.object({ date: businessDateSchema, total: z.int(), count: z.int() })),
+  byCategory: z.array(z.object({ name: z.string(), quantity: z.int(), total: z.int() })),
+  byProduct: z.array(
+    z.object({
+      productId: z.string(),
+      name: z.string(),
+      categoryName: z.string(),
+      quantity: z.int(),
+      total: z.int(),
+    }),
+  ),
+  expensesByConcept: z.array(namedAmountSchema),
+  payrollByStaff: z.array(namedAmountSchema),
+  purchasesBySupplier: z.array(namedAmountSchema),
+  lossesByProduct: z.array(
+    z.object({
+      name: z.string(),
+      wasted: z.int(),
+      consumed: z.int(),
+      value: z.int(),
+    }),
+  ),
+  /** Inventario valorizado hoy (no depende del rango). */
+  stockValue: z.int(),
+});
+export type BusinessReport = z.infer<typeof businessReportSchema>;

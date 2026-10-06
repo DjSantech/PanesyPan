@@ -1,4 +1,9 @@
-import { EXPORT_KINDS, exportQuerySchema, type ExportKind } from '@panesypan/shared';
+import {
+  businessReportQuerySchema,
+  EXPORT_KINDS,
+  exportQuerySchema,
+  type ExportKind,
+} from '@panesypan/shared';
 import { Router } from 'express';
 import type { Logger } from 'pino';
 import { AppError } from '../../lib/errors';
@@ -7,6 +12,7 @@ import { parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import type { ActorContext } from '../users/users.service';
+import { getBusinessReport } from './business-report.service';
 import { getDashboardSummary } from './dashboard.service';
 import { exportReport } from './export.service';
 
@@ -22,6 +28,7 @@ const isExportKind = (value: string): value is ExportKind =>
 /**
  * /api/v1/reports  (todo requiere reports:read, o sea, administrador)
  *   GET /dashboard                    resumen del día en curso
+ *   GET /business?from=&to=          reporte del negocio en un rango (utilidad, gastos, compras…)
  *   GET /export/:kind?from=&to=       CSV de ventas, cajas o inventario (kind: sales|cash|inventory)
  */
 export function createReportsRouter(deps: ReportsRouterDeps): Router {
@@ -32,6 +39,11 @@ export function createReportsRouter(deps: ReportsRouterDeps): Router {
   router.get('/dashboard', ...canRead, async (_req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(await getDashboardSummary());
+  });
+
+  router.get('/business', ...canRead, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json(await getBusinessReport(parseQuery(req, businessReportQuerySchema)));
   });
 
   router.get('/export/:kind', ...canRead, async (req, res) => {

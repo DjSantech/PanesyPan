@@ -1,5 +1,6 @@
 import type { Permission } from '@panesypan/shared';
 import {
+  BarChart3,
   Boxes,
   Croissant,
   FileText,
@@ -70,6 +71,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Boxes,
     permission: 'inventory:read',
     mobile: 'if-room',
+  },
+  {
+    to: '/reportes',
+    label: 'Reportes',
+    icon: BarChart3,
+    permission: 'reports:read',
+    mobile: false,
   },
   {
     to: '/cajas',

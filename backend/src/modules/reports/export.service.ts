@@ -1,4 +1,6 @@
 import {
+  CASH_MOVEMENT_LABELS,
+  PURCHASE_PAYMENT_LABELS,
   EINVOICE_STATUS_LABELS,
   formatTimeCO,
   PAYMENT_METHOD_LABELS,
@@ -11,9 +13,11 @@ import {
 } from '@panesypan/shared';
 import { trusted, type QueryFilter } from 'mongoose';
 import { recordAudit } from '../audit/audit.service';
+import { CashMovementModel } from '../cash/cash-movement.model';
 import { CashShiftModel, type CashShiftAttrs } from '../cash/cash-shift.model';
 import { summarizeShift } from '../cash/cash.service';
 import { StockMovementModel } from '../inventory/inventory.models';
+import { PurchaseModel } from '../purchases/purchases.models';
 import { SaleModel, type SaleAttrs } from '../sales/sale.model';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
@@ -25,6 +29,8 @@ const MAX_ROWS = 50_000;
 const FILE_LABELS: Readonly<Record<ExportKind, string>> = {
   sales: 'ventas',
   cash: 'cajas',
+  movements: 'movimientos-caja',
+  purchases: 'compras',
   inventory: 'inventario',
 };
 
@@ -153,6 +159,85 @@ async function cashRows(query: ExportQuery): Promise<{ headers: string[]; rows: 
   };
 }
 
+async function movementRows(query: ExportQuery): Promise<{ headers: string[]; rows: CsvCell[][] }> {
+  const shifts = await CashShiftModel.find({ businessDate: dayRange(query) })
+    .select('number businessDate')
+    .lean();
+  const shiftById = new Map(shifts.map((shift) => [shift._id.toString(), shift]));
+  const movements = await CashMovementModel.find({
+    shiftId: trusted({ $in: shifts.map((shift) => shift._id) }),
+  })
+    .sort({ createdAt: 1 })
+    .limit(MAX_ROWS)
+    .lean();
+  return {
+    headers: [
+      'Fecha',
+      'Hora',
+      'Caja N.º',
+      'Clase',
+      'Tipo',
+      'Persona',
+      'Monto',
+      'Detalle',
+      'Registró',
+      'Autorizó',
+    ],
+    rows: movements.map((movement) => {
+      const shift = shiftById.get(movement.shiftId.toString());
+      return [
+        shift?.businessDate ?? null,
+        formatTimeCO(movement.createdAt),
+        shift?.number ?? null,
+        CASH_MOVEMENT_LABELS[movement.type],
+        movement.concept?.name ?? null,
+        movement.staff?.name ?? null,
+        movement.amount,
+        movement.reason,
+        movement.createdBy.name,
+        movement.approvedBy?.name ?? null,
+      ];
+    }),
+  };
+}
+
+async function purchaseRows(query: ExportQuery): Promise<{ headers: string[]; rows: CsvCell[][] }> {
+  const purchases = await PurchaseModel.find({ businessDate: dayRange(query) })
+    .sort({ createdAt: 1 })
+    .limit(MAX_ROWS)
+    .lean();
+  return {
+    headers: [
+      'Fecha',
+      'Compra N.º',
+      'Proveedor',
+      'Artículo',
+      'Cantidad',
+      'Costo unitario',
+      'Total línea',
+      'Total compra',
+      'Pago',
+      'Referencia',
+      'Registró',
+    ],
+    rows: purchases.flatMap((purchase) =>
+      purchase.lines.map((line) => [
+        purchase.businessDate,
+        purchase.number,
+        purchase.supplier.name,
+        line.name,
+        line.quantity,
+        line.unitCost,
+        line.total,
+        purchase.total,
+        PURCHASE_PAYMENT_LABELS[purchase.paymentMethod],
+        purchase.reference,
+        purchase.createdBy.name,
+      ]),
+    ),
+  };
+}
+
 async function inventoryRows(
   query: ExportQuery,
 ): Promise<{ headers: string[]; rows: CsvCell[][] }> {
@@ -197,7 +282,11 @@ export async function exportReport(
       ? await salesRows(query)
       : kind === 'cash'
         ? await cashRows(query)
-        : await inventoryRows(query);
+        : kind === 'movements'
+          ? await movementRows(query)
+          : kind === 'purchases'
+            ? await purchaseRows(query)
+            : await inventoryRows(query);
 
   await recordAudit(
     {

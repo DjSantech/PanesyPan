@@ -1,6 +1,7 @@
 import { formatLongDateCO, hasPermission } from '@panesypan/shared';
 import {
   Activity,
+  BarChart3,
   Boxes,
   ChevronRight,
   Croissant,
@@ -52,6 +53,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     title: 'Inventario',
     description: 'Stock, producción diaria de pan, mermas y alertas de bajo stock.',
     icon: Boxes,
+  },
+  {
+    to: '/reportes',
+    title: 'Reportes',
+    description: 'Utilidad estimada, gastos por tipo, nómina, compras y ventas por producto.',
+    icon: BarChart3,
   },
   {
     to: '/cajas',

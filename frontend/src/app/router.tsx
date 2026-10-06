@@ -170,6 +170,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'reportes',
+            lazy: async () => {
+              const { ReportsPage } = await import('@/features/reports/ReportsPage');
+              return {
+                element: (
+                  <RequirePermission permission="reports:read">
+                    <ReportsPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'configuracion',
             lazy: async () => {
               const { SettingsPage } = await import('@/features/settings/SettingsPage');

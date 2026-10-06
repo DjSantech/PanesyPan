@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import {
   apiErrorResponseSchema,
+  businessReportSchema,
   currentCashShiftResponseSchema,
   listCashMovementsResponseSchema,
   listPurchasesResponseSchema,
@@ -175,5 +177,52 @@ describe('compras', () => {
       items: [{ name: 'Big Cola', quantity: 2, minStock: 6, suggested: 10 }],
     });
     expect(groups[1]?.supplier).toBeNull();
+  });
+});
+
+describe('reporte del negocio', () => {
+  it('calcula la utilidad estimada sin contar dos veces las compras', async () => {
+    await purchase(admin, {
+      supplierId,
+      paymentMethod: 'TRANSFER',
+      lines: [
+        { productId: colaId, quantity: 24, unitCost: 1_000 },
+        { description: 'Bolsas', quantity: 1, unitCost: 5_000 },
+      ],
+    }).expect(201);
+    await send(cashier, 'post', '/cash-shifts', { openingAmount: 100_000 }).expect(201);
+    await send(cashier, 'post', '/sales/checkout', {
+      clientRequestId: randomUUID(),
+      lines: [{ productId: colaId, quantity: 2 }],
+      expectedTotal: 6_000,
+      payments: [{ method: 'CASH', amount: 6_000 }],
+    }).expect(201);
+    await send(cashier, 'post', '/cash-shifts/current/movements', {
+      type: 'EXPENSE',
+      amount: 2_000,
+      reason: 'Hielo',
+    }).expect(201);
+    // Compra pagada con la caja: su egreso no se cuenta otra vez como gasto.
+    await purchase(cashier, {
+      supplierId,
+      paymentMethod: 'CASH_DRAWER',
+      lines: [{ productId: colaId, quantity: 5, unitCost: 1_000 }],
+    }).expect(201);
+
+    const today = toBusinessDate();
+    await cashier.agent.get(`/api/v1/reports/business?from=${today}&to=${today}`).expect(403);
+    const report = businessReportSchema.parse(
+      (await admin.agent.get(`/api/v1/reports/business?from=${today}&to=${today}`)).body,
+    );
+    expect(report).toMatchObject({
+      netSales: 6_000,
+      costOfSales: 2_000,
+      expensesTotal: 2_000,
+      suppliesTotal: 5_000,
+      estimatedProfit: 6_000 - 2_000 - 2_000 - 5_000,
+      stockValue: 27 * 1_000,
+    });
+    expect(report.purchasesBySupplier).toEqual([{ name: 'Surtiquesos', amount: 34_000, count: 2 }]);
+    expect(report.byProduct[0]).toMatchObject({ name: 'Big Cola', quantity: 2, total: 6_000 });
   });
 });
