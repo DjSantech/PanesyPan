@@ -1,7 +1,9 @@
 import {
+  CLOSE_ALERT_MODES,
   EINVOICE_PROVIDERS,
   TAX_CODES,
   TICKET_WIDTHS,
+  type CloseAlertMode,
   type EInvoiceProvider,
   type TaxCode,
   type TicketWidth,
@@ -29,6 +31,8 @@ export interface SettingsAttrs {
   einvoiceSendEmail: boolean;
   einvoiceLegend: string;
   defaultTax: TaxCode | null;
+  closeAlert: CloseAlertMode;
+  closeAlertThreshold: number;
   updatedBy: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
@@ -53,6 +57,8 @@ const settingsSchema = new Schema<SettingsAttrs>(
     einvoiceSendEmail: { type: Boolean, default: true },
     einvoiceLegend: { type: String, default: '' },
     defaultTax: { type: String, enum: [...TAX_CODES, null], default: null },
+    closeAlert: { type: String, enum: CLOSE_ALERT_MODES, default: 'SHORTAGE' },
+    closeAlertThreshold: { type: Number, min: 0, default: 10_000 },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true, strict: 'throw' },

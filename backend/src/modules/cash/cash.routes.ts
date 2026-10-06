@@ -12,6 +12,7 @@ import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import type { PosContext } from '../sales/approval.service';
+import { getSettings } from '../settings/settings.service';
 import {
   closeShift,
   confirmShift,
@@ -23,6 +24,7 @@ import {
   openShift,
   suggestedOpeningAmount,
 } from './cash.service';
+import { notifyShiftClosed } from './close-alert';
 
 export interface CashRouterDeps {
   config: AuthConfig;
@@ -84,7 +86,16 @@ export function createCashRouter(deps: CashRouterDeps): Router {
 
   router.post('/current/close', ...canOperate, async (req, res) => {
     const input = parseBody(req, closeCashShiftRequestSchema);
-    res.json({ shift: await closeShift(input, posContext(req)) });
+    const shift = await closeShift(input, posContext(req));
+    res.json({ shift });
+    // El aviso al dueño sale después de responder: la cajera no espera el correo.
+    void Promise.all([getShiftDetail(shift.id), getSettings()])
+      .then(([detail, settings]) => {
+        notifyShiftClosed(detail, settings, logger);
+      })
+      .catch((error: unknown) => {
+        logger?.warn({ err: error }, 'No se pudo preparar el aviso de cierre de caja');
+      });
   });
 
   router.get('/', ...canReview, async (req, res) => {

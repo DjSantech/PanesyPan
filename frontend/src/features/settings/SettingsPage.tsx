@@ -1,4 +1,7 @@
 import {
+  CLOSE_ALERT_LABELS,
+  CLOSE_ALERT_MODES,
+  type CloseAlertMode,
   SETTINGS_LIMITS,
   TICKET_WIDTHS,
   updateBusinessSettingsRequestSchema,
@@ -15,7 +18,7 @@ import { ErrorState, PageHeader, Spinner } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { PriceInput } from '@/components/PriceInput';
 import { fieldAria } from '@/components/ui/field-aria';
-import { Field, Input } from '@/components/ui/form';
+import { Field, Input, NativeSelect } from '@/components/ui/form';
 import {
   Alert,
   Card,
@@ -34,7 +37,14 @@ import { SETTINGS_QUERY_KEY, updateSettings, useSettings } from './settings.api'
 
 type TextField = 'legalName' | 'taxId' | 'address' | 'phone' | 'ticketFooter';
 type Errors = Partial<
-  Record<TextField | 'tableCount' | 'maxCashierDiscountPercent' | 'maxCashierExpense', string>
+  Record<
+    | TextField
+    | 'tableCount'
+    | 'maxCashierDiscountPercent'
+    | 'maxCashierExpense'
+    | 'closeAlertThreshold',
+    string
+  >
 >;
 
 const TEXT_FIELDS: { key: TextField; label: string; placeholder: string; hint?: string }[] = [
@@ -128,6 +138,7 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
   const [tables, setTables] = useState(String(settings.tableCount));
   const [maxDiscount, setMaxDiscount] = useState(String(settings.maxCashierDiscountPercent));
   const [maxExpense, setMaxExpense] = useState<number | null>(settings.maxCashierExpense);
+  const [alertThreshold, setAlertThreshold] = useState<number | null>(settings.closeAlertThreshold);
   const [errors, setErrors] = useState<Errors>({});
 
   const save = useMutation({
@@ -146,6 +157,8 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
       tableCount: tables.trim() === '' ? Number.NaN : Number(tables),
       maxCashierDiscountPercent: maxDiscount.trim() === '' ? Number.NaN : Number(maxDiscount),
       maxCashierExpense: maxExpense ?? Number.NaN,
+      closeAlert: draft.closeAlert,
+      closeAlertThreshold: alertThreshold ?? Number.NaN,
     };
     const parsed = updateBusinessSettingsRequestSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -286,6 +299,51 @@ function SettingsForm({ settings }: { settings: BusinessSettings }) {
                 onValueChange={setMaxExpense}
               />
             </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Aviso al dueño al cerrar caja</CardTitle>
+            <CardDescription>
+              Un correo con el resumen del cierre (ventas, gastos, arqueo y la nota de la cajera).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <Field id="settings-close-alert" label="¿Cuándo avisar?">
+              <NativeSelect
+                id="settings-close-alert"
+                value={draft.closeAlert}
+                onChange={(event) => {
+                  setDraft({ ...draft, closeAlert: event.target.value as CloseAlertMode });
+                }}
+              >
+                {CLOSE_ALERT_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {CLOSE_ALERT_LABELS[mode]}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field
+              id="settings-alert-threshold"
+              label="Avisar si falta más de"
+              error={errors.closeAlertThreshold}
+              hint="Solo aplica a «Solo si hay faltante mayor al tope»."
+            >
+              <PriceInput
+                {...fieldAria('settings-alert-threshold', errors.closeAlertThreshold, true)}
+                value={alertThreshold}
+                onValueChange={setAlertThreshold}
+              />
+            </Field>
+            {settings.closeAlertEmailReady ? null : (
+              <Alert tone="pending" className="sm:col-span-2">
+                El correo de avisos todavía no está configurado en el servidor (variables
+                RESEND_API_KEY, ALERT_EMAIL_FROM y ALERT_EMAIL_TO en Render). Mientras tanto no se
+                envía nada.
+              </Alert>
+            )}
           </CardContent>
         </Card>
 

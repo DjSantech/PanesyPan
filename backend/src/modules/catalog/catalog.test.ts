@@ -615,7 +615,8 @@ describe('carga masiva y cambio de precios', () => {
 
   it('sube los precios de una categoría por porcentaje y redondea', async () => {
     const drinks = await CategoryModel.findOne({ slug: 'bebidas' });
-    const body = { categoryId: drinks?.id as string, percent: 10, roundTo: 100 };
+    if (drinks === null) throw new Error('Falta la categoría');
+    const body = { categoryId: drinks.id, percent: 10, roundTo: 100 };
     const preview = bulkPriceResultSchema.parse(
       (await send(admin, 'post', '/products/bulk-price', body)).body,
     );

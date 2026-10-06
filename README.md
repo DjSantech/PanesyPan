@@ -234,6 +234,9 @@ Los archivos `.env` **nunca** se suben al repositorio. Cada app tiene su `.env.e
 | `CLOUDINARY_CLOUD_NAME` | Cuenta de Cloudinary donde se guardan las fotos de productos (opcional; sin las tres, van a MongoDB)        | `(panel de Cloudinary)`                                 |
 | `CLOUDINARY_API_KEY`    | API Key de Cloudinary                                                                                       | `(panel de Cloudinary)`                                 |
 | `CLOUDINARY_API_SECRET` | API Secret de Cloudinary (solo en el servidor)                                                              | `(panel de Cloudinary)`                                 |
+| `RESEND_API_KEY`        | Llave de Resend para el aviso por correo al cerrar caja (opcional; sin las tres no se envía nada)           | `(panel de Resend)`                                     |
+| `ALERT_EMAIL_FROM`      | Remitente del aviso (dominio verificado en Resend)                                                          | `Panes & Pan <alertas@panesypan.com>`                   |
+| `ALERT_EMAIL_TO`        | Correo(s) del dueño que reciben el aviso, separados por coma                                                | `dueno@gmail.com`                                       |
 
 Para generar un secreto seguro:
 

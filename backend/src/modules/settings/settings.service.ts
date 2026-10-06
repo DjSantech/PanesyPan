@@ -6,6 +6,7 @@ import {
 import { trusted, Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
+import { closeAlertsConfigured } from '../cash/close-alert';
 import { isProviderAvailable } from '../einvoice/einvoice.config';
 import { SaleModel } from '../sales/sale.model';
 import { toAuditActor } from '../users/users.mapper';
@@ -31,10 +32,18 @@ const EDITABLE_FIELDS: readonly EditableField[] = [
   'einvoiceSendEmail',
   'einvoiceLegend',
   'defaultTax',
+  'closeAlert',
+  'closeAlertThreshold',
 ];
 
 function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
-  if (settings === null) return { ...DEFAULT_BUSINESS_SETTINGS, updatedAt: null };
+  if (settings === null) {
+    return {
+      ...DEFAULT_BUSINESS_SETTINGS,
+      closeAlertEmailReady: closeAlertsConfigured(),
+      updatedAt: null,
+    };
+  }
   return {
     legalName: settings.legalName,
     taxId: settings.taxId,
@@ -52,6 +61,9 @@ function toSettingsDto(settings: SettingsDocument | null): BusinessSettings {
     einvoiceSendEmail: settings.einvoiceSendEmail,
     einvoiceLegend: settings.einvoiceLegend,
     defaultTax: settings.defaultTax ?? null,
+    closeAlert: settings.closeAlert,
+    closeAlertThreshold: settings.closeAlertThreshold,
+    closeAlertEmailReady: closeAlertsConfigured(),
     updatedAt: settings.updatedAt.toISOString(),
   };
 }

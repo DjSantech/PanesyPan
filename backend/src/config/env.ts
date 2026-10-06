@@ -67,6 +67,10 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.preprocess(emptyToUndefined, z.string().optional()),
   CLOUDINARY_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   CLOUDINARY_API_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Aviso por correo al cerrar caja (Resend, plan gratis). Las tres van juntas. */
+  RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  ALERT_EMAIL_FROM: z.preprocess(emptyToUndefined, z.string().optional()),
+  ALERT_EMAIL_TO: z.preprocess(emptyToUndefined, z.string().optional()),
 
   // Render inyecta automáticamente el commit desplegado.
   RENDER_GIT_COMMIT: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -133,6 +137,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   ) {
     throw new EnvValidationError(
       'Para usar Cloudinary define CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET juntos',
+    );
+  }
+
+  const alertVars = [env.RESEND_API_KEY, env.ALERT_EMAIL_FROM, env.ALERT_EMAIL_TO];
+  if (
+    alertVars.some((value) => value !== undefined) &&
+    alertVars.some((value) => value === undefined)
+  ) {
+    throw new EnvValidationError(
+      'Para el aviso de cierre de caja define RESEND_API_KEY, ALERT_EMAIL_FROM y ALERT_EMAIL_TO juntos',
     );
   }
 

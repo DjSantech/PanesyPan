@@ -5,6 +5,15 @@ import { EINVOICE_PROVIDERS } from './einvoice';
 
 /** Ancho del papel de la impresora térmica en milímetros. */
 export const TICKET_WIDTHS = ['58', '80'] as const;
+
+/** Aviso por correo al dueño cuando se cierra una caja. */
+export const CLOSE_ALERT_MODES = ['OFF', 'SHORTAGE', 'ALWAYS'] as const;
+export type CloseAlertMode = (typeof CLOSE_ALERT_MODES)[number];
+export const CLOSE_ALERT_LABELS: Readonly<Record<CloseAlertMode, string>> = {
+  OFF: 'No avisar',
+  SHORTAGE: 'Solo si hay faltante mayor al tope',
+  ALWAYS: 'En cada cierre',
+};
 export type TicketWidth = (typeof TICKET_WIDTHS)[number];
 
 export const SETTINGS_LIMITS = { maxTables: 50, maxDiscountPercent: 100 } as const;
@@ -37,6 +46,11 @@ export const businessSettingsSchema = z.object({
   einvoiceLegend: z.string(),
   /** Impuesto de los productos que no tienen uno propio. */
   defaultTax: z.enum(TAX_CODES).nullable(),
+  closeAlert: z.enum(CLOSE_ALERT_MODES),
+  /** Faltante (en pesos) desde el que se avisa en el modo "solo si hay faltante". */
+  closeAlertThreshold: z.int(),
+  /** El servidor tiene configurado el correo de alertas (variables RESEND_* / ALERT_EMAIL_*). */
+  closeAlertEmailReady: z.boolean(),
   updatedAt: z.iso.datetime().nullable(),
 });
 export type BusinessSettings = z.infer<typeof businessSettingsSchema>;
@@ -59,6 +73,9 @@ export const DEFAULT_BUSINESS_SETTINGS: Omit<BusinessSettings, 'updatedAt'> = {
   einvoiceSendEmail: true,
   einvoiceLegend: '',
   defaultTax: null,
+  closeAlert: 'SHORTAGE',
+  closeAlertThreshold: 10_000,
+  closeAlertEmailReady: false,
 };
 
 export const businessSettingsResponseSchema = z.object({ settings: businessSettingsSchema });
@@ -106,6 +123,12 @@ export const updateBusinessSettingsRequestSchema = z
     einvoiceSendEmail: z.boolean().optional(),
     einvoiceLegend: text(400).optional(),
     defaultTax: z.enum(TAX_CODES).nullable().optional(),
+    closeAlert: z.enum(CLOSE_ALERT_MODES).optional(),
+    closeAlertThreshold: z
+      .int('Escribe un número entero de pesos')
+      .min(0, 'Mínimo $ 0')
+      .max(PRICE_LIMITS.max, 'El valor es demasiado alto')
+      .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No hay cambios para guardar' });
 export type UpdateBusinessSettingsRequest = z.infer<typeof updateBusinessSettingsRequestSchema>;
