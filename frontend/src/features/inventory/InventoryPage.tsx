@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BellRing,
   ClipboardList,
+  Coffee,
   EllipsisVertical,
   Flame,
   PackageOpen,
@@ -34,17 +35,19 @@ import {
   listInventory,
   listMovements,
   registerProduction,
+  registerSelfConsumption,
   registerWaste,
   setMinStock,
 } from './inventory.api';
 import { StockDialog, type StockDialogMode, type StockDialogValues } from './StockDialog';
 
-type Tab = 'stock' | 'production' | 'waste';
+type Tab = 'stock' | 'production' | 'waste' | 'self';
 
 const TABS: readonly { value: Tab; label: string }[] = [
   { value: 'stock', label: 'Stock' },
   { value: 'production', label: 'Producción de hoy' },
   { value: 'waste', label: 'Mermas de hoy' },
+  { value: 'self', label: 'Autoconsumo' },
 ];
 
 const timeFormat = new Intl.DateTimeFormat('es-CO', {
@@ -92,9 +95,11 @@ function StockRow({
           </span>
           hoy
         </p>
-      ) : tab === 'waste' ? (
+      ) : tab === 'waste' || tab === 'self' ? (
         <p className="text-right text-sm text-muted-foreground">
-          <span className="block text-2xl font-extrabold text-foreground">{item.wastedToday}</span>
+          <span className="block text-2xl font-extrabold text-foreground">
+            {tab === 'waste' ? item.wastedToday : item.consumedToday}
+          </span>
           hoy
         </p>
       ) : (
@@ -131,6 +136,18 @@ function StockRow({
           <Trash2 aria-hidden="true" /> Merma
         </Button>
       ) : null}
+      {tab === 'self' && canRecord ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={empty}
+          onClick={() => {
+            onAction('self');
+          }}
+        >
+          <Coffee aria-hidden="true" /> Autoconsumo
+        </Button>
+      ) : null}
       {tab === 'stock' && canManage ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -160,7 +177,13 @@ function StockRow({
   );
 }
 
-function MovementsCard({ type }: { type: 'PRODUCTION' | 'WASTE' }) {
+const MOVEMENTS_TITLE = {
+  PRODUCTION: 'Producción registrada hoy',
+  WASTE: 'Mermas registradas hoy',
+  SELF_CONSUMPTION: 'Autoconsumo registrado hoy',
+} as const;
+
+function MovementsCard({ type }: { type: keyof typeof MOVEMENTS_TITLE }) {
   const query = { type } as const;
   const movements = useQuery({
     queryKey: inventoryKeys.movements(query),
@@ -173,7 +196,7 @@ function MovementsCard({ type }: { type: 'PRODUCTION' | 'WASTE' }) {
         id={`movements-${type}`}
         className="mb-2 text-sm font-extrabold tracking-wide text-muted-foreground uppercase"
       >
-        {type === 'PRODUCTION' ? 'Producción registrada hoy' : 'Mermas registradas hoy'}
+        {MOVEMENTS_TITLE[type]}
       </h2>
       <Card>
         {movements.isPending ? (
@@ -244,6 +267,12 @@ export function InventoryPage() {
             productId,
             quantity: values.quantity,
             reason: values.reason,
+            note: values.note,
+          });
+        case 'self':
+          return registerSelfConsumption({
+            productId,
+            quantity: values.quantity,
             note: values.note,
           });
         case 'adjust':
@@ -393,6 +422,7 @@ export function InventoryPage() {
 
       {tab === 'production' ? <MovementsCard type="PRODUCTION" /> : null}
       {tab === 'waste' ? <MovementsCard type="WASTE" /> : null}
+      {tab === 'self' ? <MovementsCard type="SELF_CONSUMPTION" /> : null}
 
       {dialog === null ? null : (
         <StockDialog

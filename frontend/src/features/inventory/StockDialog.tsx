@@ -1,6 +1,7 @@
 import {
   adjustStockRequestSchema,
   registerProductionRequestSchema,
+  registerSelfConsumptionRequestSchema,
   registerWasteRequestSchema,
   setMinStockRequestSchema,
   WASTE_REASON_LABELS,
@@ -16,7 +17,7 @@ import { fieldAria } from '@/components/ui/field-aria';
 import { Field, Input, NativeSelect } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 
-export type StockDialogMode = 'production' | 'waste' | 'adjust' | 'min';
+export type StockDialogMode = 'production' | 'waste' | 'self' | 'adjust' | 'min';
 
 export interface StockDialogValues {
   quantity: number;
@@ -50,6 +51,15 @@ const COPY: Record<StockDialogMode, ModeCopy> = {
     submit: 'Registrar merma',
     hasNote: true,
     noteLabel: 'Nota (opcional)',
+  },
+  self: {
+    title: 'Registrar autoconsumo',
+    description:
+      'Lo que se come el personal o los dueños (no es merma ni venta). Baja el inventario y se valoriza al costo en los reportes.',
+    quantityLabel: 'Unidades consumidas',
+    submit: 'Registrar autoconsumo',
+    hasNote: true,
+    noteLabel: '¿Quién lo consumió?',
   },
   adjust: {
     title: 'Ajustar inventario',
@@ -112,9 +122,11 @@ export function StockDialog({
         ? registerProductionRequestSchema.safeParse({ productId, quantity: amount, note })
         : mode === 'waste'
           ? registerWasteRequestSchema.safeParse({ productId, quantity: amount, reason, note })
-          : mode === 'adjust'
-            ? adjustStockRequestSchema.safeParse({ productId, newQuantity: amount, note })
-            : setMinStockRequestSchema.safeParse({ minStock: amount });
+          : mode === 'self'
+            ? registerSelfConsumptionRequestSchema.safeParse({ productId, quantity: amount, note })
+            : mode === 'adjust'
+              ? adjustStockRequestSchema.safeParse({ productId, newQuantity: amount, note })
+              : setMinStockRequestSchema.safeParse({ minStock: amount });
 
     if (!parsed.success) {
       const next: Errors = {};

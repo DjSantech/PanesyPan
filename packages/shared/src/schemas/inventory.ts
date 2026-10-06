@@ -14,6 +14,7 @@ export const STOCK_MOVEMENT_TYPES = [
   'SALE',
   'SALE_VOID',
   'PURCHASE',
+  'SELF_CONSUMPTION',
 ] as const;
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];
 
@@ -24,6 +25,7 @@ export const STOCK_MOVEMENT_LABELS: Readonly<Record<StockMovementType, string>> 
   SALE: 'Venta',
   SALE_VOID: 'Venta anulada',
   PURCHASE: 'Compra a proveedor',
+  SELF_CONSUMPTION: 'Autoconsumo',
 };
 
 export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'BURNED', 'RETURNED', 'OTHER'] as const;
@@ -64,6 +66,8 @@ export const inventoryItemSchema = z.object({
   producedToday: z.int().nonnegative(),
   /** Mermas de hoy (unidades). */
   wastedToday: z.int().nonnegative(),
+  /** Autoconsumo de hoy (unidades que se comió el personal o los dueños). */
+  consumedToday: z.int().nonnegative(),
 });
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;
 
@@ -99,6 +103,17 @@ export const registerWasteRequestSchema = z.strictObject({
   note: noteSchema.default(''),
 });
 export type RegisterWasteRequest = z.input<typeof registerWasteRequestSchema>;
+
+/**
+ * Autoconsumo: lo que se come el personal o los dueños. No es merma (no se dañó) ni venta:
+ * baja el stock y se valoriza al costo en los reportes. La nota dice quién lo consumió.
+ */
+export const registerSelfConsumptionRequestSchema = z.strictObject({
+  productId: objectIdSchema,
+  quantity: unitsSchema,
+  note: noteSchema.min(3, 'Escribe quién lo consumió'),
+});
+export type RegisterSelfConsumptionRequest = z.input<typeof registerSelfConsumptionRequestSchema>;
 
 /** Deja el stock en una cantidad contada (conteo físico). La nota es obligatoria. */
 export const adjustStockRequestSchema = z.strictObject({

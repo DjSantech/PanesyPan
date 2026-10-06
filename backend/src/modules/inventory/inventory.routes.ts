@@ -4,6 +4,7 @@ import {
   listInventoryQuerySchema,
   listMovementsQuerySchema,
   registerProductionRequestSchema,
+  registerSelfConsumptionRequestSchema,
   registerWasteRequestSchema,
   setMinStockRequestSchema,
   type InventoryItem,
@@ -20,6 +21,7 @@ import {
   listInventory,
   listMovements,
   registerProduction,
+  registerSelfConsumption,
   registerWaste,
   setMinStock,
 } from './inventory.service';
@@ -87,6 +89,12 @@ export function createInventoryRouter(deps: InventoryRouterDeps): Router {
     res
       .status(201)
       .json({ item: itemForViewer(req, await registerWaste(input, actorContext(req))) });
+  });
+  router.post('/self-consumption', ...canRecord, async (req, res) => {
+    const input = parseBody(req, registerSelfConsumptionRequestSchema);
+    res
+      .status(201)
+      .json({ item: itemForViewer(req, await registerSelfConsumption(input, actorContext(req))) });
   });
   router.post('/adjustments', ...canManage, async (req, res) => {
     const input = parseBody(req, adjustStockRequestSchema);

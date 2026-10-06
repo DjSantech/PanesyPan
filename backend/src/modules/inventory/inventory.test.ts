@@ -339,3 +339,25 @@ describe('costo e inventario valorizado', () => {
     expect(await auditCount('PRODUCT_UPDATED')).toBe(1);
   });
 });
+
+describe('autoconsumo', () => {
+  it('baja el stock, exige quién lo consumió y no cuenta como merma', async () => {
+    await produce(cashier, products.bread, 10).expect(201);
+    const missing = await send(cashier, 'post', '/inventory/self-consumption', {
+      productId: products.bread,
+      quantity: 2,
+      note: '',
+    });
+    expect(missing.status).toBe(400);
+
+    const response = await send(cashier, 'post', '/inventory/self-consumption', {
+      productId: products.bread,
+      quantity: 2,
+      note: 'Desayuno del panadero',
+    });
+    expect(response.status).toBe(201);
+    expect(itemOf(response.body)).toMatchObject({ quantity: 8, consumedToday: 2, wastedToday: 0 });
+    expect(await StockMovementModel.countDocuments({ type: 'SELF_CONSUMPTION' })).toBe(1);
+    expect(await auditCount('STOCK_SELF_CONSUMPTION_LOGGED')).toBe(1);
+  });
+});

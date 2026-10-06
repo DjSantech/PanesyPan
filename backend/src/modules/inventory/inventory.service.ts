@@ -7,6 +7,7 @@ import {
   type ListInventoryResponse,
   type ListMovementsQuery,
   type RegisterProductionRequest,
+  type RegisterSelfConsumptionRequest,
   type RegisterWasteRequest,
   type SetMinStockRequest,
   type StockMovement,
@@ -64,7 +65,7 @@ async function buildItems(products: readonly ProductDocument[]): Promise<Invento
       {
         $match: {
           businessDate: toBusinessDate(),
-          type: { $in: ['PRODUCTION', 'WASTE'] },
+          type: { $in: ['PRODUCTION', 'WASTE', 'SELF_CONSUMPTION'] },
           productId: { $in: productIds },
         },
       },
@@ -96,6 +97,7 @@ async function buildItems(products: readonly ProductDocument[]): Promise<Invento
       isLow: isLowStock(quantity, minStock),
       producedToday: today.get(`${product.id}|PRODUCTION`) ?? 0,
       wastedToday: today.get(`${product.id}|WASTE`) ?? 0,
+      consumedToday: today.get(`${product.id}|SELF_CONSUMPTION`) ?? 0,
     };
   });
 }
@@ -223,15 +225,12 @@ export async function registerProduction(
   return itemFor(product);
 }
 
-export async function registerWaste(
-  input: RegisterWasteRequest,
-  ctx: ActorContext,
-): Promise<InventoryItem> {
-  const product = await findTrackedProduct(input.productId);
-  // La condición sobre la cantidad hace que dos mermas simultáneas nunca dejen el stock negativo.
+/** Saca unidades del stock sin dejarlo negativo; devuelve el stock que quedó. */
+async function takeUnits(product: ProductDocument, quantity: number): Promise<number> {
+  // La condición sobre la cantidad hace que dos salidas simultáneas nunca dejen el stock negativo.
   const item = await InventoryItemModel.findOneAndUpdate(
-    { productId: product._id, quantity: trusted({ $gte: input.quantity }) },
-    { $inc: { quantity: -input.quantity } },
+    { productId: product._id, quantity: trusted({ $gte: quantity }) },
+    { $inc: { quantity: -quantity } },
     { returnDocument: 'after' },
   );
   if (item === null) {
@@ -240,6 +239,42 @@ export async function registerWaste(
       `No hay suficiente stock de "${product.name}": quedan ${String(current?.quantity ?? 0)}.`,
     );
   }
+  return item.quantity;
+}
+
+export async function registerSelfConsumption(
+  input: RegisterSelfConsumptionRequest,
+  ctx: ActorContext,
+): Promise<InventoryItem> {
+  const product = await findTrackedProduct(input.productId);
+  const stock = await takeUnits(product, input.quantity);
+  await insertMovement({
+    product,
+    type: 'SELF_CONSUMPTION',
+    delta: -input.quantity,
+    quantityAfter: stock,
+    note: input.note,
+    by: byOf(ctx),
+  });
+  await recordAudit(
+    {
+      action: 'STOCK_SELF_CONSUMPTION_LOGGED',
+      actor: toAuditActor(ctx.actor),
+      entity: productEntity(product),
+      metadata: { quantity: input.quantity, stock, note: input.note },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  return itemFor(product);
+}
+
+export async function registerWaste(
+  input: RegisterWasteRequest,
+  ctx: ActorContext,
+): Promise<InventoryItem> {
+  const product = await findTrackedProduct(input.productId);
+  const item = { quantity: await takeUnits(product, input.quantity) };
   await insertMovement({
     product,
     type: 'WASTE',

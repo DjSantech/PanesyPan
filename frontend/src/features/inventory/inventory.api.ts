@@ -7,6 +7,7 @@ import {
   type ListInventoryResponse,
   type ListMovementsQuery,
   type RegisterProductionRequest,
+  type RegisterSelfConsumptionRequest,
   type RegisterWasteRequest,
   type SetMinStockRequest,
   type StockMovement,
@@ -61,6 +62,8 @@ async function post(path: string, body: object): Promise<InventoryItem> {
 
 export const registerProduction = (input: RegisterProductionRequest) => post('/production', input);
 export const registerWaste = (input: RegisterWasteRequest) => post('/waste', input);
+export const registerSelfConsumption = (input: RegisterSelfConsumptionRequest) =>
+  post('/self-consumption', input);
 export const adjustStock = (input: AdjustStockRequest) => post('/adjustments', input);
 
 export async function setMinStock(
