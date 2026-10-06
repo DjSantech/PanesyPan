@@ -1,4 +1,5 @@
 import {
+  CASH_MOVEMENT_LABELS,
   cashDifference,
   countDenominations,
   expectedCashOf,
@@ -23,6 +24,7 @@ import { SaleModel } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
+import { findActiveConcept, findActiveStaffMember } from './cash-config.service';
 import { CashMovementModel, type CashMovementDocument } from './cash-movement.model';
 import { CashShiftModel, type CashShiftDocument } from './cash-shift.model';
 
@@ -107,9 +109,11 @@ export async function summarizeShift(
   }
   let expensesTotal = 0;
   let withdrawalsTotal = 0;
+  let incomesTotal = 0;
   for (const movement of movements) {
     if (movement.type === 'EXPENSE') expensesTotal += movement.amount;
-    else withdrawalsTotal += movement.amount;
+    else if (movement.type === 'WITHDRAWAL') withdrawalsTotal += movement.amount;
+    else incomesTotal += movement.amount;
   }
   return {
     salesCount: paid.length,
@@ -122,11 +126,13 @@ export async function summarizeShift(
     }),
     expensesTotal,
     withdrawalsTotal,
+    incomesTotal,
     expectedCash: expectedCashOf({
       openingAmount: shift.openingAmount,
       cashSales: byMethod.get('CASH')?.amount ?? 0,
       expenses: expensesTotal,
       withdrawals: withdrawalsTotal,
+      incomes: incomesTotal,
     }),
   };
 }
@@ -205,13 +211,17 @@ export async function openShift(
   return toCashShiftDto(shift);
 }
 
-// ── Egresos y retiros ──────────────────────────────────────────────
+// ── Egresos, retiros e ingresos ────────────────────────────────────
 
-function toMovementDto(movement: CashMovementDocument): CashMovement {
+export function toMovementDto(movement: CashMovementDocument): CashMovement {
   return {
     id: movement.id,
     type: movement.type,
     amount: movement.amount,
+    conceptId: movement.concept?.id.toString() ?? null,
+    conceptName: movement.concept?.name ?? null,
+    staffId: movement.staff?.id.toString() ?? null,
+    staffName: movement.staff?.name ?? null,
     reason: movement.reason,
     createdBy: movement.createdBy.name,
     approvedBy: movement.approvedBy?.name ?? null,
@@ -227,17 +237,38 @@ export async function listMovements(userId: string): Promise<CashMovement[]> {
 }
 
 /**
- * Registra un egreso o un retiro en la caja abierta de quien opera.
+ * Registra un egreso, un retiro o un ingreso en la caja abierta de quien opera.
  * - Los retiros siempre necesitan a un administrador (él mismo o su PIN en la tablet).
  * - Los egresos hasta el tope de Ajustes los hace la cajera sola; por encima, con el PIN.
+ * - Los ingresos (base adicional, cambio, reintegro) no necesitan autorización.
  * - Nunca sale más efectivo del que hay en el cajón según el sistema.
+ * - El tipo de movimiento tiene que ser de la misma clase (egreso, retiro o ingreso); los de
+ *   nómina exigen la persona del personal.
  */
 export async function createMovement(
   input: CreateCashMovementRequest,
   ctx: PosContext,
 ): Promise<CashMovement> {
+  const reason = input.reason?.trim() ?? '';
+  const concept = input.conceptId === undefined ? null : await findActiveConcept(input.conceptId);
+  if (concept !== null && concept.type !== input.type) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `"${concept.name}" no es un tipo de ${CASH_MOVEMENT_LABELS[input.type].toLowerCase()}.`,
+    );
+  }
+  if (concept === null && reason.length < 3) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Escribe el motivo (mínimo 3 caracteres)');
+  }
+  if (concept?.requiresStaff === true && input.staffId === undefined) {
+    throw new AppError(400, 'VALIDATION_ERROR', `Elige a quién se le paga (${concept.name}).`);
+  }
+  const staff = input.staffId === undefined ? null : await findActiveStaffMember(input.staffId);
+
   const { maxCashierExpense } = await getSettings();
-  const needsApproval = input.type === 'WITHDRAWAL' || input.amount > maxCashierExpense;
+  const needsApproval =
+    input.type === 'WITHDRAWAL' || (input.type === 'EXPENSE' && input.amount > maxCashierExpense);
   const approver = needsApproval
     ? await resolveApproval(
         ctx,
@@ -249,7 +280,7 @@ export async function createMovement(
   const movement = await mongoose.connection.transaction(async (session) => {
     const shift = await requireOpenShift(ctx.actor.id, session);
     const { expectedCash } = await summarizeShift(shift, session);
-    if (input.amount > expectedCash) {
+    if (input.type !== 'INCOME' && input.amount > expectedCash) {
       throw conflict(
         `En la caja solo hay ${formatCOP(expectedCash)} en efectivo: no se puede sacar ${formatCOP(input.amount)}.`,
       );
@@ -260,7 +291,9 @@ export async function createMovement(
           shiftId: shift._id,
           type: input.type,
           amount: input.amount,
-          reason: input.reason,
+          concept: concept === null ? null : { id: concept._id, name: concept.name },
+          staff: staff === null ? null : { id: staff._id, name: staff.name },
+          reason,
           createdBy: { id: ctx.actor._id, name: ctx.actor.name },
           approvedBy: approver,
         },
@@ -279,6 +312,8 @@ export async function createMovement(
       metadata: {
         type: movement.type,
         amount: movement.amount,
+        concept: movement.concept?.name ?? null,
+        staff: movement.staff?.name ?? null,
         note: movement.reason,
         approvedBy: approver?.name ?? null,
       },

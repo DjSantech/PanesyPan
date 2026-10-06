@@ -42,6 +42,10 @@ export const AUDIT_ACTIONS = [
   'WEB_ORDER_STATUS_CHANGED',
   'WEB_ORDER_CHARGED',
   'WEB_ORDER_CANCELED',
+  'CASH_CONCEPT_CREATED',
+  'CASH_CONCEPT_UPDATED',
+  'STAFF_CREATED',
+  'STAFF_UPDATED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -78,7 +82,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   SETTINGS_UPDATED: 'Configuración modificada',
   REPORT_EXPORTED: 'Reporte exportado',
   CASH_SHIFT_OPENED: 'Apertura de caja',
-  CASH_MOVEMENT_CREATED: 'Egreso o retiro de caja',
+  CASH_MOVEMENT_CREATED: 'Egreso, retiro o ingreso de caja',
   CASH_SHIFT_CLOSED: 'Cierre de caja con arqueo',
   SALE_DISCOUNT_APPROVED: 'Descuento autorizado',
   SALE_VOIDED: 'Venta anulada',
@@ -89,6 +93,10 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   WEB_ORDER_STATUS_CHANGED: 'Cambio de estado de pedido web',
   WEB_ORDER_CHARGED: 'Pedido web cobrado',
   WEB_ORDER_CANCELED: 'Pedido web cancelado',
+  CASH_CONCEPT_CREATED: 'Tipo de movimiento de caja creado',
+  CASH_CONCEPT_UPDATED: 'Tipo de movimiento de caja modificado',
+  STAFF_CREATED: 'Persona del personal agregada',
+  STAFF_UPDATED: 'Persona del personal modificada',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

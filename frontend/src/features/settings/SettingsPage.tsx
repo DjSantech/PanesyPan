@@ -28,6 +28,7 @@ import {
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { EInvoiceSettingsCard } from '../einvoice/EInvoiceSettingsCard';
+import { CashConceptsCard, StaffCard } from './CashConfigCards';
 import { Receipt } from '../pos/Receipt';
 import { SETTINGS_QUERY_KEY, updateSettings, useSettings } from './settings.api';
 
@@ -328,6 +329,8 @@ export function SettingsPage() {
             key={`einvoice-${settings.data.updatedAt ?? 'nuevo'}`}
             settings={settings.data}
           />
+          <CashConceptsCard />
+          <StaffCard />
         </div>
       )}
     </div>

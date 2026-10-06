@@ -12,13 +12,17 @@ import { businessDateSchema } from './common';
 export const CASH_SHIFT_STATUSES = ['OPEN', 'CLOSED'] as const;
 export type CashShiftStatus = (typeof CASH_SHIFT_STATUSES)[number];
 
-/** Egreso: gasto menor pagado con la caja. Retiro: efectivo que se saca para guardarlo. */
-export const CASH_MOVEMENT_TYPES = ['EXPENSE', 'WITHDRAWAL'] as const;
+/**
+ * Egreso: gasto pagado con la caja. Retiro: efectivo que se saca para guardarlo o para el dueño.
+ * Ingreso: efectivo que entra sin ser una venta (base adicional, cambio, reintegro).
+ */
+export const CASH_MOVEMENT_TYPES = ['EXPENSE', 'WITHDRAWAL', 'INCOME'] as const;
 export type CashMovementType = (typeof CASH_MOVEMENT_TYPES)[number];
 
 export const CASH_MOVEMENT_LABELS: Readonly<Record<CashMovementType, string>> = {
   EXPENSE: 'Egreso',
   WITHDRAWAL: 'Retiro',
+  INCOME: 'Ingreso',
 };
 
 export const cashShiftSummarySchema = z.object({
@@ -29,7 +33,8 @@ export const cashShiftSummarySchema = z.object({
   byMethod: z.array(z.object({ method: z.enum(PAYMENT_METHODS), amount: z.int(), count: z.int() })),
   expensesTotal: z.int(),
   withdrawalsTotal: z.int(),
-  /** Base + ventas en efectivo − egresos − retiros. */
+  incomesTotal: z.int(),
+  /** Base + ventas en efectivo + ingresos − egresos − retiros. */
   expectedCash: z.int(),
 });
 export type CashShiftSummary = z.infer<typeof cashShiftSummarySchema>;
@@ -76,12 +81,94 @@ export const openCashShiftRequestSchema = z.strictObject({
 });
 export type OpenCashShiftRequest = z.input<typeof openCashShiftRequestSchema>;
 
-// ── Egresos y retiros ──────────────────────────────────────────────
+// ── Tipos de movimiento y personal ─────────────────────────────────
+
+/**
+ * Tipo de movimiento de caja (Nómina, Compra de insumos, Arriendo…). Lo administra el dueño en
+ * Ajustes y sirve para saber en qué se va la plata. Los de nómina piden la persona del personal.
+ */
+export const cashConceptSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(CASH_MOVEMENT_TYPES),
+  requiresStaff: z.boolean(),
+  isActive: z.boolean(),
+  sortOrder: z.int(),
+});
+export type CashConcept = z.infer<typeof cashConceptSchema>;
+
+const conceptNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Mínimo 2 caracteres')
+  .max(60, 'Máximo 60 caracteres');
+
+export const createCashConceptRequestSchema = z.strictObject({
+  name: conceptNameSchema,
+  type: z.enum(CASH_MOVEMENT_TYPES),
+  requiresStaff: z.boolean().default(false),
+});
+export type CreateCashConceptRequest = z.input<typeof createCashConceptRequestSchema>;
+
+export const updateCashConceptRequestSchema = z
+  .strictObject({
+    name: conceptNameSchema.optional(),
+    requiresStaff: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, 'No hay cambios');
+export type UpdateCashConceptRequest = z.infer<typeof updateCashConceptRequestSchema>;
+
+export const listCashConceptsResponseSchema = z.object({ items: z.array(cashConceptSchema) });
+export const cashConceptResponseSchema = z.object({ concept: cashConceptSchema });
+
+/** Persona del personal (panadero, auxiliar…): no necesita usuario para entrar al sistema. */
+export const staffMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  position: z.string(),
+  isActive: z.boolean(),
+});
+export type StaffMember = z.infer<typeof staffMemberSchema>;
+
+const staffNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Mínimo 2 caracteres')
+  .max(80, 'Máximo 80 caracteres');
+const staffPositionSchema = z.string().trim().max(60, 'Máximo 60 caracteres');
+
+export const createStaffMemberRequestSchema = z.strictObject({
+  name: staffNameSchema,
+  position: staffPositionSchema.default(''),
+});
+export type CreateStaffMemberRequest = z.input<typeof createStaffMemberRequestSchema>;
+
+export const updateStaffMemberRequestSchema = z
+  .strictObject({
+    name: staffNameSchema.optional(),
+    position: staffPositionSchema.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, 'No hay cambios');
+export type UpdateStaffMemberRequest = z.infer<typeof updateStaffMemberRequestSchema>;
+
+export const listStaffResponseSchema = z.object({ items: z.array(staffMemberSchema) });
+export const staffMemberResponseSchema = z.object({ member: staffMemberSchema });
+
+// ── Egresos, retiros e ingresos ────────────────────────────────────
 
 export const cashMovementSchema = z.object({
   id: z.string(),
   type: z.enum(CASH_MOVEMENT_TYPES),
   amount: z.int(),
+  /** Tipo de movimiento elegido (null en los registrados antes de que existieran los tipos). */
+  conceptId: z.string().nullable(),
+  conceptName: z.string().nullable(),
+  /** Persona del personal a la que se le pagó (nómina). */
+  staffId: z.string().nullable(),
+  staffName: z.string().nullable(),
+  /** Detalle escrito por quien lo registró (puede ir vacío si eligió un tipo). */
   reason: z.string(),
   createdBy: z.string(),
   /** Administrador que lo autorizó (si hizo falta o si lo hizo él mismo). */
@@ -90,24 +177,40 @@ export const cashMovementSchema = z.object({
 });
 export type CashMovement = z.infer<typeof cashMovementSchema>;
 
+/** Cómo se muestra un movimiento: "Nómina · Pedro (día)", o solo el motivo si no tiene tipo. */
+export function cashMovementLabel(
+  movement: Pick<CashMovement, 'conceptName' | 'staffName' | 'reason'>,
+): string {
+  const head = [movement.conceptName, movement.staffName].filter(Boolean).join(' · ');
+  if (head === '') return movement.reason;
+  return movement.reason === '' ? head : `${head} (${movement.reason})`;
+}
+
 export const listCashMovementsResponseSchema = z.object({ items: z.array(cashMovementSchema) });
 export const cashMovementResponseSchema = z.object({ movement: cashMovementSchema });
 
-export const createCashMovementRequestSchema = z.strictObject({
-  type: z.enum(CASH_MOVEMENT_TYPES),
-  amount: z
-    .int('El monto debe ser un número entero de pesos')
-    .min(1, 'El monto debe ser mayor a cero')
-    .max(PRICE_LIMITS.max, 'El monto es demasiado alto'),
-  reason: z
-    .string()
-    .trim()
-    .min(3, 'Escribe el motivo (mínimo 3 caracteres)')
-    .max(200, 'Máximo 200 caracteres'),
-  /** PIN de un administrador: obligatorio en los retiros y en los egresos sobre el tope. */
-  approverPin: z.string().optional(),
-});
-export type CreateCashMovementRequest = z.infer<typeof createCashMovementRequestSchema>;
+const objectIdSchema = z.string().regex(/^[a-f0-9]{24}$/i, 'Identificador inválido');
+
+export const createCashMovementRequestSchema = z
+  .strictObject({
+    type: z.enum(CASH_MOVEMENT_TYPES),
+    amount: z
+      .int('El monto debe ser un número entero de pesos')
+      .min(1, 'El monto debe ser mayor a cero')
+      .max(PRICE_LIMITS.max, 'El monto es demasiado alto'),
+    /** Tipo de movimiento (Nómina, Arriendo…). Sin tipo, el motivo es obligatorio. */
+    conceptId: objectIdSchema.optional(),
+    /** Persona del personal: obligatoria si el tipo es de nómina. */
+    staffId: objectIdSchema.optional(),
+    reason: z.string().trim().max(200, 'Máximo 200 caracteres').default(''),
+    /** PIN de un administrador: obligatorio en los retiros y en los egresos sobre el tope. */
+    approverPin: z.string().optional(),
+  })
+  .refine((value) => value.conceptId !== undefined || value.reason.length >= 3, {
+    path: ['reason'],
+    message: 'Escribe el motivo (mínimo 3 caracteres)',
+  });
+export type CreateCashMovementRequest = z.input<typeof createCashMovementRequestSchema>;
 
 // ── Cierre con arqueo ──────────────────────────────────────────────
 

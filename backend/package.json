@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "images:to-cloudinary": "tsx --env-file-if-exists=.env scripts/migrate-images-cloudinary.ts"
+    "images:to-cloudinary": "tsx --env-file-if-exists=.env scripts/migrate-images-cloudinary.ts",
+    "cash:concepts": "tsx --env-file-if-exists=.env scripts/migrate-cash-concepts.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",

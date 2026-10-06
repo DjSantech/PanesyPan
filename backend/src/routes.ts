@@ -4,6 +4,7 @@ import { createAuditRouter } from './modules/audit/audit.routes';
 import type { AuthConfig } from './modules/auth/auth.config';
 import type { AuthGuards } from './modules/auth/auth.middleware';
 import { createAuthRouter } from './modules/auth/auth.routes';
+import { createCashConfigRouter } from './modules/cash/cash-config.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
 import { createPublicRouter } from './modules/catalog/public.routes';
@@ -54,6 +55,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   router.use('/audit-logs', createAuditRouter(guards));
   router.use(createCatalogRouter(withLogger({ config: authConfig, guards })));
   router.use('/settings', createSettingsRouter(withLogger({ config: authConfig, guards })));
+  router.use(createCashConfigRouter(withLogger({ config: authConfig, guards })));
   router.use(
     '/cash-shifts',
     createCashRouter(withLogger({ config: authConfig, guards, approvalLimiter })),

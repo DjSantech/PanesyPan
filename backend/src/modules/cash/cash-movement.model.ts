@@ -6,6 +6,10 @@ export interface CashMovementAttrs {
   shiftId: Types.ObjectId;
   type: CashMovementType;
   amount: number;
+  /** Tipo de movimiento (copia del nombre para los reportes aunque luego lo renombren). */
+  concept: { id: Types.ObjectId; name: string } | null;
+  /** Persona del personal a la que se le pagó (nómina). */
+  staff: { id: Types.ObjectId; name: string } | null;
   reason: string;
   createdBy: PersonRef;
   approvedBy: PersonRef | null;
@@ -21,6 +25,15 @@ const personSchema = new Schema<PersonRef>(
   { _id: false },
 );
 
+const refSchema = (ref: string) =>
+  new Schema<{ id: Types.ObjectId; name: string }>(
+    {
+      id: { type: Schema.Types.ObjectId, ref, required: true },
+      name: { type: String, required: true },
+    },
+    { _id: false },
+  );
+
 const cashMovementSchema = new Schema<CashMovementAttrs>(
   {
     shiftId: { type: Schema.Types.ObjectId, ref: 'CashShift', required: true },
@@ -31,7 +44,9 @@ const cashMovementSchema = new Schema<CashMovementAttrs>(
       min: 1,
       validate: { validator: Number.isSafeInteger, message: 'Los montos son enteros en pesos' },
     },
-    reason: { type: String, required: true },
+    concept: { type: refSchema('CashConcept'), default: null },
+    staff: { type: refSchema('StaffMember'), default: null },
+    reason: { type: String, default: '' },
     createdBy: { type: personSchema, required: true },
     approvedBy: { type: personSchema, default: null },
   },
@@ -39,6 +54,7 @@ const cashMovementSchema = new Schema<CashMovementAttrs>(
 );
 
 cashMovementSchema.index({ shiftId: 1, createdAt: 1 });
+cashMovementSchema.index({ createdAt: 1 });
 
 export const CashMovementModel = model<CashMovementAttrs>('CashMovement', cashMovementSchema);
 export type CashMovementDocument = HydratedDocument<CashMovementAttrs>;

@@ -21,16 +21,23 @@ export function countDenominations(counts: readonly DenominationCount[]): Money 
 }
 
 /**
- * Efectivo que debe haber en el cajón: la base más el efectivo cobrado, menos lo que salió
- * como egreso o retiro.
+ * Efectivo que debe haber en el cajón: la base más el efectivo cobrado y los ingresos, menos
+ * lo que salió como egreso o retiro.
  */
 export function expectedCashOf(parts: {
   openingAmount: Money;
   cashSales: Money;
   expenses: Money;
   withdrawals: Money;
+  incomes?: Money;
 }): Money {
-  return parts.openingAmount + parts.cashSales - parts.expenses - parts.withdrawals;
+  return (
+    parts.openingAmount +
+    parts.cashSales +
+    (parts.incomes ?? 0) -
+    parts.expenses -
+    parts.withdrawals
+  );
 }
 
 /** Diferencia del arqueo: positiva = sobrante, negativa = faltante. */

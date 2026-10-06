@@ -2,6 +2,7 @@ import {
   CASH_MOVEMENT_LABELS,
   CASH_MOVEMENT_TYPES,
   cashDifference,
+  cashMovementLabel,
   countDenominations,
   createCashMovementRequestSchema,
   DENOMINATIONS,
@@ -20,10 +21,11 @@ import { Spinner } from '@/components/feedback';
 import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
-import { Field, Input } from '@/components/ui/form';
+import { Field, Input, NativeSelect } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
+import { useCashConcepts, useStaff } from '../settings/cash-config.api';
 import { ApprovalDialog } from './ApprovalDialog';
 import { closeShift, createMovement, listMovements, posKeys } from './pos.api';
 import { useApprovedAction } from './use-approved-action';
@@ -58,6 +60,7 @@ export function CashPanelDialog({
   const rows = [
     ['Base inicial', shift.openingAmount],
     ['Ventas en efectivo', summary.byMethod.find((m) => m.method === 'CASH')?.amount ?? 0],
+    ['Ingresos', summary.incomesTotal],
     ['Egresos', -summary.expensesTotal],
     ['Retiros', -summary.withdrawalsTotal],
   ] as const;
@@ -79,7 +82,7 @@ export function CashPanelDialog({
         </dl>
 
         <div className="mt-4 grid gap-2">
-          <p className="text-sm font-bold">Egresos y retiros del turno</p>
+          <p className="text-sm font-bold">Movimientos del turno</p>
           {movements.isPending ? (
             <Spinner label="Cargando…" />
           ) : movements.isError ? (
@@ -97,7 +100,7 @@ export function CashPanelDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onRegister}>
-            Registrar egreso o retiro
+            Egreso, retiro o ingreso
           </Button>
           <Button onClick={onClose}>
             <Lock aria-hidden="true" /> Cerrar caja
@@ -113,19 +116,31 @@ function MovementRow({ movement }: { movement: CashMovement }) {
     <li className="flex items-start justify-between gap-3 rounded-xl bg-muted px-3 py-2 text-sm">
       <div className="min-w-0">
         <p className="font-bold">
-          {CASH_MOVEMENT_LABELS[movement.type]} · {movement.reason}
+          {CASH_MOVEMENT_LABELS[movement.type]} · {cashMovementLabel(movement)}
         </p>
         <p className="text-xs text-muted-foreground">
           {formatTimeCO(new Date(movement.createdAt))} · {movement.createdBy}
           {movement.approvedBy === null ? '' : ` · autorizó ${movement.approvedBy}`}
         </p>
       </div>
-      <p className="font-extrabold tabular-nums">−{formatCOP(movement.amount)}</p>
+      <p className="font-extrabold tabular-nums">
+        {movement.type === 'INCOME' ? '+' : '−'}
+        {formatCOP(movement.amount)}
+      </p>
     </li>
   );
 }
 
-// ── Egreso o retiro ────────────────────────────────────────────────
+// ── Egreso, retiro o ingreso ───────────────────────────────────────
+
+const MOVEMENT_HELP: Readonly<Record<CashMovementType, string>> = {
+  EXPENSE:
+    'Gasto pagado con la caja (nómina, insumos, gas…). Sobre el tope de Ajustes pide la autorización de un administrador.',
+  WITHDRAWAL:
+    'Efectivo que se saca para guardarlo o para el dueño. Siempre lo autoriza un administrador.',
+  INCOME:
+    'Efectivo que entra sin ser una venta (base adicional, cambio, reintegro). Sube el efectivo esperado.',
+};
 
 export function MovementDialog({ open, onOpenChange }: DialogProps) {
   return (
@@ -135,13 +150,28 @@ export function MovementDialog({ open, onOpenChange }: DialogProps) {
   );
 }
 
+interface MovementErrors {
+  amount?: string;
+  reason?: string;
+  concept?: string;
+  staff?: string;
+}
+
 function MovementForm({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
+  const concepts = useCashConcepts();
+  const staff = useStaff();
   const [type, setType] = useState<CashMovementType>('EXPENSE');
+  const [conceptId, setConceptId] = useState<string | null>(null);
+  const [staffId, setStaffId] = useState('');
   const [amount, setAmount] = useState<number | null>(null);
   const [reason, setReason] = useState('');
-  const [errors, setErrors] = useState<{ amount?: string; reason?: string }>({});
+  const [errors, setErrors] = useState<MovementErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
+
+  const options = (concepts.data ?? []).filter((concept) => concept.type === type);
+  const concept = options.find((option) => option.id === conceptId) ?? null;
+  const needsStaff = concept?.requiresStaff === true;
 
   const action = useApprovedAction<CashMovement>({
     run: (pin) =>
@@ -149,6 +179,8 @@ function MovementForm({ onDone }: { onDone: () => void }) {
         type,
         amount: amount ?? 0,
         reason: reason.trim(),
+        ...(concept === null ? {} : { conceptId: concept.id }),
+        ...(needsStaff && staffId !== '' ? { staffId } : {}),
         ...(pin === undefined ? {} : { approverPin: pin }),
       }),
     onSuccess: (movement) => {
@@ -164,36 +196,38 @@ function MovementForm({ onDone }: { onDone: () => void }) {
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFailure(null);
+    const next: MovementErrors = {};
+    if (options.length > 0 && concept === null) next.concept = 'Elige el tipo';
+    if (needsStaff && staffId === '') next.staff = 'Elige a quién se le paga';
     const parsed = createCashMovementRequestSchema.safeParse({
       type,
       amount: amount ?? 0,
       reason,
+      ...(concept === null ? {} : { conceptId: concept.id }),
     });
     if (!parsed.success) {
-      const next: { amount?: string; reason?: string } = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0];
         if ((key === 'amount' || key === 'reason') && next[key] === undefined) {
           next[key] = issue.message;
         }
       }
-      setErrors(next);
-      return;
     }
-    setErrors({});
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
     action.execute();
   };
 
   return (
     <DialogContent
-      title="Egreso o retiro"
-      description="El dinero sale de la caja y baja el efectivo esperado al cierre."
+      title="Egreso, retiro o ingreso"
+      description="Queda en el turno y cambia el efectivo esperado al cierre."
     >
       <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
         <div
-          className="grid grid-cols-2 rounded-xl bg-muted p-1"
+          className="grid grid-cols-3 rounded-xl bg-muted p-1"
           role="radiogroup"
-          aria-label="Tipo de movimiento"
+          aria-label="Clase de movimiento"
         >
           {CASH_MOVEMENT_TYPES.map((value) => (
             <button
@@ -203,6 +237,8 @@ function MovementForm({ onDone }: { onDone: () => void }) {
               aria-checked={type === value}
               onClick={() => {
                 setType(value);
+                setConceptId(null);
+                setErrors({});
               }}
               className={cn(
                 'h-11 rounded-lg text-sm font-bold focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
@@ -213,27 +249,84 @@ function MovementForm({ onDone }: { onDone: () => void }) {
             </button>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">
-          {type === 'EXPENSE'
-            ? 'Gasto menor pagado con la caja (hielo, gas, un domicilio…). Sobre el tope de Ajustes pide la autorización de un administrador.'
-            : 'Efectivo que se saca para guardarlo. Siempre lo autoriza un administrador.'}
-        </p>
+        <p className="text-sm text-muted-foreground">{MOVEMENT_HELP[type]}</p>
+
+        {concepts.isPending ? (
+          <Spinner label="Cargando tipos…" />
+        ) : options.length === 0 ? null : (
+          <fieldset className="grid gap-1.5">
+            <legend className="mb-1.5 text-sm font-bold">Tipo</legend>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={conceptId === option.id}
+                  onClick={() => {
+                    setConceptId(option.id);
+                    setErrors((current) => ({ ...current, concept: undefined }));
+                  }}
+                  className={cn(
+                    'min-h-12 rounded-xl border px-2 py-1.5 text-sm leading-tight font-bold focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                    conceptId === option.id
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-card',
+                  )}
+                >
+                  {option.name}
+                </button>
+              ))}
+            </div>
+            {errors.concept === undefined ? null : (
+              <p className="text-sm font-bold text-danger">{errors.concept}</p>
+            )}
+          </fieldset>
+        )}
+
+        {needsStaff ? (
+          <Field id="movement-staff" label="¿A quién se le paga?" error={errors.staff}>
+            <NativeSelect
+              id="movement-staff"
+              value={staffId}
+              onChange={(event) => {
+                setStaffId(event.target.value);
+              }}
+              aria-invalid={errors.staff === undefined ? undefined : true}
+            >
+              <option value="">Elige una persona</option>
+              {(staff.data ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.position === '' ? member.name : `${member.name} · ${member.position}`}
+                </option>
+              ))}
+            </NativeSelect>
+            {staff.data?.length === 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                No hay personal registrado: el administrador lo agrega en Ajustes.
+              </p>
+            ) : null}
+          </Field>
+        ) : null}
+
         <Field id="movement-amount" label="Monto" error={errors.amount}>
           <PriceInput
             id="movement-amount"
-            autoFocus
             className="h-14 text-2xl"
             value={amount}
             onValueChange={setAmount}
             aria-invalid={errors.amount === undefined ? undefined : true}
           />
         </Field>
-        <Field id="movement-reason" label="Motivo" error={errors.reason}>
+        <Field
+          id="movement-reason"
+          label={concept === null ? 'Motivo' : 'Detalle (opcional)'}
+          error={errors.reason}
+        >
           <Input
             id="movement-reason"
             maxLength={200}
             placeholder={
-              type === 'EXPENSE' ? 'Ej.: bolsa de hielo' : 'Ej.: guardar en la caja fuerte'
+              needsStaff ? 'Ej.: día, adelanto, quincena' : 'Ej.: carne para el almuerzo'
             }
             value={reason}
             onChange={(event) => {

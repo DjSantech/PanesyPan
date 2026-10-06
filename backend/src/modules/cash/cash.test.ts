@@ -4,8 +4,11 @@ import {
   cashMovementResponseSchema,
   cashShiftResponseSchema,
   currentCashShiftResponseSchema,
+  cashMovementLabel,
+  listCashConceptsResponseSchema,
   listCashMovementsResponseSchema,
   slugify,
+  staffMemberResponseSchema,
   type AuditAction,
 } from '@panesypan/shared';
 import request from 'supertest';
@@ -308,5 +311,80 @@ describe('cierre de caja con arqueo', () => {
 
   it('exige sesión', async () => {
     await request(app).post('/api/v1/cash-shifts/current/close').send({ counts: [] }).expect(401);
+  });
+});
+
+describe('tipos de movimiento, personal e ingresos', () => {
+  const conceptsOf = async (who: LoggedIn, all = false) =>
+    listCashConceptsResponseSchema.parse(
+      (await who.agent.get(`/api/v1/cash-concepts${all ? '?all=true' : ''}`)).body,
+    ).items;
+  const conceptNamed = async (name: string) => {
+    const concept = (await conceptsOf(admin)).find((item) => item.name === name);
+    if (concept === undefined) throw new Error(`Falta el tipo ${name}`);
+    return concept;
+  };
+
+  it('arranca con los tipos de la panadería y la cajera solo ve los activos', async () => {
+    const concepts = await conceptsOf(cashier);
+    expect(concepts.map((concept) => concept.name)).toContain('Nómina / pago a trabajador');
+    expect(concepts.some((concept) => concept.type === 'INCOME')).toBe(true);
+
+    const ice = await conceptNamed('Hielo');
+    await send(admin, 'patch', `/cash-concepts/${ice.id}`, { isActive: false }).expect(200);
+    expect((await conceptsOf(cashier)).some((concept) => concept.id === ice.id)).toBe(false);
+    expect((await conceptsOf(admin, true)).some((concept) => concept.id === ice.id)).toBe(true);
+    expect(await auditCount('CASH_CONCEPT_UPDATED')).toBe(1);
+  });
+
+  it('solo el administrador crea tipos y no deja repetir el nombre', async () => {
+    await send(cashier, 'post', '/cash-concepts', { name: 'Propinas', type: 'INCOME' }).expect(403);
+    await send(admin, 'post', '/cash-concepts', { name: 'Propinas', type: 'INCOME' }).expect(201);
+    const again = await send(admin, 'post', '/cash-concepts', { name: 'propinas', type: 'INCOME' });
+    expect(again.status).toBe(409);
+  });
+
+  it('la nómina exige a la persona del personal y queda con su nombre', async () => {
+    const payroll = await conceptNamed('Nómina / pago a trabajador');
+    const member = staffMemberResponseSchema.parse(
+      (await send(admin, 'post', '/staff', { name: 'Pedro Panadero', position: 'Panadero' })).body,
+    ).member;
+    await openShift(cashier).expect(201);
+
+    const missing = await move(cashier, { type: 'EXPENSE', amount: 40_000, conceptId: payroll.id });
+    expect(missing.status).toBe(400);
+
+    const paid = await move(cashier, {
+      type: 'EXPENSE',
+      amount: 40_000,
+      conceptId: payroll.id,
+      staffId: member.id,
+      reason: 'Día',
+    });
+    expect(paid.status).toBe(201);
+    const movement = cashMovementResponseSchema.parse(paid.body).movement;
+    expect(movement).toMatchObject({
+      conceptName: 'Nómina / pago a trabajador',
+      staffName: 'Pedro Panadero',
+      reason: 'Día',
+    });
+    expect(cashMovementLabel(movement)).toBe('Nómina / pago a trabajador · Pedro Panadero (Día)');
+  });
+
+  it('no deja usar un tipo de otra clase', async () => {
+    const rent = await conceptNamed('Arriendo');
+    await openShift(cashier).expect(201);
+    const response = await move(cashier, { type: 'INCOME', amount: 5_000, conceptId: rent.id });
+    expect(response.status).toBe(400);
+  });
+
+  it('el ingreso sube el efectivo esperado sin pedir autorización', async () => {
+    const extra = await conceptNamed('Base adicional');
+    await openShift(cashier, 50_000).expect(201);
+    await move(cashier, { type: 'INCOME', amount: 200_000, conceptId: extra.id }).expect(201);
+    expect((await currentOf(cashier))?.summary).toMatchObject({
+      incomesTotal: 200_000,
+      expectedCash: 250_000,
+    });
   });
 });
