@@ -49,6 +49,8 @@ export interface ProductAttrs {
   price: number;
   /** Costo unitario (null sin registrar). */
   cost: number | null;
+  /** Proveedor principal (pedido sugerido). */
+  supplierId: Types.ObjectId | null;
   /** false = agotado por hoy (lo puede marcar la cajera). */
   isAvailable: boolean;
   isFavorite: boolean;
@@ -94,6 +96,7 @@ const productSchema = new Schema<ProductAttrs>(
         message: 'El costo debe ser entero',
       },
     },
+    supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier', default: null },
     isAvailable: { type: Boolean, default: true },
     isFavorite: { type: Boolean, default: false },
     trackStock: { type: Boolean, default: false },

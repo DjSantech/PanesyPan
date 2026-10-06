@@ -9,6 +9,7 @@ import { hashSecret } from '../src/lib/password';
 import { AuditLogModel } from '../src/modules/audit/audit-log.model';
 import { SessionModel } from '../src/modules/auth/session.model';
 import { CashConceptModel, StaffMemberModel } from '../src/modules/cash/cash-config.models';
+import { PurchaseModel, SupplierModel } from '../src/modules/purchases/purchases.models';
 import { CashMovementModel } from '../src/modules/cash/cash-movement.model';
 import { CashShiftModel } from '../src/modules/cash/cash-shift.model';
 import {
@@ -109,6 +110,8 @@ export async function resetDatabase(): Promise<void> {
     CashMovementModel.deleteMany({}),
     CashConceptModel.deleteMany({}),
     StaffMemberModel.deleteMany({}),
+    SupplierModel.deleteMany({}),
+    PurchaseModel.deleteMany({}),
     SaleModel.deleteMany({}),
     SequenceModel.deleteMany({}),
     InventoryItemModel.deleteMany({}),
@@ -130,6 +133,8 @@ export async function initModels(): Promise<void> {
     CashMovementModel.init(),
     CashConceptModel.init(),
     StaffMemberModel.init(),
+    SupplierModel.init(),
+    PurchaseModel.init(),
     SaleModel.init(),
     SequenceModel.init(),
     InventoryItemModel.init(),

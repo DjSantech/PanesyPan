@@ -46,6 +46,9 @@ export const AUDIT_ACTIONS = [
   'CASH_CONCEPT_UPDATED',
   'STAFF_CREATED',
   'STAFF_UPDATED',
+  'SUPPLIER_CREATED',
+  'SUPPLIER_UPDATED',
+  'PURCHASE_CREATED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -97,6 +100,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   CASH_CONCEPT_UPDATED: 'Tipo de movimiento de caja modificado',
   STAFF_CREATED: 'Persona del personal agregada',
   STAFF_UPDATED: 'Persona del personal modificada',
+  SUPPLIER_CREATED: 'Proveedor creado',
+  SUPPLIER_UPDATED: 'Proveedor modificado',
+  PURCHASE_CREATED: 'Compra a proveedor registrada',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

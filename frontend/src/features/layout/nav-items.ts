@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   ShoppingBasket,
   Soup,
+  Truck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -68,6 +69,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Boxes,
     permission: 'inventory:read',
     mobile: 'if-room',
+  },
+  {
+    to: '/compras',
+    label: 'Compras',
+    icon: Truck,
+    permission: 'purchases:record',
+    mobile: false,
   },
   {
     to: '/menu-del-dia',

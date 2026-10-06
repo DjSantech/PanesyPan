@@ -25,6 +25,7 @@ import {
   type ProductAttrs,
   type ProductDocument,
 } from './catalog.models';
+import { SupplierModel } from '../purchases/purchases.models';
 import { cloudinaryCredentials, PRODUCT_IMAGES_FOLDER } from './image-storage';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
@@ -110,6 +111,7 @@ export function toProductDto(product: ProductDocument): Product {
     categoryId: product.categoryId.toString(),
     price: product.price,
     cost: product.cost ?? null,
+    supplierId: product.supplierId?.toString() ?? null,
     isAvailable: product.isAvailable,
     isFavorite: product.isFavorite,
     trackStock: product.trackStock,
@@ -263,6 +265,14 @@ export async function listProducts(query: ListProductsQuery): Promise<Product[]>
   return products.map(toProductDto);
 }
 
+/** Valida el proveedor principal elegido (activo) y lo devuelve como referencia. */
+async function supplierRefOf(supplierId: string | null): Promise<Types.ObjectId | null> {
+  if (supplierId === null) return null;
+  const supplier = await SupplierModel.findById(supplierId);
+  if (supplier === null || !supplier.isActive) throw notFound('Proveedor');
+  return supplier._id;
+}
+
 export async function getProduct(id: string): Promise<Product> {
   return toProductDto(await findProductOrThrow(id));
 }
@@ -284,6 +294,7 @@ export async function createProduct(
       categoryId: category._id,
       price: input.price,
       cost: input.cost ?? null,
+      supplierId: await supplierRefOf(input.supplierId ?? null),
       isAvailable: input.isAvailable ?? true,
       isFavorite: input.isFavorite ?? false,
       trackStock: input.trackStock ?? category.kind !== 'LUNCH',
@@ -326,6 +337,13 @@ export async function updateProduct(
   }
   if (input.price !== undefined && input.price !== product.price) {
     product.price = input.price;
+  }
+  if (
+    input.supplierId !== undefined &&
+    input.supplierId !== (product.supplierId?.toString() ?? null)
+  ) {
+    changes.supplier = { from: product.supplierId?.toString() ?? null, to: input.supplierId };
+    product.supplierId = await supplierRefOf(input.supplierId);
   }
   if (input.cost !== undefined && input.cost !== (product.cost ?? null)) {
     changes.cost = { from: product.cost ?? null, to: input.cost };

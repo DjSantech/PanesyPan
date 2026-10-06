@@ -24,6 +24,7 @@ import { Alert } from '@/components/ui/surface';
 import { CheckboxField } from '@/components/ui/toggles';
 import { resizeImage } from '@/lib/image-resize';
 import { inventoryKeys, listInventory } from '../inventory/inventory.api';
+import { useSuppliers } from '../purchases/purchases.api';
 import { productImageUrl } from './catalog.api';
 
 type Errors = Partial<
@@ -100,6 +101,8 @@ export function ProductFormDialog({
   const stockValue = stockText ?? (currentStock === undefined ? '' : String(currentStock));
   const [isVisibleOnline, setIsVisibleOnline] = useState(product?.isVisibleOnline ?? true);
   const [tax, setTax] = useState<TaxCode | null>(product?.tax ?? null);
+  const [supplierId, setSupplierId] = useState(product?.supplierId ?? '');
+  const suppliers = useSuppliers(false, open);
   const [imageChange, setImageChange] = useState<ImageChange>({ kind: 'keep' });
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -143,6 +146,7 @@ export function ProductFormDialog({
       trackStock,
       isVisibleOnline,
       tax,
+      supplierId: supplierId === '' ? null : supplierId,
       initialStock: !editing && trackStock && stockInput !== '' ? Number(stockInput) : null,
     });
     if (!parsed.success) {
@@ -182,6 +186,7 @@ export function ProductFormDialog({
       changes.isVisibleOnline = data.isVisibleOnline;
     }
     if (data.tax !== product.tax) changes.tax = data.tax;
+    if (data.supplierId !== product.supplierId) changes.supplierId = data.supplierId;
     if (trackStock && stockInput !== '' && Number(stockInput) !== currentStock) {
       changes.stock = Number(stockInput);
     }
@@ -334,6 +339,27 @@ export function ProductFormDialog({
                 setDescription(event.target.value);
               }}
             />
+          </Field>
+
+          <Field
+            id="product-supplier"
+            label="Proveedor principal (opcional)"
+            hint="Para el pedido sugerido: cuando llegue al stock mínimo aparece en la lista de este proveedor."
+          >
+            <NativeSelect
+              {...fieldAria('product-supplier', null, true)}
+              value={supplierId}
+              onChange={(event) => {
+                setSupplierId(event.target.value);
+              }}
+            >
+              <option value="">Sin proveedor (lo hace la panadería)</option>
+              {(suppliers.data ?? []).map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </NativeSelect>
           </Field>
 
           <Field

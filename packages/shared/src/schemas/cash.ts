@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { isDenomination } from '../cash/cash-math';
 import { PAYMENT_METHODS } from '../constants/payment-methods';
 import { PRICE_LIMITS } from '../money/money';
-import { businessDateSchema } from './common';
+import { businessDateSchema, objectIdSchema } from './common';
 
 /**
  * Turno de caja: la cajera lo abre con una base en efectivo y todas sus ventas quedan
@@ -188,8 +188,6 @@ export function cashMovementLabel(
 
 export const listCashMovementsResponseSchema = z.object({ items: z.array(cashMovementSchema) });
 export const cashMovementResponseSchema = z.object({ movement: cashMovementSchema });
-
-const objectIdSchema = z.string().regex(/^[a-f0-9]{24}$/i, 'Identificador inválido');
 
 export const createCashMovementRequestSchema = z
   .strictObject({

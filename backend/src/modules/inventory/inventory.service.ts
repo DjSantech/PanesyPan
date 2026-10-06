@@ -410,3 +410,35 @@ export async function applySaleStock(
     );
   }
 }
+
+/**
+ * Suma al stock lo que llegó en una compra a proveedor (solo productos que controlan
+ * inventario). Corre dentro de la transacción de la compra.
+ */
+export async function applyPurchaseStock(
+  lines: readonly StockLine[],
+  by: { id: Types.ObjectId; name: string },
+  note: string,
+  session: ClientSession,
+): Promise<void> {
+  const ids = lines.map((line) => line.productId);
+  if (ids.length === 0) return;
+  const tracked = await ProductModel.find({
+    _id: trusted({ $in: ids }),
+    trackStock: true,
+  }).session(session);
+  for (const product of tracked) {
+    const quantity = lines
+      .filter((line) => line.productId.equals(product._id))
+      .reduce((sum, line) => sum + line.quantity, 0);
+    const item = await InventoryItemModel.findOneAndUpdate(
+      { productId: product._id },
+      { $inc: { quantity } },
+      { upsert: true, returnDocument: 'after', session },
+    );
+    await insertMovement(
+      { product, type: 'PURCHASE', delta: quantity, quantityAfter: item.quantity, note, by },
+      session,
+    );
+  }
+}

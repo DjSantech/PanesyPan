@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   'einvoice:manage',
   'web-orders:read',
   'web-orders:manage',
+  'purchases:record',
+  'suppliers:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -41,6 +43,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>>
     // Los pedidos de la web los atiende quien esté en caja.
     'web-orders:read',
     'web-orders:manage',
+    // Recibe los pedidos de los proveedores y los paga con la caja.
+    'purchases:record',
   ],
 };
 

@@ -10,6 +10,7 @@ import {
   Settings,
   ShoppingBasket,
   Soup,
+  Truck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -50,6 +51,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     title: 'Inventario',
     description: 'Stock, producción diaria de pan, mermas y alertas de bajo stock.',
     icon: Boxes,
+  },
+  {
+    to: '/compras',
+    title: 'Compras y proveedores',
+    description: 'Lo que llega de los proveedores, su costo y el pedido sugerido.',
+    icon: Truck,
   },
   {
     to: '/menu-del-dia',

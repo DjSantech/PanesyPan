@@ -13,6 +13,7 @@ export const STOCK_MOVEMENT_TYPES = [
   'ADJUSTMENT',
   'SALE',
   'SALE_VOID',
+  'PURCHASE',
 ] as const;
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];
 
@@ -22,6 +23,7 @@ export const STOCK_MOVEMENT_LABELS: Readonly<Record<StockMovementType, string>> 
   ADJUSTMENT: 'Ajuste',
   SALE: 'Venta',
   SALE_VOID: 'Venta anulada',
+  PURCHASE: 'Compra a proveedor',
 };
 
 export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'BURNED', 'RETURNED', 'OTHER'] as const;

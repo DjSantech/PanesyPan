@@ -100,6 +100,8 @@ export const productSchema = z.object({
   price: z.int(),
   /** Costo unitario; null si no se ha registrado o si quien consulta no puede verlo (cajera). */
   cost: z.int().nullable(),
+  /** Proveedor principal (para el pedido sugerido). */
+  supplierId: z.string().nullable(),
   isAvailable: z.boolean(),
   isFavorite: z.boolean(),
   trackStock: z.boolean(),
@@ -131,6 +133,7 @@ export const createProductRequestSchema = z.strictObject({
   categoryId: objectIdSchema,
   price: priceSchema,
   cost: costSchema.nullable().default(null),
+  supplierId: objectIdSchema.nullable().default(null),
   isAvailable: z.boolean().default(true),
   isFavorite: z.boolean().default(false),
   /** Sin indicar: todo controla inventario menos los almuerzos (porciones del menú del día). */
@@ -149,6 +152,7 @@ export const updateProductRequestSchema = z
     categoryId: objectIdSchema.optional(),
     price: priceSchema.optional(),
     cost: costSchema.nullable().optional(),
+    supplierId: objectIdSchema.nullable().optional(),
     isFavorite: z.boolean().optional(),
     trackStock: z.boolean().optional(),
     tax: z.enum(TAX_CODES).nullable().optional(),

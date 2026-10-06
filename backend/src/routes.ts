@@ -8,6 +8,7 @@ import { createCashConfigRouter } from './modules/cash/cash-config.routes';
 import { createCashRouter } from './modules/cash/cash.routes';
 import { createCatalogRouter } from './modules/catalog/catalog.routes';
 import { createPublicRouter } from './modules/catalog/public.routes';
+import { createPurchasesRouter } from './modules/purchases/purchases.routes';
 import { createPublicWebRouter } from './modules/public-web/public-web.routes';
 import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
@@ -60,6 +61,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
     '/cash-shifts',
     createCashRouter(withLogger({ config: authConfig, guards, approvalLimiter })),
   );
+  router.use(createPurchasesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
   router.use('/inventory', createInventoryRouter(withLogger({ config: authConfig, guards })));
   router.use('/reports', createReportsRouter(withLogger({ config: authConfig, guards })));
   router.use('/einvoices', createEInvoiceRouter(withLogger({ config: authConfig, guards })));
