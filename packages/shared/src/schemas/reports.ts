@@ -183,6 +183,8 @@ export const businessReportSchema = z.object({
   incomesTotal: z.int(),
   byDay: z.array(z.object({ date: businessDateSchema, total: z.int(), count: z.int() })),
   byCategory: z.array(z.object({ name: z.string(), quantity: z.int(), total: z.int() })),
+  /** Solo los productos que tienen subcategoría: "Bebidas › Gaseosas". */
+  bySubcategory: z.array(z.object({ name: z.string(), quantity: z.int(), total: z.int() })),
   byProduct: z.array(
     z.object({
       productId: z.string(),

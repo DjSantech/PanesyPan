@@ -92,11 +92,19 @@ export function marginPercent(price: number, cost: number | null): number | null
   return Math.round(((price - cost) / price) * 100);
 }
 
+export const SUBCATEGORY_MAX = 40;
+export const subcategorySchema = z
+  .string()
+  .trim()
+  .max(SUBCATEGORY_MAX, `Máximo ${String(SUBCATEGORY_MAX)} caracteres`);
+
 export const productSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
   categoryId: z.string(),
+  /** Subcategoría dentro de la categoría (ej.: Bebidas › Gaseosas); '' = sin subcategoría. */
+  subcategory: z.string(),
   price: z.int(),
   /** Costo unitario; null si no se ha registrado o si quien consulta no puede verlo (cajera). */
   cost: z.int().nullable(),
@@ -131,6 +139,7 @@ export const productResponseSchema = z.object({ product: productSchema });
 export const createProductRequestSchema = z.strictObject({
   name: catalogNameSchema,
   categoryId: objectIdSchema,
+  subcategory: subcategorySchema.default(''),
   price: priceSchema,
   cost: costSchema.nullable().default(null),
   supplierId: objectIdSchema.nullable().default(null),
@@ -150,6 +159,7 @@ export const updateProductRequestSchema = z
   .strictObject({
     name: catalogNameSchema.optional(),
     categoryId: objectIdSchema.optional(),
+    subcategory: subcategorySchema.optional(),
     price: priceSchema.optional(),
     cost: costSchema.nullable().optional(),
     supplierId: objectIdSchema.nullable().optional(),

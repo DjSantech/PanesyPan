@@ -41,7 +41,7 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
       businessDate: range,
       type: trusted({ $in: ['WASTE', 'SELF_CONSUMPTION'] }),
     }).lean(),
-    ProductModel.find().select('name categoryId cost').lean(),
+    ProductModel.find().select('name categoryId cost subcategory').lean(),
     CategoryModel.find().select('name').lean(),
     listInventory({}),
   ]);
@@ -100,7 +100,17 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
     })
     .sort((a, b) => b.total - a.total);
   const byCategory = new Map<string, { quantity: number; total: number }>();
+  const bySubcategory = new Map<string, { quantity: number; total: number }>();
   for (const row of productRows) {
+    const subcategory = productById.get(row.productId)?.subcategory ?? '';
+    if (subcategory !== '') {
+      const key = `${row.categoryName} › ${subcategory}`;
+      const current = bySubcategory.get(key) ?? { quantity: 0, total: 0 };
+      bySubcategory.set(key, {
+        quantity: current.quantity + row.quantity,
+        total: current.total + row.total,
+      });
+    }
     const name = row.categoryName === '' ? 'Sin categoría' : row.categoryName;
     const current = byCategory.get(name) ?? { quantity: 0, total: 0 };
     byCategory.set(name, {
@@ -182,6 +192,9 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
       .map(([date, row]) => ({ date, ...row }))
       .sort((a, b) => a.date.localeCompare(b.date)),
     byCategory: [...byCategory.entries()]
+      .map(([name, row]) => ({ name, ...row }))
+      .sort((a, b) => b.total - a.total),
+    bySubcategory: [...bySubcategory.entries()]
       .map(([name, row]) => ({ name, ...row }))
       .sort((a, b) => b.total - a.total),
     byProduct: productRows,

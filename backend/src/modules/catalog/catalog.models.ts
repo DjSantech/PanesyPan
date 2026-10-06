@@ -49,6 +49,8 @@ export interface ProductAttrs {
   price: number;
   /** Costo unitario (null sin registrar). */
   cost: number | null;
+  /** Subcategoría dentro de la categoría ('' = ninguna). */
+  subcategory: string;
   /** Proveedor principal (pedido sugerido). */
   supplierId: Types.ObjectId | null;
   /** false = agotado por hoy (lo puede marcar la cajera). */
@@ -97,6 +99,7 @@ const productSchema = new Schema<ProductAttrs>(
       },
     },
     supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier', default: null },
+    subcategory: { type: String, default: '', trim: true, maxlength: 40 },
     isAvailable: { type: Boolean, default: true },
     isFavorite: { type: Boolean, default: false },
     trackStock: { type: Boolean, default: false },

@@ -109,6 +109,7 @@ export function toProductDto(product: ProductDocument): Product {
     name: product.name,
     slug: product.slug,
     categoryId: product.categoryId.toString(),
+    subcategory: product.subcategory,
     price: product.price,
     cost: product.cost ?? null,
     supplierId: product.supplierId?.toString() ?? null,
@@ -292,6 +293,7 @@ export async function createProduct(
       name: input.name,
       slug,
       categoryId: category._id,
+      subcategory: input.subcategory ?? '',
       price: input.price,
       cost: input.cost ?? null,
       supplierId: await supplierRefOf(input.supplierId ?? null),
@@ -337,6 +339,10 @@ export async function updateProduct(
   }
   if (input.price !== undefined && input.price !== product.price) {
     product.price = input.price;
+  }
+  if (input.subcategory !== undefined && input.subcategory !== product.subcategory) {
+    changes.subcategory = { from: product.subcategory, to: input.subcategory };
+    product.subcategory = input.subcategory;
   }
   if (
     input.supplierId !== undefined &&

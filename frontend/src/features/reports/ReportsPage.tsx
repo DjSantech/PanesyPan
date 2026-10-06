@@ -239,6 +239,18 @@ function ReportBody({
             formatCOP(row.total),
           ])}
         />
+        {report.bySubcategory.length === 0 ? null : (
+          <TableCard
+            title="Ventas por subcategoría"
+            empty="Sin ventas."
+            head={['Subcategoría', 'Unidades', 'Total']}
+            rows={report.bySubcategory.map((row) => [
+              row.name,
+              String(row.quantity),
+              formatCOP(row.total),
+            ])}
+          />
+        )}
         <TableCard
           title="Ventas por producto"
           empty="Sin ventas."

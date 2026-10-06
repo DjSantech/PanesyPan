@@ -72,6 +72,9 @@ function ProductRow({
           <span className={cn('font-extrabold', !product.isAvailable && 'text-muted-foreground')}>
             {product.name}
           </span>
+          {product.subcategory === '' ? null : (
+            <span className="text-sm text-muted-foreground">› {product.subcategory}</span>
+          )}
           {product.isFavorite ? (
             <Star className="size-4 fill-accent text-accent" aria-label="Favorito" />
           ) : null}

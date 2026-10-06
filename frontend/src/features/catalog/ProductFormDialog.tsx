@@ -2,6 +2,7 @@ import {
   createProductRequestSchema,
   marginPercent,
   PRICE_LIMITS,
+  SUBCATEGORY_MAX,
   PRODUCT_DESCRIPTION_MAX,
   TAX_CODE_LABELS,
   TAX_CODES,
@@ -25,7 +26,7 @@ import { CheckboxField } from '@/components/ui/toggles';
 import { resizeImage } from '@/lib/image-resize';
 import { inventoryKeys, listInventory } from '../inventory/inventory.api';
 import { useSuppliers } from '../purchases/purchases.api';
-import { productImageUrl } from './catalog.api';
+import { catalogKeys, listProducts, productImageUrl } from './catalog.api';
 
 type Errors = Partial<
   Record<'name' | 'categoryId' | 'price' | 'cost' | 'description' | 'initialStock', string>
@@ -78,6 +79,12 @@ export function ProductFormDialog({
   );
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
   const [cost, setCost] = useState<number | null>(product?.cost ?? null);
+  const [subcategory, setSubcategory] = useState(product?.subcategory ?? '');
+  const allProducts = useQuery({
+    queryKey: catalogKeys.products({ status: 'all' }),
+    queryFn: ({ signal }) => listProducts({ status: 'all' }, signal),
+    enabled: open,
+  });
   const margin = price === null ? null : marginPercent(price, cost);
   const [description, setDescription] = useState(product?.description ?? '');
   const [isFavorite, setIsFavorite] = useState(product?.isFavorite ?? false);
@@ -117,6 +124,13 @@ export function ProductFormDialog({
         : productImageUrl(product?.imagePath ?? null);
 
   const selectedCategory = categories.find((category) => category.id === categoryId);
+  const knownSubcategories = [
+    ...new Set(
+      (allProducts.data ?? [])
+        .filter((item) => item.categoryId === categoryId && item.subcategory !== '')
+        .map((item) => item.subcategory),
+    ),
+  ].sort((a, b) => a.localeCompare(b, 'es'));
   const isLunch = selectedCategory?.kind === 'LUNCH';
 
   const pickImage = async (file: File | undefined) => {
@@ -139,6 +153,7 @@ export function ProductFormDialog({
     const parsed = createProductRequestSchema.safeParse({
       name,
       categoryId,
+      subcategory,
       price: price ?? Number.NaN,
       cost,
       description,
@@ -177,6 +192,7 @@ export function ProductFormDialog({
     const changes: UpdateProductRequest = {};
     if (data.name !== product.name) changes.name = data.name;
     if (data.categoryId !== product.categoryId) changes.categoryId = data.categoryId;
+    if (data.subcategory !== product.subcategory) changes.subcategory = data.subcategory;
     if (data.price !== product.price) changes.price = data.price;
     if (data.cost !== product.cost) changes.cost = data.cost;
     if (data.description !== product.description) changes.description = data.description;
@@ -339,6 +355,28 @@ export function ProductFormDialog({
                 setDescription(event.target.value);
               }}
             />
+          </Field>
+
+          <Field
+            id="product-subcategory"
+            label="Subcategoría (opcional)"
+            hint="Para ordenar los reportes (ej.: Bebidas › Gaseosas). En el punto de venta se siguen viendo solo las categorías."
+          >
+            <Input
+              {...fieldAria('product-subcategory', null, true)}
+              list="product-subcategories"
+              maxLength={SUBCATEGORY_MAX}
+              autoComplete="off"
+              value={subcategory}
+              onChange={(event) => {
+                setSubcategory(event.target.value);
+              }}
+            />
+            <datalist id="product-subcategories">
+              {knownSubcategories.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </Field>
 
           <Field
