@@ -12,6 +12,7 @@ import {
   Soup,
   Truck,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense } from 'react';
@@ -51,6 +52,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     title: 'Inventario',
     description: 'Stock, producción diaria de pan, mermas y alertas de bajo stock.',
     icon: Boxes,
+  },
+  {
+    to: '/cajas',
+    title: 'Cajas',
+    description: 'Historial de turnos, resumen de cada cierre y confirmación.',
+    icon: Wallet,
   },
   {
     to: '/compras',

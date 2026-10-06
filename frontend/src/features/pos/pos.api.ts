@@ -23,6 +23,7 @@ export const posKeys = {
   all: ['pos'] as const,
   shift: ['pos', 'shift'] as const,
   movements: ['pos', 'shift', 'movements'] as const,
+  suggestedOpening: ['pos', 'suggested-opening'] as const,
   tabs: ['pos', 'tabs'] as const,
   sales: (query: Partial<ListSalesQuery>) => ['pos', 'sales', query] as const,
   sale: (id: string) => ['pos', 'sale', id] as const,
@@ -35,6 +36,16 @@ export async function getCurrentShift(signal?: AbortSignal): Promise<CashShift |
     signal,
   });
   return shift;
+}
+
+/** Base que dejó el último cierre en el cajón (null si no se indicó). */
+export async function getSuggestedOpening(signal?: AbortSignal): Promise<number | null> {
+  const { suggestedOpeningAmount } = await apiJson(
+    '/api/v1/cash-shifts/current',
+    currentCashShiftResponseSchema,
+    { signal },
+  );
+  return suggestedOpeningAmount;
 }
 
 export async function openShift(input: OpenCashShiftRequest): Promise<CashShift> {

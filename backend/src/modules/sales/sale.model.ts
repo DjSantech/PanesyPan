@@ -271,11 +271,11 @@ const sequenceSchema = new Schema<SequenceAttrs>(
 export const SequenceModel = model<SequenceAttrs>('Sequence', sequenceSchema);
 
 /** Siguiente número de una secuencia (dentro de la transacción: si se aborta, no se pierde). */
-export async function nextSequence(name: string, session: ClientSession): Promise<number> {
+export async function nextSequence(name: string, session?: ClientSession): Promise<number> {
   const sequence = await SequenceModel.findOneAndUpdate(
     { _id: name },
     { $inc: { value: 1 } },
-    { upsert: true, returnDocument: 'after', session },
+    { upsert: true, returnDocument: 'after', session: session ?? null },
   );
   return sequence.value;
 }

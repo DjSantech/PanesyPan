@@ -51,11 +51,15 @@ export const cashShiftClosingSchema = z.object({
   difference: z.int(),
   counts: z.array(denominationCountSchema),
   note: z.string(),
+  /** Efectivo que se dejó en el cajón como base del siguiente turno (null si no se indicó). */
+  leftForNext: z.int().nullable(),
 });
 export type CashShiftClosing = z.infer<typeof cashShiftClosingSchema>;
 
 export const cashShiftSchema = z.object({
   id: z.string(),
+  /** Consecutivo de la caja (null en las abiertas antes de que existiera). */
+  number: z.int().nullable(),
   status: z.enum(CASH_SHIFT_STATUSES),
   userId: z.string(),
   userName: z.string(),
@@ -66,11 +70,55 @@ export const cashShiftSchema = z.object({
   closedAt: z.iso.datetime().nullable(),
   summary: cashShiftSummarySchema,
   closing: cashShiftClosingSchema.nullable(),
+  /** El administrador revisó el cierre y lo dio por bueno (queda en la auditoría). */
+  confirmedAt: z.iso.datetime().nullable(),
+  confirmedBy: z.string().nullable(),
+  confirmNote: z.string(),
 });
 export type CashShift = z.infer<typeof cashShiftSchema>;
 
-export const currentCashShiftResponseSchema = z.object({ shift: cashShiftSchema.nullable() });
+export const currentCashShiftResponseSchema = z.object({
+  shift: cashShiftSchema.nullable(),
+  /** Base que dejó el último cierre en el cajón: se propone al abrir. */
+  suggestedOpeningAmount: z.int().nullable(),
+});
 export const cashShiftResponseSchema = z.object({ shift: cashShiftSchema });
+
+// ── Historial de cajas (administrador) ─────────────────────────────
+
+export const listCashShiftsQuerySchema = z
+  .strictObject({
+    from: businessDateSchema,
+    to: businessDateSchema,
+    userId: objectIdSchema.optional(),
+  })
+  .refine((value) => value.from <= value.to, {
+    message: 'La fecha inicial no puede ser posterior a la final',
+    path: ['from'],
+  });
+export type ListCashShiftsQuery = z.infer<typeof listCashShiftsQuerySchema>;
+
+export const listCashShiftsResponseSchema = z.object({ items: z.array(cashShiftSchema) });
+
+/** Resumen detallado de una caja: los movimientos y los totales por tipo. */
+export const cashShiftDetailSchema = z.object({
+  shift: cashShiftSchema,
+  movements: z.array(z.lazy(() => cashMovementSchema)),
+  byConcept: z.array(
+    z.object({
+      type: z.enum(CASH_MOVEMENT_TYPES),
+      name: z.string(),
+      amount: z.int(),
+      count: z.int(),
+    }),
+  ),
+});
+export type CashShiftDetail = z.infer<typeof cashShiftDetailSchema>;
+
+export const confirmCashShiftRequestSchema = z.strictObject({
+  note: z.string().trim().max(300, 'Máximo 300 caracteres').default(''),
+});
+export type ConfirmCashShiftRequest = z.input<typeof confirmCashShiftRequestSchema>;
 
 export const openCashShiftRequestSchema = z.strictObject({
   openingAmount: z
@@ -227,5 +275,11 @@ export const closeCashShiftRequestSchema = z.strictObject({
     }),
   /** Obligatoria cuando hay sobrante o faltante. */
   note: z.string().trim().max(300, 'Máximo 300 caracteres').default(''),
+  /** Efectivo que queda en el cajón como base del siguiente turno (no puede pasar de lo contado). */
+  leftForNext: z
+    .int('La base debe ser un número entero de pesos')
+    .min(0, 'La base no puede ser negativa')
+    .max(PRICE_LIMITS.max)
+    .optional(),
 });
 export type CloseCashShiftRequest = z.input<typeof closeCashShiftRequestSchema>;

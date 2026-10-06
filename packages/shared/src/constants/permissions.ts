@@ -24,6 +24,7 @@ export const PERMISSIONS = [
   'web-orders:manage',
   'purchases:record',
   'suppliers:manage',
+  'cash:review',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -49,6 +49,7 @@ export const AUDIT_ACTIONS = [
   'SUPPLIER_CREATED',
   'SUPPLIER_UPDATED',
   'PURCHASE_CREATED',
+  'CASH_SHIFT_CONFIRMED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -103,6 +104,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   SUPPLIER_CREATED: 'Proveedor creado',
   SUPPLIER_UPDATED: 'Proveedor modificado',
   PURCHASE_CREATED: 'Compra a proveedor registrada',
+  CASH_SHIFT_CONFIRMED: 'Cierre de caja confirmado por el administrador',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

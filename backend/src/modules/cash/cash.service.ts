@@ -10,23 +10,26 @@ import {
   type CashMovement,
   type CashShift,
   type CashShiftSummary,
+  type CashShiftDetail,
   type CloseCashShiftRequest,
+  type ConfirmCashShiftRequest,
+  type ListCashShiftsQuery,
   type CreateCashMovementRequest,
   type DenominationCount,
   type OpenCashShiftRequest,
   type PaymentMethod,
 } from '@panesypan/shared';
-import mongoose, { mongo, Types, type ClientSession } from 'mongoose';
+import mongoose, { mongo, trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
-import { SaleModel } from '../sales/sale.model';
+import { nextSequence, SaleModel } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import { findActiveConcept, findActiveStaffMember } from './cash-config.service';
 import { CashMovementModel, type CashMovementDocument } from './cash-movement.model';
-import { CashShiftModel, type CashShiftDocument } from './cash-shift.model';
+import { CashShiftModel, type CashShiftAttrs, type CashShiftDocument } from './cash-shift.model';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
 
@@ -143,6 +146,7 @@ export async function toCashShiftDto(
 ): Promise<CashShift> {
   return {
     id: shift.id,
+    number: shift.number ?? null,
     status: shift.status,
     userId: shift.userId.toString(),
     userName: shift.userName,
@@ -164,13 +168,23 @@ export async function toCashShiftDto(
               quantity,
             })),
             note: shift.closing.note,
+            leftForNext: shift.closing.leftForNext ?? null,
           },
+    confirmedAt: shift.confirmedAt?.toISOString() ?? null,
+    confirmedBy: shift.confirmedBy?.name ?? null,
+    confirmNote: shift.confirmNote ?? '',
   };
 }
 
 export async function getCurrentShift(userId: string): Promise<CashShift | null> {
   const shift = await findOpenShift(userId);
   return shift === null ? null : toCashShiftDto(shift);
+}
+
+/** Base que dejó en el cajón el último cierre (se propone al abrir la siguiente caja). */
+export async function suggestedOpeningAmount(): Promise<number | null> {
+  const last = await CashShiftModel.findOne({ status: 'CLOSED' }).sort({ closedAt: -1 });
+  return last?.closing?.leftForNext ?? null;
 }
 
 export async function openShift(
@@ -184,6 +198,7 @@ export async function openShift(
   let shift: CashShiftDocument;
   try {
     shift = await CashShiftModel.create({
+      number: await nextSequence('cash-shift'),
       userId: ctx.actor._id,
       userName: ctx.actor.name,
       status: 'OPEN',
@@ -343,6 +358,14 @@ export async function closeShift(
     if (quantity > 0) counts.push({ denomination, quantity });
   }
   const countedCash = countDenominations(counts);
+  const leftForNext = input.leftForNext ?? null;
+  if (leftForNext !== null && leftForNext > countedCash) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `La base que queda (${formatCOP(leftForNext)}) no puede ser mayor a lo contado (${formatCOP(countedCash)}).`,
+    );
+  }
 
   const closed = await mongoose.connection.transaction(async (session) => {
     const shift = await requireOpenShift(ctx.actor.id, session);
@@ -366,7 +389,7 @@ export async function closeShift(
     }
     shift.status = 'CLOSED';
     shift.closedAt = new Date();
-    shift.closing = { countedCash, expectedCash, difference, counts, note };
+    shift.closing = { countedCash, expectedCash, difference, counts, note, leftForNext };
     await shift.save({ session });
     return toCashShiftDto(shift, session);
   });
@@ -380,6 +403,7 @@ export async function closeShift(
         countedCash: closed.closing?.countedCash,
         expectedCash: closed.closing?.expectedCash,
         difference: closed.closing?.difference,
+        leftForNext,
         note,
       },
       meta: ctx.meta,
@@ -387,4 +411,85 @@ export async function closeShift(
     ctx.logger,
   );
   return closed;
+}
+
+// ── Historial y confirmación (administrador) ───────────────────────
+
+export async function listShifts(query: ListCashShiftsQuery): Promise<CashShift[]> {
+  const filter: QueryFilter<CashShiftAttrs> = {
+    businessDate: trusted({ $gte: query.from, $lte: query.to }),
+  };
+  if (query.userId !== undefined) filter.userId = new Types.ObjectId(query.userId);
+  const shifts = await CashShiftModel.find(filter).sort({ openedAt: -1 }).limit(200);
+  return Promise.all(shifts.map((shift) => toCashShiftDto(shift)));
+}
+
+async function findShiftOrThrow(id: string): Promise<CashShiftDocument> {
+  const shift = Types.ObjectId.isValid(id) ? await CashShiftModel.findById(id) : null;
+  if (shift === null) throw new AppError(404, 'NOT_FOUND', 'Caja no encontrada');
+  return shift;
+}
+
+/** Resumen detallado de una caja: lo de siempre más cada movimiento y el total por tipo. */
+export async function getShiftDetail(id: string): Promise<CashShiftDetail> {
+  const shift = await findShiftOrThrow(id);
+  const movements = await CashMovementModel.find({ shiftId: shift._id }).sort({ createdAt: 1 });
+  const byConcept = new Map<string, CashShiftDetail['byConcept'][number]>();
+  for (const movement of movements) {
+    const name = movement.concept?.name ?? 'Sin tipo';
+    const key = `${movement.type}|${name}`;
+    const current = byConcept.get(key) ?? { type: movement.type, name, amount: 0, count: 0 };
+    byConcept.set(key, {
+      ...current,
+      amount: current.amount + movement.amount,
+      count: current.count + 1,
+    });
+  }
+  return {
+    shift: await toCashShiftDto(shift),
+    movements: movements.map(toMovementDto),
+    byConcept: [...byConcept.values()].sort((a, b) => b.amount - a.amount),
+  };
+}
+
+/**
+ * El administrador revisa un cierre y lo confirma. Solo las cajas cerradas, una sola vez; la
+ * caja ya no admite cambios desde que se cerró, la confirmación deja constancia de la revisión.
+ */
+export async function confirmShift(
+  id: string,
+  input: ConfirmCashShiftRequest,
+  ctx: ActorContext,
+): Promise<CashShift> {
+  const note = input.note?.trim() ?? '';
+  const shift = await CashShiftModel.findOneAndUpdate(
+    { _id: (await findShiftOrThrow(id))._id, status: 'CLOSED', confirmedAt: null },
+    {
+      $set: {
+        confirmedAt: new Date(),
+        confirmedBy: { id: ctx.actor._id, name: ctx.actor.name },
+        confirmNote: note,
+      },
+    },
+    { returnDocument: 'after' },
+  );
+  if (shift === null) throw conflict('Solo se confirman cajas cerradas que no estén confirmadas.');
+  await recordAudit(
+    {
+      action: 'CASH_SHIFT_CONFIRMED',
+      actor: toAuditActor(ctx.actor),
+      entity: {
+        type: 'CASH_SHIFT',
+        id: shift.id,
+        label:
+          shift.number === null || shift.number === undefined
+            ? shift.businessDate
+            : `Caja N.º ${String(shift.number)}`,
+      },
+      metadata: { difference: shift.closing?.difference ?? null, note },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  return toCashShiftDto(shift);
 }

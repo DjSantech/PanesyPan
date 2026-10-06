@@ -5,6 +5,8 @@ import {
   cashShiftResponseSchema,
   currentCashShiftResponseSchema,
   cashMovementLabel,
+  cashShiftDetailSchema,
+  listCashShiftsResponseSchema,
   listCashConceptsResponseSchema,
   listCashMovementsResponseSchema,
   slugify,
@@ -386,5 +388,66 @@ describe('tipos de movimiento, personal e ingresos', () => {
       incomesTotal: 200_000,
       expectedCash: 250_000,
     });
+  });
+});
+
+describe('ciclo de caja: consecutivo, base para mañana, historial y confirmación', () => {
+  it('numera las cajas y propone como base lo que dejó el último cierre', async () => {
+    const opened = cashShiftResponseSchema.parse((await openShift(cashier, 50_000)).body).shift;
+    expect(opened.number).toBe(1);
+
+    const tooMuch = await close(cashier, {
+      counts: [{ denomination: 50_000, quantity: 1 }],
+      leftForNext: 60_000,
+    });
+    expect(tooMuch.status).toBe(400);
+    await close(cashier, {
+      counts: [{ denomination: 50_000, quantity: 1 }],
+      leftForNext: 20_000,
+    }).expect(200);
+
+    const current = currentCashShiftResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/cash-shifts/current')).body,
+    );
+    expect(current).toMatchObject({ shift: null, suggestedOpeningAmount: 20_000 });
+    const next = cashShiftResponseSchema.parse((await openShift(cashier, 20_000)).body).shift;
+    expect(next.number).toBe(2);
+  });
+
+  it('el administrador ve el historial, el detalle y confirma una sola vez', async () => {
+    const shift = cashShiftResponseSchema.parse((await openShift(cashier, 50_000)).body).shift;
+    await move(cashier, { type: 'EXPENSE', amount: 5_000, reason: 'Hielo' }).expect(201);
+    await close(cashier, {
+      counts: [
+        { denomination: 20_000, quantity: 2 },
+        { denomination: 5_000, quantity: 1 },
+      ],
+    }).expect(200);
+
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    await cashier.agent.get(`/api/v1/cash-shifts?from=${today}&to=${today}`).expect(403);
+    const list = listCashShiftsResponseSchema.parse(
+      (await admin.agent.get(`/api/v1/cash-shifts?from=${today}&to=${today}`)).body,
+    );
+    expect(list.items.map((item) => item.id)).toContain(shift.id);
+
+    const detail = cashShiftDetailSchema.parse(
+      (await admin.agent.get(`/api/v1/cash-shifts/${shift.id}`)).body,
+    );
+    expect(detail.byConcept).toEqual([
+      { type: 'EXPENSE', name: 'Sin tipo', amount: 5_000, count: 1 },
+    ]);
+
+    await send(cashier, 'post', `/cash-shifts/${shift.id}/confirm`, {}).expect(403);
+    const confirmed = await send(admin, 'post', `/cash-shifts/${shift.id}/confirm`, {
+      note: 'Revisado',
+    });
+    expect(confirmed.status).toBe(200);
+    expect(cashShiftResponseSchema.parse(confirmed.body).shift).toMatchObject({
+      confirmNote: 'Revisado',
+      confirmedBy: expect.any(String) as string,
+    });
+    await send(admin, 'post', `/cash-shifts/${shift.id}/confirm`, {}).expect(409);
+    expect(await auditCount('CASH_SHIFT_CONFIRMED')).toBe(1);
   });
 });

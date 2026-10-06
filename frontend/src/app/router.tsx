@@ -157,6 +157,19 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'cajas',
+            lazy: async () => {
+              const { CashShiftsPage } = await import('@/features/cash/CashShiftsPage');
+              return {
+                element: (
+                  <RequirePermission permission="cash:review">
+                    <CashShiftsPage />
+                  </RequirePermission>
+                ),
+              };
+            },
+          },
+          {
             path: 'configuracion',
             lazy: async () => {
               const { SettingsPage } = await import('@/features/settings/SettingsPage');

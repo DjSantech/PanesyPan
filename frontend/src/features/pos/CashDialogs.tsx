@@ -385,6 +385,7 @@ function CountForm({
 }) {
   const [quantities, setQuantities] = useState<Partial<Record<Denomination, number>>>({});
   const [note, setNote] = useState('');
+  const [leftForNext, setLeftForNext] = useState<number | null>(null);
 
   const counts = DENOMINATIONS.flatMap((denomination) => {
     const quantity = quantities[denomination] ?? 0;
@@ -394,9 +395,15 @@ function CountForm({
   const expected = shift.summary.expectedCash;
   const difference = cashDifference(counted, expected);
   const noteMissing = difference !== 0 && note.trim() === '';
+  const baseTooHigh = leftForNext !== null && leftForNext > counted;
 
   const close = useMutation({
-    mutationFn: () => closeShift({ counts, note: note.trim() }),
+    mutationFn: () =>
+      closeShift({
+        counts,
+        note: note.trim(),
+        ...(leftForNext === null ? {} : { leftForNext }),
+      }),
     onSuccess: onClosed,
   });
 
@@ -416,7 +423,7 @@ function CountForm({
         className="grid gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!noteMissing) close.mutate();
+          if (!noteMissing && !baseTooHigh) close.mutate();
         }}
         noValidate
       >
@@ -505,8 +512,22 @@ function CountForm({
             />
           </Field>
         )}
+        <Field
+          id="closing-left"
+          label="Base que queda en el cajón para mañana (opcional)"
+          hint={
+            baseTooHigh
+              ? undefined
+              : leftForNext === null
+                ? 'Se propone al abrir la siguiente caja. El resto se guarda o se lo lleva el dueño.'
+                : `Para guardar o entregar: ${formatCOP(counted - leftForNext)}.`
+          }
+          error={baseTooHigh ? 'No puede ser mayor a lo contado.' : undefined}
+        >
+          <PriceInput id="closing-left" value={leftForNext} onValueChange={setLeftForNext} />
+        </Field>
         {close.isError ? <Alert tone="danger">{errorMessage(close.error)}</Alert> : null}
-        <Button type="submit" size="lg" disabled={close.isPending || noteMissing}>
+        <Button type="submit" size="lg" disabled={close.isPending || noteMissing || baseTooHigh}>
           {close.isPending ? <Spinner /> : <Lock aria-hidden="true" />} Cerrar caja
         </Button>
       </form>
@@ -537,6 +558,12 @@ function ClosedSummary({ shift, onDone }: { shift: CashShift; onDone: () => void
               {differenceLabel(closing.difference)}
               {closing.difference === 0 ? '' : `: ${formatCOP(Math.abs(closing.difference))}`}
             </p>
+            {closing.leftForNext === null ? null : (
+              <p className="text-sm">
+                Queda de base {formatCOP(closing.leftForNext)} · para guardar{' '}
+                {formatCOP(closing.countedCash - closing.leftForNext)}
+              </p>
+            )}
           </>
         )}
         <Button size="lg" className="w-full" onClick={onDone}>

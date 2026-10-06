@@ -36,6 +36,7 @@ import {
   checkoutCounter,
   checkoutTab,
   getCurrentShift,
+  getSuggestedOpening,
   listOpenTabs,
   moveTab,
   openShift,
@@ -83,6 +84,11 @@ function OpenShiftPanel() {
   const [amount, setAmount] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const suggested = useQuery({
+    queryKey: posKeys.suggestedOpening,
+    queryFn: ({ signal }) => getSuggestedOpening(signal),
+  });
+  const suggestedAmount = suggested.data ?? null;
 
   const open = useMutation({
     mutationFn: openShift,
@@ -127,6 +133,23 @@ function OpenShiftPanel() {
                 aria-invalid={fieldError === null ? undefined : true}
               />
             </Field>
+            {suggestedAmount === null || amount === suggestedAmount ? null : (
+              <div className="-mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  El último cierre dejó {formatCOP(suggestedAmount)} de base en el cajón.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAmount(suggestedAmount);
+                  }}
+                >
+                  Usar esa base
+                </Button>
+              </div>
+            )}
             <Field id="opening-note" label="Nota (opcional)">
               <Input
                 id="opening-note"

@@ -108,25 +108,29 @@ async function cashRows(query: ExportQuery): Promise<{ headers: string[]; rows: 
   for (const shift of shifts) {
     const summary = await summarizeShift(shift);
     rows.push([
+      shift.number ?? null,
       shift.businessDate,
       shift.userName,
       formatTimeCO(shift.openedAt),
       shift.closedAt === null ? null : formatTimeCO(shift.closedAt),
-      shift.status === 'OPEN' ? 'Abierta' : 'Cerrada',
+      shift.status === 'OPEN' ? 'Abierta' : shift.confirmedAt ? 'Confirmada' : 'Cerrada',
       shift.openingAmount,
       summary.salesCount,
       summary.salesTotal,
       summary.byMethod.find((entry) => entry.method === 'CASH')?.amount ?? 0,
       summary.expensesTotal,
       summary.withdrawalsTotal,
+      summary.incomesTotal,
       shift.closing?.expectedCash ?? summary.expectedCash,
       shift.closing?.countedCash ?? null,
       shift.closing?.difference ?? null,
       shift.closing?.note ?? null,
+      shift.closing?.leftForNext ?? null,
     ]);
   }
   return {
     headers: [
+      'Caja N.º',
       'Fecha',
       'Cajera',
       'Apertura',
@@ -138,10 +142,12 @@ async function cashRows(query: ExportQuery): Promise<{ headers: string[]; rows: 
       'Ventas en efectivo',
       'Egresos',
       'Retiros',
+      'Ingresos',
       'Efectivo esperado',
       'Efectivo contado',
       'Diferencia',
       'Nota del arqueo',
+      'Base que quedó',
     ],
     rows,
   };
