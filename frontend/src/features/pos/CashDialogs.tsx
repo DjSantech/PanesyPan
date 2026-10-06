@@ -63,6 +63,7 @@ export function CashPanelDialog({
     ['Ingresos', summary.incomesTotal],
     ['Egresos', -summary.expensesTotal],
     ['Retiros', -summary.withdrawalsTotal],
+    ['Devoluciones en efectivo', -summary.cashRefundsTotal],
   ] as const;
 
   return (

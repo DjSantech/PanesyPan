@@ -51,6 +51,7 @@ export const AUDIT_ACTIONS = [
   'PURCHASE_CREATED',
   'CASH_SHIFT_CONFIRMED',
   'STOCK_SELF_CONSUMPTION_LOGGED',
+  'SALE_RETURNED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -107,6 +108,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   PURCHASE_CREATED: 'Compra a proveedor registrada',
   CASH_SHIFT_CONFIRMED: 'Cierre de caja confirmado por el administrador',
   STOCK_SELF_CONSUMPTION_LOGGED: 'Autoconsumo registrado',
+  SALE_RETURNED: 'Devolución de productos de una venta',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

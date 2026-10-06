@@ -58,6 +58,22 @@ export function toSaleDto(sale: SaleDocument): Sale {
     openedAt: sale.openedAt.toISOString(),
     paidAt: sale.paidAt?.toISOString() ?? null,
     businessDate: sale.businessDate,
+    returns: sale.returns.map((entry) => ({
+      id: entry._id.toString(),
+      lines: entry.lines.map((line) => ({
+        lineId: line.lineId.toString(),
+        name: line.name,
+        quantity: line.quantity,
+        amount: line.amount,
+      })),
+      amount: entry.amount,
+      refundMethod: entry.refundMethod,
+      reason: entry.reason,
+      by: toPerson(entry.by),
+      approvedBy: entry.approvedBy === null ? null : toPerson(entry.approvedBy),
+      createdAt: entry.createdAt.toISOString(),
+    })),
+    returnedTotal: sale.returns.reduce((sum, entry) => sum + entry.amount, 0),
     closure:
       sale.closure === null
         ? null

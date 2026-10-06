@@ -7,6 +7,7 @@ import {
   cashMovementLabel,
   cashShiftDetailSchema,
   listCashShiftsResponseSchema,
+  saleResponseSchema,
   listCashConceptsResponseSchema,
   listCashMovementsResponseSchema,
   slugify,
@@ -449,5 +450,42 @@ describe('ciclo de caja: consecutivo, base para mañana, historial y confirmaci�
     });
     await send(admin, 'post', `/cash-shifts/${shift.id}/confirm`, {}).expect(409);
     expect(await auditCount('CASH_SHIFT_CONFIRMED')).toBe(1);
+  });
+});
+
+describe('devoluciones parciales', () => {
+  it('devuelve unidades con PIN, saca el efectivo de la caja y no deja pasarse', async () => {
+    await openShift(cashier).expect(201);
+    const paid = await send(cashier, 'post', '/sales/checkout', sale(3));
+    expect(paid.status).toBe(201);
+    const sold = saleResponseSchema.parse(paid.body).sale;
+    const lineId = sold.lines[0]?.id ?? '';
+
+    const noPin = await send(cashier, 'post', `/sales/${sold.id}/returns`, {
+      lines: [{ lineId, quantity: 1 }],
+      reason: 'Venía quemado',
+    });
+    expect(noPin.status).toBe(403);
+
+    const returned = await send(cashier, 'post', `/sales/${sold.id}/returns`, {
+      lines: [{ lineId, quantity: 2 }],
+      reason: 'Venía quemado',
+      approverPin: ADMIN_PIN,
+    });
+    expect(returned.status).toBe(200);
+    expect(saleResponseSchema.parse(returned.body).sale.returnedTotal).toBe(4_000);
+    expect((await currentOf(cashier))?.summary).toMatchObject({
+      returnsTotal: 4_000,
+      cashRefundsTotal: 4_000,
+      expectedCash: 100_000 + 6_000 - 4_000,
+    });
+
+    const tooMany = await send(cashier, 'post', `/sales/${sold.id}/returns`, {
+      lines: [{ lineId, quantity: 2 }],
+      reason: 'Otra vez',
+      approverPin: ADMIN_PIN,
+    });
+    expect(tooMany.status).toBe(409);
+    expect(await auditCount('SALE_RETURNED')).toBe(1);
   });
 });

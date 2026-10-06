@@ -101,6 +101,8 @@ const SAMPLE_SALE: Sale = {
   customer: null,
   einvoice: null,
   webOrderNumber: null,
+  returns: [],
+  returnedTotal: 0,
   updatedAt: new Date().toISOString(),
 };
 

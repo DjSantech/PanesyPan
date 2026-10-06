@@ -1,6 +1,7 @@
 import {
   addTabLineRequestSchema,
   closeSaleRequestSchema,
+  returnSaleRequestSchema,
   counterCheckoutRequestSchema,
   listSalesQuerySchema,
   moveTabRequestSchema,
@@ -15,7 +16,14 @@ import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import type { PosContext } from './approval.service';
-import { checkoutCounter, checkoutTab, getSale, listSales, voidSale } from './sales.service';
+import {
+  checkoutCounter,
+  checkoutTab,
+  getSale,
+  listSales,
+  returnSaleItems,
+  voidSale,
+} from './sales.service';
 import {
   addTabLine,
   cancelTab,
@@ -75,6 +83,10 @@ export function createSalesRouter(deps: SalesRouterDeps): Router {
   router.post('/sales/:id/void', ...withApproval, async (req, res) => {
     const input = parseBody(req, closeSaleRequestSchema);
     res.json({ sale: await voidSale(parseIdParam(req), input, posContext(req)) });
+  });
+  router.post('/sales/:id/returns', ...withApproval, async (req, res) => {
+    const input = parseBody(req, returnSaleRequestSchema);
+    res.json({ sale: await returnSaleItems(parseIdParam(req), input, posContext(req)) });
   });
 
   // ── Mesas ──

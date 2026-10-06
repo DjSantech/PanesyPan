@@ -13,7 +13,7 @@ import {
   type Sale,
 } from '@panesypan/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { PackageMinus, Printer, ReceiptText, Undo2 } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
 import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
@@ -27,6 +27,7 @@ import { useCan } from '../auth/use-session';
 import { catalogKeys } from '../catalog/catalog.api';
 import { ApprovalDialog } from '../pos/ApprovalDialog';
 import { getCurrentShift, listSales, posKeys, voidSale } from '../pos/pos.api';
+import { ReturnForm } from './ReturnForm';
 import { EInvoiceBadge } from '../einvoice/EInvoiceBadge';
 import { printReceipt } from '../pos/print-receipt';
 import { formatSaleNumber } from '../pos/receipt-format';
@@ -175,12 +176,12 @@ function SaleDetailDialog({
   onOpenChange: (open: boolean) => void;
   onVoided: (sale: Sale) => void;
 }) {
-  const [voiding, setVoiding] = useState(false);
+  const [mode, setMode] = useState<'detail' | 'void' | 'return'>('detail');
   return (
     <Dialog
       open={sale !== null}
       onOpenChange={(open) => {
-        setVoiding(false);
+        setMode('detail');
         onOpenChange(open);
       }}
     >
@@ -192,15 +193,26 @@ function SaleDetailDialog({
           description={`${SALE_STATUS_LABELS[sale.status]} · ${formatLongDateCO(new Date(sale.paidAt ?? sale.openedAt))}`}
           className="sm:max-w-lg"
         >
-          {voiding ? (
+          {mode === 'void' ? (
             <VoidForm
               sale={sale}
               onBack={() => {
-                setVoiding(false);
+                setMode('detail');
               }}
               onVoided={(voided) => {
-                setVoiding(false);
+                setMode('detail');
                 onVoided(voided);
+              }}
+            />
+          ) : mode === 'return' ? (
+            <ReturnForm
+              sale={sale}
+              onBack={() => {
+                setMode('detail');
+              }}
+              onReturned={(updated) => {
+                setMode('detail');
+                onVoided(updated);
               }}
             />
           ) : (
@@ -290,6 +302,21 @@ function SaleDetailDialog({
                   )}
                 </div>
               )}
+              {sale.returns.length === 0 ? null : (
+                <Alert tone="info">
+                  <span className="grid gap-1">
+                    {sale.returns.map((entry) => (
+                      <span key={entry.id}>
+                        Devolución de {formatCOP(entry.amount)} (
+                        {entry.lines
+                          .map((line) => `${String(line.quantity)} × ${line.name}`)
+                          .join(', ')}
+                        ) por {entry.by.name}: “{entry.reason}”
+                      </span>
+                    ))}
+                  </span>
+                </Alert>
+              )}
               {sale.closure === null ? null : (
                 <Alert tone={sale.status === 'VOIDED' ? 'danger' : 'info'}>
                   <span>
@@ -303,12 +330,22 @@ function SaleDetailDialog({
                 </Alert>
               )}
               <DialogFooter className="mt-0">
+                {sale.status === 'PAID' && sale.einvoice === null ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setMode('return');
+                    }}
+                  >
+                    <PackageMinus aria-hidden="true" /> Devolver productos
+                  </Button>
+                ) : null}
                 {sale.status === 'PAID' ? (
                   <Button
                     variant="outline"
                     className="text-danger"
                     onClick={() => {
-                      setVoiding(true);
+                      setMode('void');
                     }}
                   >
                     <Undo2 aria-hidden="true" /> Anular venta

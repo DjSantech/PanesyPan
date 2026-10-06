@@ -13,6 +13,7 @@ import {
   type CounterCheckoutRequest,
   type ListSalesQuery,
   type OpenCashShiftRequest,
+  type ReturnSaleRequest,
   type Sale,
   type SaleLineInput,
   type TabCheckoutRequest,
@@ -113,6 +114,10 @@ export async function listSales(
 export async function getSale(id: string, signal?: AbortSignal): Promise<Sale> {
   const { sale } = await apiJson(`/api/v1/sales/${id}`, saleResponseSchema, { signal });
   return sale;
+}
+
+export function returnSale(id: string, input: ReturnSaleRequest): Promise<Sale> {
+  return saleRequest(`/api/v1/sales/${id}/returns`, 'POST', input);
 }
 
 export function voidSale(id: string, input: CloseSaleRequest): Promise<Sale> {

@@ -60,6 +60,18 @@ export interface SaleEInvoiceAttrs {
   creditNote: { documentId: Types.ObjectId; status: EInvoiceStatus; number: string | null } | null;
 }
 
+export interface SaleReturnAttrs {
+  _id: Types.ObjectId;
+  lines: { lineId: Types.ObjectId; name: string; quantity: number; amount: number }[];
+  amount: number;
+  refundMethod: PaymentMethod;
+  shiftId: Types.ObjectId;
+  reason: string;
+  by: PersonRef;
+  approvedBy: PersonRef | null;
+  createdAt: Date;
+}
+
 export interface SaleAttrs {
   number: number | null;
   type: SaleType;
@@ -90,6 +102,8 @@ export interface SaleAttrs {
   einvoice: SaleEInvoiceAttrs | null;
   /** Pedido web que originó la venta (null = venta en el local). */
   webOrderNumber: number | null;
+  /** Devoluciones parciales; `shiftId` es la caja de la que salió el dinero. */
+  returns: SaleReturnAttrs[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -186,6 +200,34 @@ const saleSchema = new Schema<SaleAttrs>(
         { _id: false },
       ),
       default: null,
+    },
+    returns: {
+      type: [
+        new Schema<SaleReturnAttrs>({
+          lines: {
+            type: [
+              new Schema(
+                {
+                  lineId: { type: Schema.Types.ObjectId, required: true },
+                  name: { type: String, required: true },
+                  quantity: { type: Number, required: true, min: 1 },
+                  amount: money,
+                },
+                { _id: false },
+              ),
+            ],
+            required: true,
+          },
+          amount: money,
+          refundMethod: { type: String, enum: PAYMENT_METHODS, required: true },
+          shiftId: { type: Schema.Types.ObjectId, ref: 'CashShift', required: true },
+          reason: { type: String, required: true },
+          by: { type: personSchema, required: true },
+          approvedBy: { type: personSchema, default: null },
+          createdAt: { type: Date, required: true },
+        }),
+      ],
+      default: [],
     },
     clientRequestId: { type: String, default: null },
     customer: {

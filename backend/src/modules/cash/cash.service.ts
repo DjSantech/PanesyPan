@@ -87,7 +87,7 @@ export async function summarizeShift(
   shift: CashShiftDocument,
   session?: ClientSession,
 ): Promise<CashShiftSummary> {
-  const [paid, voidedCount, movements] = await Promise.all([
+  const [paid, voidedCount, movements, withReturns] = await Promise.all([
     SaleModel.find({ shiftId: shift._id, status: 'PAID' })
       .select('total discount payments')
       .session(session ?? null),
@@ -95,7 +95,19 @@ export async function summarizeShift(
     CashMovementModel.find({ shiftId: shift._id })
       .select('type amount')
       .session(session ?? null),
+    SaleModel.find({ 'returns.shiftId': shift._id })
+      .select('returns')
+      .session(session ?? null),
   ]);
+  let returnsTotal = 0;
+  let cashRefundsTotal = 0;
+  for (const sale of withReturns) {
+    for (const entry of sale.returns) {
+      if (!entry.shiftId.equals(shift._id)) continue;
+      returnsTotal += entry.amount;
+      if (entry.refundMethod === 'CASH') cashRefundsTotal += entry.amount;
+    }
+  }
   const byMethod = new Map<PaymentMethod, { amount: number; count: number }>();
   let salesTotal = 0;
   let discountsTotal = 0;
@@ -130,12 +142,15 @@ export async function summarizeShift(
     expensesTotal,
     withdrawalsTotal,
     incomesTotal,
+    returnsTotal,
+    cashRefundsTotal,
     expectedCash: expectedCashOf({
       openingAmount: shift.openingAmount,
       cashSales: byMethod.get('CASH')?.amount ?? 0,
       expenses: expensesTotal,
       withdrawals: withdrawalsTotal,
       incomes: incomesTotal,
+      refunds: cashRefundsTotal,
     }),
   };
 }

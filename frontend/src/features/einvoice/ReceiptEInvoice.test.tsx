@@ -58,6 +58,8 @@ const sale = (einvoice: SaleEInvoice | null, customer: Sale['customer'] = null):
   customer,
   einvoice,
   webOrderNumber: null,
+  returns: [],
+  returnedTotal: 0,
   updatedAt: '2026-09-24T15:00:00.000Z',
 });
 

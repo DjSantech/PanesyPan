@@ -34,7 +34,10 @@ export const cashShiftSummarySchema = z.object({
   expensesTotal: z.int(),
   withdrawalsTotal: z.int(),
   incomesTotal: z.int(),
-  /** Base + ventas en efectivo + ingresos − egresos − retiros. */
+  /** Devoluciones a clientes registradas en esta caja (todas) y las pagadas en efectivo. */
+  returnsTotal: z.int(),
+  cashRefundsTotal: z.int(),
+  /** Base + ventas en efectivo + ingresos − egresos − retiros − devoluciones en efectivo. */
   expectedCash: z.int(),
 });
 export type CashShiftSummary = z.infer<typeof cashShiftSummarySchema>;

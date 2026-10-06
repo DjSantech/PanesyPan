@@ -88,6 +88,9 @@ export function ShiftReport({
         {summary.voidedCount > 0 ? (
           <Row label="Anuladas" value={String(summary.voidedCount)} />
         ) : null}
+        {summary.returnsTotal > 0 ? (
+          <Row label="Devoluciones" value={formatCOP(summary.returnsTotal)} />
+        ) : null}
       </Section>
 
       {CASH_MOVEMENT_TYPES.map((type) => {
@@ -115,6 +118,9 @@ export function ShiftReport({
         <Row label="+ Ingresos" value={formatCOP(summary.incomesTotal)} />
         <Row label="− Egresos" value={formatCOP(summary.expensesTotal)} />
         <Row label="− Retiros" value={formatCOP(summary.withdrawalsTotal)} />
+        {summary.cashRefundsTotal > 0 ? (
+          <Row label="− Devoluciones" value={formatCOP(summary.cashRefundsTotal)} />
+        ) : null}
         <Row
           label="Esperado"
           value={formatCOP(closing?.expectedCash ?? summary.expectedCash)}

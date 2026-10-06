@@ -82,6 +82,24 @@ export const saleClosureSchema = z.object({
   reason: z.string(),
 });
 
+/**
+ * Devolución parcial: el cliente devuelve uno o varios productos de una venta pagada. El dinero
+ * sale de la caja abierta de quien la registra (si es en efectivo) y el stock vuelve.
+ */
+export const saleReturnSchema = z.object({
+  id: z.string(),
+  lines: z.array(
+    z.object({ lineId: z.string(), name: z.string(), quantity: z.int(), amount: z.int() }),
+  ),
+  amount: z.int(),
+  refundMethod: z.enum(PAYMENT_METHODS),
+  reason: z.string(),
+  by: personSchema,
+  approvedBy: personSchema.nullable(),
+  createdAt: z.iso.datetime(),
+});
+export type SaleReturn = z.infer<typeof saleReturnSchema>;
+
 export const saleSchema = z.object({
   id: z.string(),
   /** Consecutivo del tiquete; se asigna al cobrar. */
@@ -109,6 +127,9 @@ export const saleSchema = z.object({
   einvoice: saleEInvoiceSchema.nullable(),
   /** Número del pedido web que originó la venta (null = venta en el local). */
   webOrderNumber: z.int().nullable(),
+  /** Devoluciones parciales de productos (el total de la venta no cambia). */
+  returns: z.array(saleReturnSchema),
+  returnedTotal: z.int(),
   updatedAt: z.iso.datetime(),
 });
 export type Sale = z.infer<typeof saleSchema>;
@@ -196,6 +217,39 @@ export const closeSaleRequestSchema = z.strictObject({
   approverPin: approverPinSchema.optional(),
 });
 export type CloseSaleRequest = z.infer<typeof closeSaleRequestSchema>;
+
+export const returnSaleRequestSchema = z.strictObject({
+  lines: z
+    .array(
+      z.strictObject({
+        lineId: objectIdSchema,
+        quantity: z.int('Cantidad entera').min(1, 'Mínimo 1').max(SALE_LIMITS.maxQuantity),
+      }),
+    )
+    .min(1, 'Elige qué se devuelve')
+    .max(SALE_LIMITS.maxLines)
+    .refine((lines) => new Set(lines.map((line) => line.lineId)).size === lines.length, {
+      message: 'Un producto está repetido',
+    }),
+  reason: reasonSchema,
+  /** Cómo se le devuelve el dinero al cliente; solo el efectivo sale de la caja. */
+  refundMethod: z.enum(PAYMENT_METHODS).default('CASH'),
+  approverPin: approverPinSchema.optional(),
+});
+export type ReturnSaleRequest = z.input<typeof returnSaleRequestSchema>;
+
+/**
+ * Lo que se le devuelve al cliente por unas unidades de una línea: su parte del total de la
+ * línea, con el descuento de la venta repartido en proporción.
+ */
+export function returnAmountOf(
+  line: { total: number; quantity: number },
+  quantity: number,
+  sale: { subtotal: number; total: number },
+): number {
+  if (line.quantity === 0 || sale.subtotal === 0) return 0;
+  return Math.round(((line.total * quantity) / line.quantity) * (sale.total / sale.subtotal));
+}
 
 export const listSalesQuerySchema = z.strictObject({
   date: businessDateSchema.optional(),

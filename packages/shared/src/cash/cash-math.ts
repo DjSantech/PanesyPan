@@ -30,13 +30,15 @@ export function expectedCashOf(parts: {
   expenses: Money;
   withdrawals: Money;
   incomes?: Money;
+  refunds?: Money;
 }): Money {
   return (
     parts.openingAmount +
     parts.cashSales +
     (parts.incomes ?? 0) -
     parts.expenses -
-    parts.withdrawals
+    parts.withdrawals -
+    (parts.refunds ?? 0)
   );
 }
 

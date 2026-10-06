@@ -11,7 +11,9 @@ import {
   toBusinessDate,
   type CloseSaleRequest,
   type ListSalesQuery,
+  returnAmountOf,
   type PricedLine,
+  type ReturnSaleRequest,
   type Sale,
   type SaleTotals,
 } from '@panesypan/shared';
@@ -20,7 +22,12 @@ import type { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { CashShiftModel, type CashShiftDocument } from '../cash/cash-shift.model';
-import { claimOpenShift, findOpenShift, requireOpenShift } from '../cash/cash.service';
+import {
+  claimOpenShift,
+  findOpenShift,
+  requireOpenShift,
+  summarizeShift,
+} from '../cash/cash.service';
 import { enqueueInvoice, handleSaleVoided } from '../einvoice/einvoice.service';
 import { kickEInvoiceWorker } from '../einvoice/einvoice.worker';
 import { applySaleStock } from '../inventory/inventory.service';
@@ -386,6 +393,119 @@ export async function voidSale(
     ctx.logger,
   );
   return toSaleDto(voided);
+}
+
+// ── Devoluciones parciales ─────────────────────────────────────────
+
+/**
+ * El cliente devuelve uno o varios productos de una venta pagada:
+ * - Lo autoriza un administrador (él mismo o su PIN), como una anulación.
+ * - Se devuelve la parte de cada línea con el descuento de la venta repartido en proporción.
+ * - En efectivo, el dinero sale de la caja abierta de quien la registra (nunca más de lo que
+ *   hay); por otro medio no toca la caja. El stock vuelve como "Devolución de cliente".
+ * - Las ventas con factura electrónica se anulan completas (la DIAN pide la nota crédito).
+ */
+export async function returnSaleItems(
+  id: string,
+  input: ReturnSaleRequest,
+  ctx: PosContext,
+): Promise<Sale> {
+  const sale = await findSaleOrThrow(id);
+  if (sale.status !== 'PAID') throw conflict('Solo se devuelven productos de ventas pagadas.');
+  if (sale.einvoice !== null) {
+    throw conflict(
+      'Esta venta tiene factura electrónica: para devolver productos anúlala completa (se emite la nota crédito).',
+    );
+  }
+  const refundMethod = input.refundMethod ?? 'CASH';
+  const approver = await resolveApproval(ctx, input.approverPin, 'VOID');
+
+  const updated = await runInTransaction(async (session) => {
+    const doc = await findSaleOrThrow(id, session);
+    if (doc.status !== 'PAID') throw conflict('La venta ya fue anulada.');
+    const returnedByLine = new Map<string, number>();
+    for (const entry of doc.returns) {
+      for (const line of entry.lines) {
+        const key = line.lineId.toString();
+        returnedByLine.set(key, (returnedByLine.get(key) ?? 0) + line.quantity);
+      }
+    }
+    const lines = input.lines.map((requested) => {
+      const line = doc.lines.find((candidate) => candidate._id.toString() === requested.lineId);
+      if (line === undefined)
+        throw new AppError(404, 'NOT_FOUND', 'Producto no encontrado en la venta');
+      const left = line.quantity - (returnedByLine.get(requested.lineId) ?? 0);
+      if (requested.quantity > left) {
+        throw conflict(
+          left === 0
+            ? `${line.name} ya se devolvió completo.`
+            : `De ${line.name} solo se pueden devolver ${String(left)}.`,
+        );
+      }
+      return {
+        line,
+        lineId: line._id,
+        name: line.name,
+        quantity: requested.quantity,
+        amount: returnAmountOf(line, requested.quantity, doc),
+      };
+    });
+    const amount = lines.reduce((sum, line) => sum + line.amount, 0);
+
+    const shift = await requireOpenShift(ctx.actor.id, session);
+    if (refundMethod === 'CASH') {
+      const { expectedCash } = await summarizeShift(shift, session);
+      if (amount > expectedCash) {
+        throw conflict(
+          `En la caja solo hay ${formatCOP(expectedCash)} en efectivo: no alcanza para devolver ${formatCOP(amount)}.`,
+        );
+      }
+    }
+    await applySaleStock(
+      lines.map((line) => ({ productId: line.line.productId, quantity: line.quantity })),
+      -1,
+      personOf(ctx.actor),
+      doc._id,
+      session,
+      'SALE_RETURN',
+    );
+    doc.returns.push({
+      _id: new Types.ObjectId(),
+      lines: lines.map(({ lineId, name, quantity, amount: lineAmount }) => ({
+        lineId,
+        name,
+        quantity,
+        amount: lineAmount,
+      })),
+      amount,
+      refundMethod,
+      shiftId: shift._id,
+      reason: input.reason,
+      by: personOf(ctx.actor),
+      approvedBy: approver,
+      createdAt: new Date(),
+    });
+    await doc.save({ session });
+    return { doc, amount };
+  });
+
+  await recordAudit(
+    {
+      action: 'SALE_RETURNED',
+      actor: toAuditActor(ctx.actor),
+      entity: saleEntity(updated.doc),
+      metadata: {
+        saleNumber: updated.doc.number,
+        amount: updated.amount,
+        refundMethod,
+        note: input.reason,
+        approvedBy: approver.name,
+      },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  return toSaleDto(updated.doc);
 }
 
 // ── Consultas ──────────────────────────────────────────────────────

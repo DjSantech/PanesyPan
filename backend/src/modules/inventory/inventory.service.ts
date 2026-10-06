@@ -382,6 +382,8 @@ export async function applySaleStock(
   by: { id: Types.ObjectId; name: string },
   saleId: Types.ObjectId,
   session: ClientSession,
+  /** Tipo del movimiento al devolver unidades: anulación (por defecto) o devolución. */
+  returnType: 'SALE_VOID' | 'SALE_RETURN' = 'SALE_VOID',
 ): Promise<void> {
   const quantityByProduct = new Map<string, { productId: Types.ObjectId; quantity: number }>();
   for (const line of lines) {
@@ -435,7 +437,7 @@ export async function applySaleStock(
     await insertMovement(
       {
         product,
-        type: sign === 1 ? 'SALE' : 'SALE_VOID',
+        type: sign === 1 ? 'SALE' : returnType,
         delta: sign * -quantity,
         quantityAfter,
         by,
