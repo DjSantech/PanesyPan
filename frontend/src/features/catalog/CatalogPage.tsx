@@ -12,6 +12,7 @@ import {
   ArchiveRestore,
   Croissant,
   EllipsisVertical,
+  FileSpreadsheet,
   FolderCog,
   Pencil,
   Plus,
@@ -39,12 +40,14 @@ import {
   catalogKeys,
   createProduct,
   deleteProductImage,
+  downloadProductsCsv,
   listCategories,
   listProducts,
   setProductAvailability,
   updateProduct,
   uploadProductImage,
 } from './catalog.api';
+import { BulkPriceDialog, ImportProductsDialog } from './BulkDialogs';
 import { CategoriesDialog } from './CategoriesDialog';
 import { ProductFormDialog, type ImageChange } from './ProductFormDialog';
 import { ProductThumb } from './ProductThumb';
@@ -243,6 +246,8 @@ export function CatalogPage() {
     return ordered;
   }, [products.data, categories.data]);
 
+  const [bulk, setBulk] = useState<'import' | 'price' | null>(null);
+
   const openForm = (product?: Product) => {
     setFormError(null);
     setForm(product === undefined ? { open: true } : { open: true, product });
@@ -268,6 +273,38 @@ export function CatalogPage() {
               >
                 <FolderCog aria-hidden="true" /> Categorías
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <FileSpreadsheet aria-hidden="true" /> Masivo
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      downloadProductsCsv().catch((error: unknown) => {
+                        toast.error(errorMessage(error));
+                      });
+                    }}
+                  >
+                    Exportar productos (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setBulk('import');
+                    }}
+                  >
+                    Cargar precios y costos (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setBulk('price');
+                    }}
+                  >
+                    Cambiar precios por porcentaje
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 onClick={() => {
                   openForm();
@@ -453,6 +490,23 @@ export function CatalogPage() {
           open={categoriesOpen}
           onOpenChange={setCategoriesOpen}
           categories={categories.data ?? []}
+        />
+      ) : null}
+      {canManage && bulk === 'import' ? (
+        <ImportProductsDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setBulk(null);
+          }}
+        />
+      ) : null}
+      {canManage && bulk === 'price' ? (
+        <BulkPriceDialog
+          open
+          categories={activeCategories}
+          onOpenChange={(open) => {
+            if (!open) setBulk(null);
+          }}
         />
       ) : null}
 

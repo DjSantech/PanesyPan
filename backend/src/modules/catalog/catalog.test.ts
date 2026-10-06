@@ -1,10 +1,13 @@
 import {
   apiErrorResponseSchema,
+  bulkPriceResultSchema,
   categoryResponseSchema,
   dailyMenuResponseSchema,
+  importProductsResultSchema,
   listCategoriesResponseSchema,
   listProductsResponseSchema,
   productResponseSchema,
+  slugify,
 } from '@panesypan/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startTestDatabase } from '../../../test/database';
@@ -560,5 +563,64 @@ describe('catálogo inicial', () => {
     const lunch = await CategoryModel.findOne({ slug: 'almuerzos' });
     expect(lunch?.kind).toBe('LUNCH');
     expect(await ProductModel.countDocuments({ isFavorite: true })).toBeGreaterThan(0);
+  });
+});
+
+describe('carga masiva y cambio de precios', () => {
+  beforeEach(async () => {
+    const drinks = await CategoryModel.create({ name: 'Bebidas', slug: 'bebidas' });
+    await ProductModel.create({
+      name: 'Pepsi Vidrio',
+      slug: slugify('Pepsi Vidrio'),
+      categoryId: drinks._id,
+      price: 2_500,
+    });
+  });
+
+  it('muestra la vista previa, aplica y crea los que faltan', async () => {
+    const body = {
+      rows: [
+        {
+          name: 'pepsi vidrio',
+          category: 'Bebidas',
+          price: 2_800,
+          cost: 1_900,
+          subcategory: 'Gaseosas',
+        },
+        { name: 'Agua Brisa', category: 'Bebidas', price: 2_000 },
+        { name: 'Sin categoría', category: 'Licores', price: 9_000 },
+      ],
+      createMissing: true,
+    };
+    const preview = importProductsResultSchema.parse(
+      (await send(admin, 'post', '/products/import', body)).body,
+    );
+    expect(preview).toMatchObject({ dryRun: true, updated: 1, created: 1 });
+    expect(preview.skipped).toHaveLength(1);
+    expect((await ProductModel.findOne({ slug: 'pepsi-vidrio' }))?.price).toBe(2_500);
+
+    await send(cashier, 'post', '/products/import', { ...body, dryRun: false }).expect(403);
+    await send(admin, 'post', '/products/import', { ...body, dryRun: false }).expect(200);
+    expect(await ProductModel.findOne({ slug: 'pepsi-vidrio' })).toMatchObject({
+      price: 2_800,
+      cost: 1_900,
+      subcategory: 'Gaseosas',
+    });
+    expect(await ProductModel.exists({ slug: 'agua-brisa' })).not.toBeNull();
+
+    const csv = await admin.agent.get('/api/v1/products/export');
+    expect(csv.status).toBe(200);
+    expect(csv.text).toContain('Pepsi Vidrio;Bebidas;Gaseosas;2800;1900');
+  });
+
+  it('sube los precios de una categoría por porcentaje y redondea', async () => {
+    const drinks = await CategoryModel.findOne({ slug: 'bebidas' });
+    const body = { categoryId: drinks?.id as string, percent: 10, roundTo: 100 };
+    const preview = bulkPriceResultSchema.parse(
+      (await send(admin, 'post', '/products/bulk-price', body)).body,
+    );
+    expect(preview.items).toEqual([expect.objectContaining({ from: 2_500, to: 2_800 })]);
+    await send(admin, 'post', '/products/bulk-price', { ...body, dryRun: false }).expect(200);
+    expect((await ProductModel.findOne({ slug: 'pepsi-vidrio' }))?.price).toBe(2_800);
   });
 });

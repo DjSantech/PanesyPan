@@ -267,3 +267,72 @@ export function lunchChoiceLabel(choice: LunchChoice): string {
     choice.drink ?? 'Sin bebida',
   ].join(' · ');
 }
+
+// ── Carga masiva y cambio de precios ───────────────────────────────
+
+export const PRODUCT_IMPORT_MAX_ROWS = 800;
+
+/**
+ * Una fila del CSV de productos. Los productos se buscan por nombre: si existe se actualiza
+ * lo que traiga la fila (precio, costo, subcategoría, stock mínimo); si no existe, se crea en
+ * su categoría solo si se pidió y trae precio.
+ */
+export const productImportRowSchema = z.strictObject({
+  name: catalogNameSchema,
+  category: z.string().trim().max(60).default(''),
+  subcategory: subcategorySchema.optional(),
+  price: priceSchema.optional(),
+  cost: costSchema.optional(),
+  minStock: z.int().min(0).max(10_000).optional(),
+});
+export type ProductImportRow = z.input<typeof productImportRowSchema>;
+
+export const importProductsRequestSchema = z.strictObject({
+  rows: z
+    .array(productImportRowSchema)
+    .min(1, 'El archivo no tiene filas')
+    .max(PRODUCT_IMPORT_MAX_ROWS, `Máximo ${String(PRODUCT_IMPORT_MAX_ROWS)} filas por carga`),
+  /** Crear los productos que no existen (en la categoría de la fila). */
+  createMissing: z.boolean().default(false),
+  /** true = solo muestra lo que haría, sin guardar nada. */
+  dryRun: z.boolean().default(true),
+});
+export type ImportProductsRequest = z.input<typeof importProductsRequestSchema>;
+
+export const importProductsResultSchema = z.object({
+  dryRun: z.boolean(),
+  created: z.int(),
+  updated: z.int(),
+  unchanged: z.int(),
+  skipped: z.array(z.object({ row: z.int(), name: z.string(), reason: z.string() })),
+  /** Cambios de las primeras filas, para revisarlos antes de aplicar. */
+  changes: z.array(z.object({ name: z.string(), detail: z.string() })),
+});
+export type ImportProductsResult = z.infer<typeof importProductsResultSchema>;
+
+export const BULK_PRICE_ROUNDING = [50, 100, 500] as const;
+
+/** Subir o bajar en un porcentaje los precios de una categoría, redondeando a 50, 100 o 500. */
+export const bulkPriceRequestSchema = z.strictObject({
+  categoryId: objectIdSchema,
+  percent: z
+    .int('El porcentaje es un número entero')
+    .min(-50, 'Máximo bajar 50 %')
+    .max(200, 'Máximo subir 200 %')
+    .refine((value) => value !== 0, 'El porcentaje no puede ser 0'),
+  roundTo: z.union([z.literal(50), z.literal(100), z.literal(500)]).default(100),
+  dryRun: z.boolean().default(true),
+});
+export type BulkPriceRequest = z.input<typeof bulkPriceRequestSchema>;
+
+export const bulkPriceResultSchema = z.object({
+  dryRun: z.boolean(),
+  items: z.array(z.object({ productId: z.string(), name: z.string(), from: z.int(), to: z.int() })),
+});
+export type BulkPriceResult = z.infer<typeof bulkPriceResultSchema>;
+
+/** Nuevo precio con el porcentaje aplicado y redondeado (nunca por debajo del mínimo). */
+export function adjustedPrice(price: number, percent: number, roundTo: number): number {
+  const raw = price * (1 + percent / 100);
+  return Math.max(PRICE_LIMITS.min, Math.round(raw / roundTo) * roundTo);
+}

@@ -1,8 +1,10 @@
 import {
+  bulkPriceRequestSchema,
   businessDateSchema,
   createCategoryRequestSchema,
   createProductRequestSchema,
   hasPermission,
+  importProductsRequestSchema,
   listProductsQuerySchema,
   PRODUCT_IMAGE_TYPES,
   reorderCategoriesRequestSchema,
@@ -35,6 +37,7 @@ import {
   updateCategory,
   updateProduct,
 } from './catalog.service';
+import { bulkChangePrices, exportProductsCsv, importProducts } from './catalog-bulk.service';
 import { getDailyMenu, upsertDailyMenu } from './daily-menu.service';
 
 export interface CatalogRouterDeps {
@@ -104,6 +107,23 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   router.get('/products', ...canRead, async (req, res) => {
     const query = parseQuery(req, listProductsQuerySchema);
     res.json({ items: (await listProducts(query)).map((product) => forViewer(req, product)) });
+  });
+  router.get('/products/export', ...canManage, async (_req, res) => {
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="panesypan-productos.csv"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(await exportProductsCsv());
+  });
+  router.post('/products/import', ...canManage, async (req, res) => {
+    const input = parseBody(req, importProductsRequestSchema);
+    res.json(await importProducts(input, actorContext(req)));
+  });
+  router.post('/products/bulk-price', ...canManage, async (req, res) => {
+    const input = parseBody(req, bulkPriceRequestSchema);
+    res.json(await bulkChangePrices(input, actorContext(req)));
   });
   router.get('/products/:id', ...canRead, async (req, res) => {
     res.json({ product: forViewer(req, await getProduct(parseIdParam(req))) });

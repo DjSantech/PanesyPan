@@ -270,7 +270,7 @@ export async function listProducts(query: ListProductsQuery): Promise<Product[]>
 async function supplierRefOf(supplierId: string | null): Promise<Types.ObjectId | null> {
   if (supplierId === null) return null;
   const supplier = await SupplierModel.findById(supplierId);
-  if (supplier === null || !supplier.isActive) throw notFound('Proveedor');
+  if (!supplier?.isActive) throw notFound('Proveedor');
   return supplier._id;
 }
 

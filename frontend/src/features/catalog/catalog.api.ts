@@ -14,7 +14,7 @@ import {
   type UpdateProductRequest,
   type UpsertDailyMenuRequest,
 } from '@panesypan/shared';
-import { apiJson, getApiBaseUrl } from '@/lib/api-client';
+import { apiDownload, apiJson, getApiBaseUrl } from '@/lib/api-client';
 
 export const catalogKeys = {
   all: ['catalog'] as const,
@@ -135,4 +135,17 @@ export async function saveDailyMenu(
     body: input,
   });
   return menu;
+}
+
+/** Descarga el CSV con todos los productos (se edita en Excel y se vuelve a cargar). */
+export async function downloadProductsCsv(): Promise<void> {
+  const blob = await apiDownload('/api/v1/products/export');
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'panesypan-productos.csv';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
