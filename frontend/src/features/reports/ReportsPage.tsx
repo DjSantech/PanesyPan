@@ -9,6 +9,7 @@ import { apiJson } from '@/lib/api-client';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { ExportCard } from '../dashboard/ExportCard';
+import { PerformanceSection } from './PerformanceSection';
 import { groupSales, presetRange, type Grouping, type Preset } from './reports-logic';
 
 const PRESETS: readonly { value: Preset; label: string }[] = [
@@ -21,6 +22,12 @@ const GROUPINGS: readonly { value: Grouping; label: string }[] = [
   { value: 'day', label: 'Por día' },
   { value: 'week', label: 'Por semana' },
   { value: 'month', label: 'Por mes' },
+];
+
+type Section = 'business' | 'performance';
+const SECTIONS: readonly { value: Section; label: string }[] = [
+  { value: 'business', label: 'Negocio' },
+  { value: 'performance', label: 'Desempeño por caja y día' },
 ];
 
 const compactCOP = new Intl.NumberFormat('es-CO', {
@@ -77,11 +84,12 @@ export function ReportsPage() {
   const [preset, setPreset] = useState<Preset | null>('month');
   const [range, setRange] = useState(() => presetRange('month'));
   const [grouping, setGrouping] = useState<Grouping>('day');
+  const [section, setSection] = useState<Section>('business');
   const valid = range.from !== '' && range.to !== '' && range.from <= range.to;
   const report = useQuery({
     queryKey: ['reports', 'business', range],
     queryFn: ({ signal }) => getBusinessReport(range.from, range.to, signal),
-    enabled: valid,
+    enabled: valid && section === 'business',
   });
 
   return (
@@ -90,6 +98,9 @@ export function ReportsPage() {
         title="Reportes"
         description="Cómo le fue al negocio en un rango de días: ventas, gastos, nómina, compras y la utilidad estimada."
       />
+      <div className="mb-4">
+        <Segmented label="Sección" options={SECTIONS} value={section} onChange={setSection} />
+      </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Segmented
           label="Atajos de fechas"
@@ -126,6 +137,8 @@ export function ReportsPage() {
 
       {!valid ? (
         <Alert tone="danger">La fecha inicial no puede ser posterior a la final.</Alert>
+      ) : section === 'performance' ? (
+        <PerformanceSection from={range.from} to={range.to} />
       ) : report.isPending ? (
         <Skeleton className="h-96" />
       ) : report.isError ? (
