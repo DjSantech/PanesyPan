@@ -521,13 +521,20 @@ export async function listSales(query: ListSalesQuery, ctx: ActorContext): Promi
   const filter: QueryFilter<SaleAttrs> = {};
   if (hasPermission(ctx.actor.role, 'reports:read')) {
     if (query.shiftId !== undefined) filter.shiftId = new Types.ObjectId(query.shiftId);
-    else filter.businessDate = query.date ?? toBusinessDate();
+    else if (query.number !== undefined) {
+      // El tiquete se busca en todo el historial: no depende del día elegido.
+    } else if (query.from !== undefined && query.to !== undefined) {
+      filter.businessDate = trusted({ $gte: query.from, $lte: query.to });
+    } else filter.businessDate = query.date ?? toBusinessDate();
   } else {
+    // La cajera sigue viendo solo su caja abierta, con o sin filtros.
     const shift = await findOpenShift(ctx.actor.id);
     if (shift === null) return [];
     filter.shiftId = shift._id;
   }
   filter.status = query.status ?? trusted({ $in: ['PAID', 'VOIDED', 'CANCELED'] });
+  if (query.number !== undefined) filter.number = Number(query.number);
+  if (query.method !== undefined) filter['payments.method'] = query.method;
 
   const sales = await SaleModel.find(filter).sort({ paidAt: -1, openedAt: -1 }).limit(1_000);
   return sales.map(toSaleDto);

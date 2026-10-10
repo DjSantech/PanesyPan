@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupSales, presetRange, weekStart } from './reports-logic';
+import { groupSales, presetRange, usedMethods, weekStart } from './reports-logic';
 
 describe('reportes: agrupación y rangos', () => {
   it('agrupa por semana desde el lunes y por mes', () => {
@@ -20,5 +20,15 @@ describe('reportes: agrupación y rangos', () => {
       from: '2026-09-01',
       to: '2026-09-30',
     });
+  });
+});
+
+describe('reportes: medios de pago usados', () => {
+  it('deja solo los que aparecen, en el orden dado', () => {
+    const rows = [
+      { byMethod: [{ method: 'NEQUI', amount: 1 }] },
+      { byMethod: [{ method: 'CASH', amount: 2 }] },
+    ];
+    expect(usedMethods(rows, ['CASH', 'CARD', 'NEQUI'])).toEqual(['CASH', 'NEQUI']);
   });
 });

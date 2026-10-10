@@ -106,6 +106,10 @@ export async function listSales(
   if (query.date !== undefined) params.set('date', query.date);
   if (query.shiftId !== undefined) params.set('shiftId', query.shiftId);
   if (query.status !== undefined) params.set('status', query.status);
+  if (query.from !== undefined) params.set('from', query.from);
+  if (query.to !== undefined) params.set('to', query.to);
+  if (query.method !== undefined) params.set('method', query.method);
+  if (query.number !== undefined) params.set('number', query.number);
   const suffix = params.size > 0 ? `?${params.toString()}` : '';
   const { items } = await apiJson(`/api/v1/sales${suffix}`, listSalesResponseSchema, { signal });
   return items;

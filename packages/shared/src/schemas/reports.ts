@@ -102,15 +102,31 @@ export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 
 // ── Exportes ───────────────────────────────────────────────────────
 
-export const EXPORT_KINDS = ['sales', 'cash', 'movements', 'purchases', 'inventory'] as const;
+export const EXPORT_KINDS = [
+  'sales',
+  'cash',
+  'performance',
+  'movements',
+  'incomes',
+  'expenses',
+  'purchases',
+  'inventory',
+  'stock',
+  'self-consumption',
+] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
 
 export const EXPORT_LABELS: Readonly<Record<ExportKind, string>> = {
   sales: 'Ventas',
   cash: 'Cajas y arqueos',
+  performance: 'Desempeño por caja y por día',
   movements: 'Egresos, retiros e ingresos de caja',
+  incomes: 'Ingresos de caja',
+  expenses: 'Gastos por tipo',
   purchases: 'Compras a proveedores',
   inventory: 'Movimientos de inventario',
+  stock: 'Inventario actual valorizado (no usa el rango)',
+  'self-consumption': 'Autoconsumo',
 };
 
 /** Máximo de días que abarca un exporte (evita respuestas enormes en el plan gratis). */
@@ -209,3 +225,51 @@ export const businessReportSchema = z.object({
   stockValue: z.int(),
 });
 export type BusinessReport = z.infer<typeof businessReportSchema>;
+
+// ── Desempeño (por caja y por día) ─────────────────────────────────
+
+/**
+ * Cifras de una caja o de un día. Las ventas anuladas no suman (solo se cuentan aparte). El costo
+ * usa el costo guardado en cada línea al vender y, en las ventas anteriores, el costo actual.
+ */
+export const performanceRowSchema = z.object({
+  /** Id de la caja (vista detallada) o el día AAAA-MM-DD (vista consolidada). */
+  key: z.string(),
+  label: z.string(),
+  businessDate: businessDateSchema,
+  /** Cajera (vista detallada) o null en la consolidada. */
+  userName: z.string().nullable(),
+  shiftsCount: z.int(),
+  salesCount: z.int(),
+  byMethod: z.array(z.object({ method: z.enum(PAYMENT_METHODS), amount: z.int() })),
+  salesTotal: z.int(),
+  discountsTotal: z.int(),
+  voidedCount: z.int(),
+  voidedTotal: z.int(),
+  returnsTotal: z.int(),
+  /** Ventas − devoluciones. */
+  netSales: z.int(),
+  costOfSales: z.int(),
+  /** Ventas netas − costo de lo vendido. */
+  grossProfit: z.int(),
+  incomesTotal: z.int(),
+  /** Egresos de caja que no son pago de compras (esas van en compras). */
+  expensesTotal: z.int(),
+  withdrawalsTotal: z.int(),
+  /** Por caja: compras pagadas con esa caja. Por día: todas las compras del día. */
+  purchasesTotal: z.int(),
+  /** Autoconsumo al costo: solo por día (null por caja: el inventario no se amarra a la caja). */
+  selfConsumptionValue: z.int().nullable(),
+  openingAmount: z.int(),
+  /** Efectivo contado al cerrar o, si sigue abierta, el esperado. */
+  closingCash: z.int(),
+});
+export type PerformanceRow = z.infer<typeof performanceRowSchema>;
+
+export const performanceReportSchema = z.object({
+  from: businessDateSchema,
+  to: businessDateSchema,
+  byShift: z.array(performanceRowSchema),
+  byDay: z.array(performanceRowSchema),
+});
+export type PerformanceReport = z.infer<typeof performanceReportSchema>;

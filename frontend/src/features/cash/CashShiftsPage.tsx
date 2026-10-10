@@ -6,7 +6,7 @@ import {
   type CashShift,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Printer, Wallet } from 'lucide-react';
+import { CheckCircle2, Download, Printer, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
@@ -17,6 +17,8 @@ import { Alert, Badge, Card, Skeleton } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { printArea } from '../pos/print-area';
+import { useCan } from '../auth/use-session';
+import { downloadFile } from '../dashboard/dashboard.api';
 import { useSettings } from '../settings/settings.api';
 import {
   cashHistoryKeys,
@@ -25,6 +27,7 @@ import {
   listShifts,
   shiftTitle,
 } from './cash-history.api';
+import { ShiftFullReport } from './ShiftFullReport';
 import { ShiftReport } from './ShiftReport';
 
 const weekAgo = (): string => {
@@ -180,6 +183,16 @@ function ShiftDetailDialog({
     },
   });
   const ticketWidth = settings.data?.ticketWidth ?? '80';
+  const canExport = useCan('reports:read');
+  const exportCsv = useMutation({
+    mutationFn: () =>
+      downloadFile(
+        `/api/v1/reports/cash-shifts/${encodeURIComponent(shiftId ?? '')}/export`,
+        `panesypan-caja-${shiftId ?? ''}.csv`,
+      ),
+    onSuccess: () => toast.success('Caja exportada'),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
 
   return (
     <Dialog open={shiftId !== null} onOpenChange={onOpenChange}>
@@ -196,6 +209,7 @@ function ShiftDetailDialog({
             <div className="flex justify-center rounded-xl border border-border bg-white p-3">
               <ShiftReport detail={detail.data} ticketWidth={ticketWidth} />
             </div>
+            <ShiftFullReport detail={detail.data} />
             {detail.data.shift.confirmNote === '' ? null : (
               <p className="text-sm">Nota de la revisión: {detail.data.shift.confirmNote}</p>
             )}
@@ -226,6 +240,17 @@ function ShiftDetailDialog({
               >
                 <Printer aria-hidden="true" /> Imprimir
               </Button>
+              {canExport ? (
+                <Button
+                  variant="outline"
+                  disabled={exportCsv.isPending}
+                  onClick={() => {
+                    exportCsv.mutate();
+                  }}
+                >
+                  <Download aria-hidden="true" /> CSV
+                </Button>
+              ) : null}
               {detail.data.shift.status === 'CLOSED' && detail.data.shift.confirmedAt === null ? (
                 <Button
                   disabled={confirm.isPending}

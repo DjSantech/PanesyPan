@@ -60,3 +60,12 @@ export function presetRange(preset: Preset, now = new Date()): { from: string; t
   const lastMonthEnd = iso(firstOfMonth);
   return { from: `${lastMonthEnd.slice(0, 8)}01`, to: lastMonthEnd };
 }
+
+/** Medios de pago que aparecen en alguna fila, en el orden de la lista dada. */
+export function usedMethods<T extends string>(
+  rows: readonly { byMethod: readonly { method: T; amount: number }[] }[],
+  order: readonly T[],
+): T[] {
+  const seen = new Set(rows.flatMap((row) => row.byMethod.map((entry) => entry.method)));
+  return order.filter((method) => seen.has(method));
+}

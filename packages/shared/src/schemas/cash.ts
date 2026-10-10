@@ -4,6 +4,7 @@ import { PAYMENT_METHODS } from '../constants/payment-methods';
 import { PRICE_LIMITS } from '../money/money';
 import { removeAccents } from '../text/text';
 import { businessDateSchema, objectIdSchema } from './common';
+import { performanceRowSchema } from './reports';
 
 /**
  * Turno de caja: la cajera lo abre con una base en efectivo y todas sus ventas quedan
@@ -116,6 +117,33 @@ export const cashShiftDetailSchema = z.object({
       count: z.int(),
     }),
   ),
+  /** Cifras completas y lo que pasó en la caja (opcional: las API anteriores no lo envían). */
+  report: z
+    .object({
+      performance: performanceRowSchema,
+      sales: z.array(
+        z.object({
+          id: z.string(),
+          number: z.int().nullable(),
+          paidAt: z.iso.datetime().nullable(),
+          status: z.enum(['PAID', 'VOIDED']),
+          total: z.int(),
+          discount: z.int(),
+          cost: z.int(),
+          methods: z.array(z.enum(PAYMENT_METHODS)),
+        }),
+      ),
+      purchases: z.array(
+        z.object({
+          id: z.string(),
+          number: z.int(),
+          supplierName: z.string(),
+          total: z.int(),
+          createdAt: z.iso.datetime(),
+        }),
+      ),
+    })
+    .optional(),
 });
 export type CashShiftDetail = z.infer<typeof cashShiftDetailSchema>;
 
