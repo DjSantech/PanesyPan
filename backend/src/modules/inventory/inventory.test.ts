@@ -340,6 +340,38 @@ describe('costo e inventario valorizado', () => {
   });
 });
 
+describe('catálogos grandes', () => {
+  it('lista y valoriza todos los productos con inventario, aunque pasen de mil', async () => {
+    const category = await CategoryModel.findOne({ slug: 'panaderia' });
+    const many = await ProductModel.insertMany(
+      Array.from({ length: 1_050 }, (_, index) => ({
+        name: `Artículo ${String(index)}`,
+        slug: `articulo-${String(index)}`,
+        code: `77000${String(index)}`,
+        categoryId: category?._id,
+        price: 1_000,
+        cost: 500,
+        trackStock: true,
+      })),
+    );
+    await InventoryItemModel.insertMany(
+      many.map((product) => ({ productId: product._id, quantity: 2, minStock: 0 })),
+    );
+
+    const body = listInventoryResponseSchema.parse(
+      (await admin.agent.get('/api/v1/inventory')).body,
+    );
+    // Los 1.050 nuevos más los dos del catálogo base que controlan inventario.
+    expect(body.items).toHaveLength(1_052);
+    expect(body.totalValue).toBe(1_050 * 2 * 500);
+
+    const byCode = listInventoryResponseSchema.parse(
+      (await admin.agent.get('/api/v1/inventory?search=770001049')).body,
+    );
+    expect(byCode.items.map((item) => item.name)).toEqual(['Artículo 1049']);
+  });
+});
+
 describe('autoconsumo', () => {
   it('baja el stock, exige quién lo consumió y no cuenta como merma', async () => {
     await produce(cashier, products.bread, 10).expect(201);

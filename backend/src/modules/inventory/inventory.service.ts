@@ -18,7 +18,12 @@ import { trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { escapeRegex } from '../../lib/regex';
 import { recordAudit } from '../audit/audit.service';
-import { CategoryModel, ProductModel, type ProductDocument } from '../catalog/catalog.models';
+import {
+  CategoryModel,
+  ProductModel,
+  type ProductAttrs,
+  type ProductDocument,
+} from '../catalog/catalog.models';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import {
@@ -125,14 +130,17 @@ async function itemFor(product: ProductDocument): Promise<InventoryItem> {
 // ── Consultas ──────────────────────────────────────────────────────
 
 export async function listInventory(query: ListInventoryQuery): Promise<ListInventoryResponse> {
-  const filter: QueryFilter<{ isActive: boolean; trackStock: boolean; slug: RegExp }> = {
-    isActive: true,
-    trackStock: true,
-  };
+  const filter: QueryFilter<ProductAttrs> = { isActive: true, trackStock: true };
   if (query.search !== undefined && query.search.length > 0) {
-    filter.slug = new RegExp(escapeRegex(slugify(query.search)), 'i');
+    // Por nombre (sin tildes) o por código, igual que en el catálogo.
+    filter.$or = [
+      { slug: new RegExp(escapeRegex(slugify(query.search)), 'i') },
+      { code: new RegExp(escapeRegex(query.search), 'i') },
+    ];
   }
-  const products = await ProductModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(1_000);
+  // Sin tope: el valor del inventario y las alertas tienen que contar todos los productos
+  // (el catálogo importado de Trytiendas pasa de mil).
+  const products = await ProductModel.find(filter).sort({ sortOrder: 1, name: 1 });
   const all = await buildItems(products);
   const items = query.lowStock === 'true' ? all.filter((item) => item.isLow) : all;
   return {
