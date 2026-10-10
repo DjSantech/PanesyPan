@@ -5,9 +5,12 @@ import {
   suggestedOrderQuantity,
   toBusinessDate,
   type CreatePurchaseRequest,
+  type CreateSupplierReturnRequest,
   type ListPurchasesQuery,
   type OrderSuggestion,
   type Purchase,
+  type SupplierReturn,
+  type VoidPurchaseRequest,
 } from '@panesypan/shared';
 import mongoose, { trusted, Types, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
@@ -15,10 +18,11 @@ import { recordAudit } from '../audit/audit.service';
 import { CashConceptModel } from '../cash/cash-config.models';
 import { ensureDefaultCashConcepts } from '../cash/cash-config.service';
 import { CashMovementModel } from '../cash/cash-movement.model';
+import { CashShiftModel } from '../cash/cash-shift.model';
 import { findOpenShift, requireOpenShift, summarizeShift } from '../cash/cash.service';
 import { ProductModel } from '../catalog/catalog.models';
 import { InventoryItemModel } from '../inventory/inventory.models';
-import { applyPurchaseStock } from '../inventory/inventory.service';
+import { applyPurchaseStock, removeSupplierStock } from '../inventory/inventory.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
 import { nextSequence, type PersonRef } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
@@ -30,6 +34,10 @@ import {
   type PurchaseAttrs,
   type PurchaseDocument,
   type PurchaseLineAttrs,
+  SupplierReturnModel,
+  type SupplierReturnAttrs,
+  type SupplierReturnDocument,
+  type SupplierReturnLineAttrs,
 } from './purchases.models';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
@@ -64,6 +72,14 @@ export function toPurchaseDto(purchase: PurchaseDocument): Purchase {
     note: purchase.note,
     createdBy: purchase.createdBy.name,
     approvedBy: purchase.approvedBy?.name ?? null,
+    status: purchase.status ?? 'ACTIVE',
+    voidedAt: purchase.voidedAt?.toISOString() ?? null,
+    voidedBy: purchase.voidedBy?.name ?? null,
+    voidReason: purchase.voidReason ?? '',
+    voidCashRefunded:
+      purchase.status === 'VOIDED' && purchase.paymentMethod === 'CASH_DRAWER'
+        ? (purchase.voidCashMovementId ?? null) !== null
+        : null,
     createdAt: purchase.createdAt.toISOString(),
   };
 }
@@ -78,7 +94,11 @@ export async function listPurchases(
   const purchases = await PurchaseModel.find(filter).sort({ createdAt: -1 }).limit(500);
   return {
     items: purchases.map(toPurchaseDto),
-    total: purchases.reduce((sum, purchase) => sum + purchase.total, 0),
+    // Las anuladas se listan, pero no suman.
+    total: purchases.reduce(
+      (sum, purchase) => (purchase.status === 'VOIDED' ? sum : sum + purchase.total),
+      0,
+    ),
   };
 }
 
@@ -222,6 +242,253 @@ export async function createPurchase(
     },
   });
   return toPurchaseDto(purchase);
+}
+
+// ── Anular una compra ──────────────────────────────────────────────
+
+/** El ingreso "Reintegro" de la caja (se crea con los tipos por defecto). */
+async function refundConcept() {
+  await ensureDefaultCashConcepts();
+  return CashConceptModel.findOne({ type: 'INCOME', key: slugify('Reintegro'), isActive: true });
+}
+
+/**
+ * Anula una compra con la autorización de un administrador y un motivo:
+ * - Saca del stock lo que entró con ella (si ya se vendió o se gastó, no se puede: 409).
+ * - Si se pagó con efectivo de la caja y esa caja sigue abierta, el efectivo vuelve a ella como
+ *   un ingreso "Reintegro". Si la caja ya se cerró, la compra se anula igual pero el efectivo no
+ *   se toca (el cierre ya quedó cuadrado).
+ * - El último costo de los productos no cambia.
+ */
+export async function voidPurchase(
+  id: string,
+  input: VoidPurchaseRequest,
+  ctx: PosContext,
+): Promise<Purchase> {
+  const existing = Types.ObjectId.isValid(id) ? await PurchaseModel.findById(id) : null;
+  if (existing === null) throw new AppError(404, 'NOT_FOUND', 'Compra no encontrada');
+  if (existing.status === 'VOIDED') throw conflict('Esta compra ya está anulada.');
+
+  const approver = await resolveApproval(ctx, input.approverPin, 'PURCHASE_VOID');
+  const concept = existing.paymentMethod === 'CASH_DRAWER' ? await refundConcept() : null;
+  const by = { id: ctx.actor._id, name: ctx.actor.name };
+  const label = `Compra N.º ${String(existing.number)}`;
+
+  const purchase = await mongoose.connection.transaction(async (session) => {
+    // La condición sobre el estado evita que dos anulaciones simultáneas devuelvan dos veces.
+    const voided = await PurchaseModel.findOneAndUpdate(
+      { _id: existing._id, status: trusted({ $ne: 'VOIDED' }) },
+      {
+        $set: {
+          status: 'VOIDED',
+          voidedAt: new Date(),
+          voidedBy: approver,
+          voidReason: input.reason,
+        },
+      },
+      { returnDocument: 'after', session },
+    );
+    if (voided === null) throw conflict('Esta compra ya está anulada.');
+
+    const stockLines = voided.lines.flatMap((line) =>
+      line.productId === null ? [] : [{ productId: line.productId, quantity: line.quantity }],
+    );
+    await removeSupplierStock(
+      stockLines,
+      'PURCHASE_VOID',
+      by,
+      `${label} anulada · ${voided.supplier.name}`,
+      session,
+    );
+
+    if (voided.paymentMethod === 'CASH_DRAWER' && voided.shiftId !== null) {
+      const shift = await CashShiftModel.findOneAndUpdate(
+        { _id: voided.shiftId, status: 'OPEN' },
+        { $inc: { revision: 1 } },
+        { returnDocument: 'after', session },
+      );
+      if (shift !== null) {
+        const [movement] = await CashMovementModel.create(
+          [
+            {
+              shiftId: shift._id,
+              type: 'INCOME',
+              amount: voided.total,
+              concept: concept === null ? null : { id: concept._id, name: concept.name },
+              staff: null,
+              reason: `Anulación de la ${label} · ${voided.supplier.name}`,
+              createdBy: by,
+              approvedBy: approver,
+            },
+          ],
+          { session },
+        );
+        voided.voidCashMovementId = movement?._id ?? null;
+        await voided.save({ session });
+      }
+    }
+    return voided;
+  });
+
+  await audit(ctx, {
+    action: 'PURCHASE_VOIDED',
+    entity: { type: 'PURCHASE', id: purchase.id, label },
+    metadata: {
+      supplier: purchase.supplier.name,
+      total: purchase.total,
+      reason: input.reason,
+      paymentMethod: purchase.paymentMethod,
+      cashRefunded: (purchase.voidCashMovementId ?? null) !== null,
+      approvedBy: approver.name,
+    },
+  });
+  return toPurchaseDto(purchase);
+}
+
+// ── Devoluciones a proveedor ───────────────────────────────────────
+
+export function toSupplierReturnDto(entry: SupplierReturnDocument): SupplierReturn {
+  return {
+    id: entry.id,
+    number: entry.number,
+    businessDate: entry.businessDate,
+    supplier: { id: entry.supplier.id.toString(), name: entry.supplier.name },
+    lines: entry.lines.map((line) => ({
+      productId: line.productId.toString(),
+      name: line.name,
+      quantity: line.quantity,
+      unitCost: line.unitCost,
+      total: line.total,
+    })),
+    total: entry.total,
+    refundMethod: entry.refundMethod,
+    note: entry.note,
+    createdBy: entry.createdBy.name,
+    createdAt: entry.createdAt.toISOString(),
+  };
+}
+
+export async function listSupplierReturns(
+  query: ListPurchasesQuery,
+): Promise<{ items: SupplierReturn[]; total: number }> {
+  const filter: QueryFilter<SupplierReturnAttrs> = {
+    businessDate: trusted({ $gte: query.from, $lte: query.to }),
+  };
+  if (query.supplierId !== undefined) filter['supplier.id'] = new Types.ObjectId(query.supplierId);
+  const entries = await SupplierReturnModel.find(filter).sort({ createdAt: -1 }).limit(500);
+  return {
+    items: entries.map(toSupplierReturnDto),
+    total: entries.reduce((sum, entry) => sum + entry.total, 0),
+  };
+}
+
+/**
+ * Registra mercancía devuelta a un proveedor: baja el stock (nunca lo deja negativo) y el
+ * reintegro entra a la caja abierta de quien la registra como un ingreso "Reintegro", o queda
+ * como saldo a favor / transferencia (no toca la caja).
+ */
+export async function createSupplierReturn(
+  input: CreateSupplierReturnRequest,
+  ctx: PosContext,
+): Promise<SupplierReturn> {
+  const supplier = Types.ObjectId.isValid(input.supplierId)
+    ? await SupplierModel.findById(input.supplierId)
+    : null;
+  if (supplier?.isActive !== true) throw notFound('Proveedor');
+
+  const products = await ProductModel.find({
+    _id: trusted({ $in: input.lines.map((line) => new Types.ObjectId(line.productId)) }),
+  });
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const lines: SupplierReturnLineAttrs[] = input.lines.map((line) => {
+    const product = productById.get(line.productId);
+    if (product === undefined) throw notFound('Producto');
+    return {
+      productId: product._id,
+      name: product.name,
+      quantity: line.quantity,
+      unitCost: line.unitCost,
+      total: line.quantity * line.unitCost,
+    };
+  });
+  const total = purchaseTotalOf(lines);
+  const toDrawer = input.refundMethod === 'CASH_DRAWER';
+  if (toDrawer && total === 0) throw conflict('La devolución no tiene valor para reintegrar.');
+  if (toDrawer && (await findOpenShift(ctx.actor.id)) === null) {
+    throw new AppError(
+      409,
+      'CASH_SHIFT_REQUIRED',
+      'Para recibir el efectivo en la caja, abre tu caja primero.',
+    );
+  }
+  const concept = toDrawer ? await refundConcept() : null;
+  const by = { id: ctx.actor._id, name: ctx.actor.name };
+
+  const created = await mongoose.connection.transaction(async (session) => {
+    const number = await nextSequence('supplier-return', session);
+    const label = `Devolución N.º ${String(number)} · ${supplier.name}`;
+    await removeSupplierStock(
+      lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+      'SUPPLIER_RETURN',
+      by,
+      label,
+      session,
+    );
+
+    let shiftId: Types.ObjectId | null = null;
+    let cashMovementId: Types.ObjectId | null = null;
+    if (toDrawer) {
+      const shift = await requireOpenShift(ctx.actor.id, session);
+      const [movement] = await CashMovementModel.create(
+        [
+          {
+            shiftId: shift._id,
+            type: 'INCOME',
+            amount: total,
+            concept: concept === null ? null : { id: concept._id, name: concept.name },
+            staff: null,
+            reason: `Devolución a proveedor N.º ${String(number)} · ${supplier.name}`,
+            createdBy: by,
+            approvedBy: null,
+          },
+        ],
+        { session },
+      );
+      shiftId = shift._id;
+      cashMovementId = movement?._id ?? null;
+    }
+
+    const [entry] = await SupplierReturnModel.create(
+      [
+        {
+          number,
+          businessDate: toBusinessDate(),
+          supplier: { id: supplier._id, name: supplier.name },
+          lines,
+          total,
+          refundMethod: input.refundMethod,
+          shiftId,
+          cashMovementId,
+          note: input.note ?? '',
+          createdBy: by,
+        },
+      ],
+      { session },
+    );
+    if (entry === undefined) throw new Error('No se pudo registrar la devolución');
+    return entry;
+  });
+
+  await audit(ctx, {
+    action: 'SUPPLIER_RETURN_CREATED',
+    entity: {
+      type: 'SUPPLIER_RETURN',
+      id: created.id,
+      label: `Devolución a proveedor N.º ${String(created.number)}`,
+    },
+    metadata: { supplier: supplier.name, total, refundMethod: input.refundMethod },
+  });
+  return toSupplierReturnDto(created);
 }
 
 // ── Pedido sugerido ────────────────────────────────────────────────

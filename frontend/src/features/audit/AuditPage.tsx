@@ -49,6 +49,7 @@ const PURPOSE_LABELS: Record<string, string> = {
   DISCOUNT: 'para un descuento',
   VOID: 'para anular una venta',
   CANCEL_TAB: 'para cancelar una mesa',
+  PURCHASE_VOID: 'para anular una compra',
 };
 
 /** Formatea el valor de un cambio según el campo (precios en pesos, sí/no, roles…). */

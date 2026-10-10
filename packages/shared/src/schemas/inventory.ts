@@ -16,6 +16,8 @@ export const STOCK_MOVEMENT_TYPES = [
   'PURCHASE',
   'SELF_CONSUMPTION',
   'SALE_RETURN',
+  'PURCHASE_VOID',
+  'SUPPLIER_RETURN',
 ] as const;
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];
 
@@ -28,6 +30,8 @@ export const STOCK_MOVEMENT_LABELS: Readonly<Record<StockMovementType, string>> 
   PURCHASE: 'Compra a proveedor',
   SELF_CONSUMPTION: 'Autoconsumo',
   SALE_RETURN: 'Devolución de cliente',
+  PURCHASE_VOID: 'Compra anulada',
+  SUPPLIER_RETURN: 'Devolución a proveedor',
 };
 
 export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'BURNED', 'RETURNED', 'OTHER'] as const;

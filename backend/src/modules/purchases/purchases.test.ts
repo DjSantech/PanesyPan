@@ -6,12 +6,15 @@ import {
   listCashMovementsResponseSchema,
   listPurchasesResponseSchema,
   listSalesResponseSchema,
+  listSupplierReturnsResponseSchema,
   orderSuggestionsResponseSchema,
   purchaseResponseSchema,
   slugify,
   supplierResponseSchema,
+  supplierReturnResponseSchema,
   toBusinessDate,
 } from '@panesypan/shared';
+import { Types } from 'mongoose';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { startTestDatabase } from '../../../test/database';
 import {
@@ -24,9 +27,12 @@ import {
 } from '../../../test/factories';
 import { createTestEnv, silentLogger } from '../../../test/helpers';
 import { createApp } from '../../app';
+import { AuditLogModel } from '../audit/audit-log.model';
+import { CashMovementModel } from '../cash/cash-movement.model';
 import { CategoryModel, ProductModel } from '../catalog/catalog.models';
 import { InventoryItemModel, StockMovementModel } from '../inventory/inventory.models';
 import { SaleModel } from '../sales/sale.model';
+import { PurchaseModel } from './purchases.models';
 
 const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
 const errorOf = (body: unknown) => apiErrorResponseSchema.parse(body).error;
@@ -259,5 +265,184 @@ describe('reporte del negocio', () => {
       (await admin.agent.get(`/api/v1/reports/business?from=${today}&to=${today}`)).body,
     );
     expect(report.costOfSales).toBe(3 * 1_000);
+  });
+});
+
+describe('anular una compra', () => {
+  const voidPurchase = (who: LoggedIn, id: string, body: object) =>
+    send(who, 'post', `/purchases/${id}/void`, body);
+
+  it('pide PIN y motivo, devuelve el stock y el efectivo a la caja abierta', async () => {
+    await send(cashier, 'post', '/cash-shifts', { openingAmount: 100_000 }).expect(201);
+    const created = purchaseResponseSchema.parse(
+      (
+        await purchase(cashier, {
+          supplierId,
+          paymentMethod: 'CASH_DRAWER',
+          lines: [{ productId: colaId, quantity: 10, unitCost: 1_800 }],
+        }).expect(201)
+      ).body,
+    ).purchase;
+    expect(created.status).toBe('ACTIVE');
+
+    const noReason = await voidPurchase(cashier, created.id, { approverPin: ADMIN_PIN });
+    expect(noReason.status).toBe(400);
+    const noPin = await voidPurchase(cashier, created.id, { reason: 'Llegó vencida' });
+    expect(noPin.status).toBe(403);
+    expect(errorOf(noPin.body).code).toBe('APPROVAL_REQUIRED');
+
+    const response = await voidPurchase(cashier, created.id, {
+      reason: 'Llegó vencida',
+      approverPin: ADMIN_PIN,
+    });
+    expect(response.status).toBe(200);
+    const voided = purchaseResponseSchema.parse(response.body).purchase;
+    expect(voided).toMatchObject({
+      status: 'VOIDED',
+      voidReason: 'Llegó vencida',
+      voidCashRefunded: true,
+    });
+    expect((await InventoryItemModel.findOne({ productId: colaId }))?.quantity).toBe(0);
+    expect(await StockMovementModel.countDocuments({ type: 'PURCHASE_VOID' })).toBe(1);
+
+    const movements = listCashMovementsResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/cash-shifts/current/movements')).body,
+    ).items;
+    expect(movements.find((movement) => movement.type === 'INCOME')).toMatchObject({
+      amount: 18_000,
+      conceptName: 'Reintegro',
+    });
+    const shift = currentCashShiftResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/cash-shifts/current')).body,
+    ).shift;
+    expect(shift?.summary.expectedCash).toBe(100_000);
+
+    const again = await voidPurchase(admin, created.id, { reason: 'Otra vez' });
+    expect(again.status).toBe(409);
+    expect(await AuditLogModel.countDocuments({ action: 'PURCHASE_VOIDED' })).toBe(1);
+
+    // El reporte ya no la cuenta como compra ni el reintegro como ingreso.
+    const today = toBusinessDate();
+    const report = businessReportSchema.parse(
+      (await admin.agent.get(`/api/v1/reports/business?from=${today}&to=${today}`)).body,
+    );
+    expect(report.purchasesBySupplier).toEqual([]);
+    expect(report.incomesTotal).toBe(0);
+  });
+
+  it('no deja el stock negativo si ya se vendió lo comprado', async () => {
+    const created = purchaseResponseSchema.parse(
+      (
+        await purchase(admin, {
+          supplierId,
+          paymentMethod: 'TRANSFER',
+          lines: [{ productId: colaId, quantity: 2, unitCost: 1_000 }],
+        }).expect(201)
+      ).body,
+    ).purchase;
+    await InventoryItemModel.updateOne({ productId: colaId }, { $set: { quantity: 1 } });
+    const response = await voidPurchase(admin, created.id, { reason: 'Error de digitación' });
+    expect(response.status).toBe(409);
+    expect(errorOf(response.body).message).toContain('Big Cola');
+    expect((await InventoryItemModel.findOne({ productId: colaId }))?.quantity).toBe(1);
+    expect((await PurchaseModel.findById(created.id))?.status).toBe('ACTIVE');
+  });
+
+  it('si la caja ya se cerró, anula pero no toca el efectivo', async () => {
+    const created = purchaseResponseSchema.parse(
+      (
+        await purchase(admin, {
+          supplierId,
+          paymentMethod: 'TRANSFER',
+          lines: [{ productId: colaId, quantity: 3, unitCost: 1_000 }],
+        }).expect(201)
+      ).body,
+    ).purchase;
+    // Simula una compra pagada con una caja que ya se cerró.
+    const closedShift = new Types.ObjectId();
+    await PurchaseModel.updateOne(
+      { _id: created.id },
+      { $set: { paymentMethod: 'CASH_DRAWER', shiftId: closedShift } },
+    );
+    const voided = purchaseResponseSchema.parse(
+      (await voidPurchase(admin, created.id, { reason: 'Proveedor equivocado' }).expect(200)).body,
+    ).purchase;
+    expect(voided).toMatchObject({ status: 'VOIDED', voidCashRefunded: false });
+    expect(await CashMovementModel.countDocuments({ type: 'INCOME' })).toBe(0);
+  });
+
+  it('las compras viejas sin estado se leen como vigentes', async () => {
+    await purchase(admin, {
+      supplierId,
+      paymentMethod: 'TRANSFER',
+      lines: [{ productId: colaId, quantity: 1, unitCost: 1_000 }],
+    }).expect(201);
+    await PurchaseModel.collection.updateMany({}, { $unset: { status: '', voidReason: '' } });
+    const today = toBusinessDate();
+    const list = listPurchasesResponseSchema.parse(
+      (await admin.agent.get(`/api/v1/purchases?from=${today}&to=${today}`)).body,
+    );
+    expect(list.items[0]).toMatchObject({ status: 'ACTIVE', voidReason: '' });
+  });
+});
+
+describe('devoluciones a proveedor', () => {
+  const giveBack = (who: LoggedIn, body: object) => send(who, 'post', '/supplier-returns', body);
+
+  beforeEach(async () => {
+    await InventoryItemModel.create({ productId: colaId, quantity: 10 });
+  });
+
+  it('con efectivo: baja el stock y el reintegro entra a la caja abierta', async () => {
+    const body = {
+      supplierId,
+      refundMethod: 'CASH_DRAWER',
+      note: 'Venían golpeadas',
+      lines: [{ productId: colaId, quantity: 4, unitCost: 1_800 }],
+    };
+    const closed = await giveBack(cashier, body);
+    expect(closed.status).toBe(409);
+    expect(errorOf(closed.body).code).toBe('CASH_SHIFT_REQUIRED');
+
+    await send(cashier, 'post', '/cash-shifts', { openingAmount: 50_000 }).expect(201);
+    const response = await giveBack(cashier, body);
+    expect(response.status).toBe(201);
+    expect(supplierReturnResponseSchema.parse(response.body).supplierReturn).toMatchObject({
+      number: 1,
+      total: 7_200,
+      refundMethod: 'CASH_DRAWER',
+      lines: [{ name: 'Big Cola', quantity: 4 }],
+    });
+    expect((await InventoryItemModel.findOne({ productId: colaId }))?.quantity).toBe(6);
+    expect(await StockMovementModel.countDocuments({ type: 'SUPPLIER_RETURN' })).toBe(1);
+    const shift = currentCashShiftResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/cash-shifts/current')).body,
+    ).shift;
+    expect(shift?.summary.expectedCash).toBe(57_200);
+    expect(await AuditLogModel.countDocuments({ action: 'SUPPLIER_RETURN_CREATED' })).toBe(1);
+
+    const today = toBusinessDate();
+    const list = listSupplierReturnsResponseSchema.parse(
+      (await cashier.agent.get(`/api/v1/supplier-returns?from=${today}&to=${today}`)).body,
+    );
+    expect(list).toMatchObject({ total: 7_200, items: [{ number: 1 }] });
+  });
+
+  it('como saldo a favor no toca la caja y nunca deja el stock negativo', async () => {
+    const tooMany = await giveBack(admin, {
+      supplierId,
+      refundMethod: 'CREDIT',
+      lines: [{ productId: colaId, quantity: 11, unitCost: 1_000 }],
+    });
+    expect(tooMany.status).toBe(409);
+    expect((await InventoryItemModel.findOne({ productId: colaId }))?.quantity).toBe(10);
+
+    await giveBack(admin, {
+      supplierId,
+      refundMethod: 'CREDIT',
+      lines: [{ productId: colaId, quantity: 10, unitCost: 1_000 }],
+    }).expect(201);
+    expect((await InventoryItemModel.findOne({ productId: colaId }))?.quantity).toBe(0);
+    expect(await CashMovementModel.countDocuments({})).toBe(0);
   });
 });
