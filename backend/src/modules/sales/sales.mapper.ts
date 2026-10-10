@@ -18,6 +18,7 @@ export function toSaleDto(sale: SaleDocument): Sale {
       productId: line.productId.toString(),
       name: line.name,
       unitPrice: line.unitPrice,
+      listPrice: line.listPrice ?? null,
       quantity: line.quantity,
       note: line.note,
       total: line.total,

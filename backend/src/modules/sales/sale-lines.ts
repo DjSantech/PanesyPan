@@ -1,4 +1,10 @@
-import { lineTotal, lunchChoiceLabel, type LunchChoice } from '@panesypan/shared';
+import {
+  lineTotal,
+  lunchChoiceLabel,
+  unitPriceFor,
+  type LunchChoice,
+  type PriceTier,
+} from '@panesypan/shared';
 import { trusted, Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import {
@@ -18,6 +24,8 @@ export interface SellableProduct {
   /** Último costo del producto (null sin costo): queda guardado en la línea de la venta. */
   cost: number | null;
   isLunch: boolean;
+  /** Precios por cantidad (sin indicar = siempre el precio normal; los almuerzos no tienen). */
+  priceTiers?: readonly PriceTier[];
 }
 
 const outOfStock = (message: string): AppError => new AppError(409, 'OUT_OF_STOCK', message);
@@ -60,6 +68,13 @@ export async function loadSellableProducts(
       price: product.price,
       cost: product.cost ?? null,
       isLunch: category.kind === 'LUNCH',
+      priceTiers:
+        category.kind === 'LUNCH'
+          ? []
+          : (product.priceTiers ?? []).map((tier) => ({
+              minQuantity: tier.minQuantity,
+              unitPrice: tier.unitPrice,
+            })),
     });
   }
   return result;
@@ -79,19 +94,39 @@ export function buildLine(
   if (lunch !== null && !product.isLunch) {
     throw new AppError(400, 'VALIDATION_ERROR', `${product.name} no es un almuerzo`);
   }
+  const priceTiers = product.isLunch ? [] : [...(product.priceTiers ?? [])];
+  const unitPrice = unitPriceFor({ price: product.price, priceTiers }, quantity);
   return {
     _id: newLineId(),
     productId: product._id,
     name: product.name,
-    unitPrice: product.price,
+    unitPrice,
+    listPrice: product.price,
+    priceTiers,
     unitCost: product.cost,
     quantity,
     note: lunch === null ? note : [lunchChoiceLabel(lunch), note].filter(Boolean).join(' · '),
-    total: lineTotal({ unitPrice: product.price, quantity }),
+    total: lineTotal({ unitPrice, quantity }),
     isLunch: product.isLunch,
     menuDate: product.isLunch ? today : null,
     lunch,
   };
+}
+
+/**
+ * Ajusta el precio de una línea a su nueva cantidad con las escalas que tenía al agregarse
+ * (las líneas anteriores a los precios por cantidad conservan su precio).
+ */
+export function repriceLine(
+  line: Pick<SaleLineAttrs, 'unitPrice' | 'listPrice' | 'priceTiers' | 'quantity' | 'total'>,
+): void {
+  if (line.listPrice !== undefined && line.listPrice !== null) {
+    line.unitPrice = unitPriceFor(
+      { price: line.listPrice, priceTiers: line.priceTiers ?? [] },
+      line.quantity,
+    );
+  }
+  line.total = lineTotal(line);
 }
 
 export interface PortionChange {

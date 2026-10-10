@@ -5,6 +5,7 @@ import {
   cashShiftResponseSchema,
   currentCashShiftResponseSchema,
   listSalesResponseSchema,
+  productResponseSchema,
   saleResponseSchema,
   slugify,
   toBusinessDate,
@@ -334,6 +335,100 @@ describe('venta de mostrador', () => {
       lines: [{ productId: products.bread, quantity: 1, unitPrice: 1 }],
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe('precios por cantidad', () => {
+  const tiers = [
+    { minQuantity: 12, unitPrice: 1_700 },
+    { minQuantity: 24, unitPrice: 1_600 },
+  ];
+
+  beforeEach(async () => {
+    await openShift(cashier).expect(201);
+    await ProductModel.updateOne({ _id: products.bread }, { $set: { priceTiers: tiers } });
+  });
+
+  it('el cobro de mostrador usa el precio de la escala que alcanza la cantidad', async () => {
+    const response = await send(
+      cashier,
+      'post',
+      '/sales/checkout',
+      counterSale(
+        [
+          { productId: products.bread, quantity: 12 },
+          { productId: products.bread, quantity: 3, note: 'Sin azúcar' },
+        ],
+        12 * 1_700 + 3 * 2_000,
+      ),
+    );
+    expect(response.status).toBe(201);
+    const sale = saleOf(response.body);
+    expect(sale.lines.map((line) => [line.quantity, line.unitPrice, line.listPrice])).toEqual([
+      [12, 1_700, 2_000],
+      [3, 2_000, 2_000],
+    ]);
+    expect(sale.total).toBe(26_400);
+  });
+
+  it('en la mesa, el precio se recalcula al cambiar la cantidad', async () => {
+    const tab = saleOf((await send(cashier, 'post', '/tabs', { tableNumber: 2 })).body);
+    await send(cashier, 'post', `/tabs/${tab.id}/lines`, {
+      productId: products.bread,
+      quantity: 10,
+    }).expect(200);
+    // Se suma a la misma línea y llega a la escala de 12.
+    const added = saleOf(
+      (
+        await send(cashier, 'post', `/tabs/${tab.id}/lines`, {
+          productId: products.bread,
+          quantity: 2,
+        }).expect(200)
+      ).body,
+    );
+    expect(added.lines).toHaveLength(1);
+    expect(added.lines[0]).toMatchObject({ quantity: 12, unitPrice: 1_700, total: 20_400 });
+
+    const lineId = added.lines[0]?.id ?? '';
+    const more = saleOf(
+      (
+        await send(cashier, 'patch', `/tabs/${tab.id}/lines/${lineId}`, { quantity: 30 }).expect(
+          200,
+        )
+      ).body,
+    );
+    expect(more.lines[0]).toMatchObject({ unitPrice: 1_600, total: 48_000 });
+    expect(more.total).toBe(48_000);
+
+    const fewer = saleOf(
+      (await send(cashier, 'patch', `/tabs/${tab.id}/lines/${lineId}`, { quantity: 5 }).expect(200))
+        .body,
+    );
+    expect(fewer.lines[0]).toMatchObject({ unitPrice: 2_000, total: 10_000 });
+    expect(fewer.total).toBe(10_000);
+  });
+
+  it('el administrador guarda las escalas y no acepta escalas en almuerzos ni más caras', async () => {
+    const saved = await send(admin, 'patch', `/products/${products.fritter}`, {
+      priceTiers: [{ minQuantity: 6, unitPrice: 1_300 }],
+    });
+    expect(saved.status).toBe(200);
+    expect(productResponseSchema.parse(saved.body).product.priceTiers).toEqual([
+      { minQuantity: 6, unitPrice: 1_300 },
+    ]);
+    const audit = await AuditLogModel.findOne({ action: 'PRODUCT_UPDATED' }).lean();
+    expect(audit?.metadata).toMatchObject({
+      changes: { priceTiers: { from: 'sin precios por cantidad', to: '6:1300' } },
+    });
+
+    const expensive = await send(admin, 'patch', `/products/${products.fritter}`, {
+      priceTiers: [{ minQuantity: 6, unitPrice: 1_500 }],
+    });
+    expect(expensive.status).toBe(400);
+    const lunch = await send(admin, 'patch', `/products/${products.lunch}`, {
+      priceTiers: [{ minQuantity: 6, unitPrice: 10_000 }],
+    });
+    expect(lunch.status).toBe(400);
   });
 });
 

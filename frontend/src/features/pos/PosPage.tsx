@@ -38,6 +38,7 @@ import { CheckoutDialog, type CheckoutPayload } from './CheckoutDialog';
 import { BrothDialog } from './BrothDialog';
 import { LunchDialog } from './LunchDialog';
 import { OrderPanel, type OrderLineView } from './OrderPanel';
+import { counterLinePrice } from './pos-logic';
 import {
   addTabLine,
   cancelTab,
@@ -289,7 +290,7 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
   );
   const counterLines: OrderLineView[] = cartLines.map((line) => {
     const product = productById.get(line.productId);
-    const unitPrice = product?.price ?? 0;
+    const { unitPrice, listPrice, total } = counterLinePrice(product, line.quantity);
     return {
       key: line.key,
       name: product?.name ?? 'Producto retirado',
@@ -300,8 +301,9 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
         .filter(Boolean)
         .join(' · '),
       unitPrice,
+      listPrice,
       quantity: line.quantity,
-      total: unitPrice * line.quantity,
+      total,
       unavailable: product?.isAvailable !== true,
     };
   });
@@ -310,6 +312,7 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
     name: line.name,
     note: line.note,
     unitPrice: line.unitPrice,
+    listPrice: line.listPrice,
     quantity: line.quantity,
     total: line.total,
   }));

@@ -1,5 +1,4 @@
 import {
-  lineTotal,
   SALE_LIMITS,
   sumMoney,
   toBusinessDate,
@@ -16,7 +15,13 @@ import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import { resolveApproval, type PosContext } from './approval.service';
 import { SaleModel, type SaleDocument, type SaleLineAttrs } from './sale.model';
-import { adjustPortions, buildLine, loadSellableProducts, portionChangesOf } from './sale-lines';
+import {
+  adjustPortions,
+  buildLine,
+  loadSellableProducts,
+  portionChangesOf,
+  repriceLine,
+} from './sale-lines';
 import {
   assertOpenTab,
   conflict,
@@ -52,6 +57,11 @@ function pickLine(line: SaleLineAttrs): SaleLineAttrs {
     productId: line.productId,
     name: line.name,
     unitPrice: line.unitPrice,
+    listPrice: line.listPrice ?? null,
+    priceTiers: (line.priceTiers ?? []).map((tier) => ({
+      minQuantity: tier.minQuantity,
+      unitPrice: tier.unitPrice,
+    })),
     unitCost: line.unitCost ?? null,
     quantity: line.quantity,
     note: line.note,
@@ -130,7 +140,10 @@ export async function openTab(tableNumber: number, ctx: ActorContext): Promise<S
   }
 }
 
-/** Agrega un producto. Si ya está en la cuenta con la misma nota y precio, suma la cantidad. */
+/**
+ * Agrega un producto. Si ya está en la cuenta con la misma nota y precio normal, suma la
+ * cantidad (y el precio por cantidad se recalcula con el total).
+ */
 export async function addTabLine(id: string, input: SaleLineInput): Promise<Sale> {
   const note = input.note ?? '';
   const tab = await runInTransaction(async (session) => {
@@ -147,7 +160,7 @@ export async function addTabLine(id: string, input: SaleLineInput): Promise<Sale
       (line) =>
         line.productId.equals(candidate.productId) &&
         line.note === candidate.note &&
-        line.unitPrice === candidate.unitPrice &&
+        (line.listPrice ?? line.unitPrice) === candidate.listPrice &&
         line.menuDate === candidate.menuDate,
     );
     if (same === undefined) {
@@ -160,7 +173,7 @@ export async function addTabLine(id: string, input: SaleLineInput): Promise<Sale
         throw new AppError(400, 'VALIDATION_ERROR', 'La cantidad es demasiado alta.');
       }
       same.quantity += input.quantity;
-      same.total = lineTotal(same);
+      repriceLine(same);
     }
     await adjustPortions(portionChangesOf([candidate], 1), session);
     refreshTotals(doc);
@@ -197,7 +210,7 @@ export async function updateTabLine(
     const removed: Removal | null =
       delta < 0 ? { line: { name: line.name, unitPrice: line.unitPrice }, quantity: -delta } : null;
     line.quantity = quantity;
-    line.total = lineTotal(line);
+    repriceLine(line);
     refreshTotals(doc);
     await doc.save({ session });
     return { tab: doc, removal: removed };
