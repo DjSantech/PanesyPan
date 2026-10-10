@@ -19,7 +19,8 @@
     "import:proveedores": "tsx --env-file-if-exists=.env scripts/import-proveedores.ts",
     "import:traitiendas": "tsx --env-file-if-exists=.env scripts/import-traitiendas.ts",
     "images:to-cloudinary": "tsx --env-file-if-exists=.env scripts/migrate-images-cloudinary.ts",
-    "cash:concepts": "tsx --env-file-if-exists=.env scripts/migrate-cash-concepts.ts"
+    "cash:concepts": "tsx --env-file-if-exists=.env scripts/migrate-cash-concepts.ts",
+    "catalog:report": "tsx --env-file-if-exists=.env scripts/catalog-report.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
