@@ -282,14 +282,16 @@ export function lunchChoiceLabel(choice: LunchChoice): string {
 
 // ── Carga masiva y cambio de precios ───────────────────────────────
 
-export const PRODUCT_IMPORT_MAX_ROWS = 800;
+export const PRODUCT_IMPORT_MAX_ROWS = 2_000;
 
 /**
- * Una fila del CSV de productos. Los productos se buscan por nombre: si existe se actualiza
- * lo que traiga la fila (precio, costo, subcategoría, stock mínimo); si no existe, se crea en
- * su categoría solo si se pidió y trae precio.
+ * Una fila del CSV de productos. Los productos se buscan por código y, si no lo traen o no
+ * coincide, por nombre: si existe se actualiza lo que traiga la fila (precio, costo,
+ * subcategoría, stock mínimo y, si se pidió, la categoría); si no existe, se crea en su
+ * categoría solo si se pidió y trae precio.
  */
 export const productImportRowSchema = z.strictObject({
+  code: z.string().trim().max(PRODUCT_CODE_MAX).optional(),
   name: catalogNameSchema,
   category: z.string().trim().max(60).default(''),
   subcategory: subcategorySchema.optional(),
@@ -306,6 +308,8 @@ export const importProductsRequestSchema = z.strictObject({
     .max(PRODUCT_IMPORT_MAX_ROWS, `Máximo ${String(PRODUCT_IMPORT_MAX_ROWS)} filas por carga`),
   /** Crear los productos que no existen (en la categoría de la fila). */
   createMissing: z.boolean().default(false),
+  /** Pasar los productos que ya existen a la categoría de la fila (corrige categorías). */
+  updateCategory: z.boolean().default(false),
   /** true = solo muestra lo que haría, sin guardar nada. */
   dryRun: z.boolean().default(true),
 });

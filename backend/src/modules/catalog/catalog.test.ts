@@ -645,7 +645,53 @@ describe('carga masiva y cambio de precios', () => {
 
     const csv = await admin.agent.get('/api/v1/products/export');
     expect(csv.status).toBe(200);
-    expect(csv.text).toContain('Pepsi Vidrio;Bebidas;Gaseosas;2800;1900');
+    expect(csv.text).toContain(';Pepsi Vidrio;Bebidas;Gaseosas;2800;1900');
+  });
+
+  it('reconoce los productos por código y corrige la categoría si se pide', async () => {
+    const drinks = await CategoryModel.findOne({ slug: 'bebidas' });
+    if (drinks === null) throw new Error('Falta la categoría');
+    await CategoryModel.create({ name: 'Panadería', slug: 'panaderia' });
+    // Dos productos con el mismo nombre que solo se distinguen por el código.
+    await ProductModel.create([
+      { name: 'Pan Queso', slug: 'pan-queso', code: '101', categoryId: drinks._id, price: 1_000 },
+      {
+        name: 'Pan Queso',
+        slug: 'pan-queso-102',
+        code: '102',
+        categoryId: drinks._id,
+        price: 2_000,
+      },
+    ]);
+    const body = {
+      rows: [
+        { code: '102', name: 'Pan Queso', category: 'Panadería', cost: 900 },
+        { code: '101', name: 'Pan Queso', category: 'Panadería', cost: 500 },
+        { code: '999', name: 'Pepsi Vidrio', category: 'Licores', cost: 1_700 },
+      ],
+      updateCategory: true,
+      dryRun: false,
+    };
+    const result = importProductsResultSchema.parse(
+      (await send(admin, 'post', '/products/import', body).expect(200)).body,
+    );
+    expect(result).toMatchObject({ updated: 2, created: 0 });
+    // Pepsi se encuentra por nombre, pero la categoría "Licores" no existe: se omite la fila.
+    expect(result.skipped).toEqual([expect.objectContaining({ name: 'Pepsi Vidrio' })]);
+
+    const bakery = await CategoryModel.findOne({ slug: 'panaderia' });
+    expect(await ProductModel.findOne({ code: '101' })).toMatchObject({ cost: 500, price: 1_000 });
+    expect(await ProductModel.findOne({ code: '102' })).toMatchObject({ cost: 900, price: 2_000 });
+    expect((await ProductModel.findOne({ code: '102' }))?.categoryId.toString()).toBe(bakery?.id);
+
+    // Sin la opción, la categoría del archivo no mueve nada.
+    await send(admin, 'post', '/products/import', {
+      rows: [{ code: '101', name: 'Pan Queso', category: 'Bebidas', cost: 550 }],
+      dryRun: false,
+    }).expect(200);
+    const kept = await ProductModel.findOne({ code: '101' });
+    expect(kept?.cost).toBe(550);
+    expect(kept?.categoryId.toString()).toBe(bakery?.id);
   });
 
   it('sube los precios de una categoría por porcentaje y redondea', async () => {

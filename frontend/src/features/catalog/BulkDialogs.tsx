@@ -55,11 +55,13 @@ export function ImportProductsDialog({ open, onOpenChange }: DialogProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<ProductImportRow[]>([]);
   const [createMissing, setCreateMissing] = useState(false);
+  const [updateCategory, setUpdateCategory] = useState(false);
   const [preview, setPreview] = useState<ImportProductsResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const run = useMutation({
-    mutationFn: (dryRun: boolean) => importProducts({ rows, createMissing, dryRun }),
+    mutationFn: (dryRun: boolean) =>
+      importProducts({ rows, createMissing, updateCategory, dryRun }),
     onSuccess: async (result) => {
       if (result.dryRun) {
         setPreview(result);
@@ -91,7 +93,7 @@ export function ImportProductsDialog({ open, onOpenChange }: DialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         title="Cargar productos desde un archivo"
-        description="CSV de Excel con las columnas Nombre, Categoría, Subcategoría, Precio, Costo y Stock mínimo (sirve el exporte de este sistema y el de TryTiendas). Los productos se buscan por nombre."
+        description="CSV de Excel con las columnas Código, Nombre, Categoría, Subcategoría, Precio, Costo y Stock mínimo (sirve el exporte de este sistema y el listado de TryTiendas guardado como CSV). Los productos se buscan por código y, si no tienen, por nombre."
         className="sm:max-w-xl"
       >
         <div className="grid gap-4">
@@ -123,6 +125,18 @@ export function ImportProductsDialog({ open, onOpenChange }: DialogProps) {
               }}
             />
             Crear los productos que no existen (en su categoría, si trae precio)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4"
+              checked={updateCategory}
+              onChange={(event) => {
+                setUpdateCategory(event.target.checked);
+                setPreview(null);
+              }}
+            />
+            Pasar los productos que ya existen a la categoría del archivo
           </label>
 
           {preview === null ? null : (

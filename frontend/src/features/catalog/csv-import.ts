@@ -64,16 +64,40 @@ export function parseMoney(value: string): number | undefined {
 
 const key = (header: string) => removeAccents(header).toLowerCase().trim();
 
-/** Columna de cada dato según el título (sirve con el archivo exportado y con el de TryTiendas). */
+/**
+ * Columna de cada dato según el título (sirve con el archivo exportado y con el de TryTiendas).
+ * Los nombres van en orden de preferencia: "Precio de venta" gana sobre otro "Precio", y el
+ * último costo o costo unitario sobre el costo promedio.
+ */
 function columnsOf(headers: readonly string[]) {
-  const find = (...names: string[]) =>
-    headers.findIndex((header) => names.some((name) => key(header).includes(name)));
+  const keys = headers.map(key);
+  const find = (...names: string[]) => {
+    for (const name of names) {
+      const index = keys.findIndex((header) => header.includes(name));
+      if (index >= 0) return index;
+    }
+    return -1;
+  };
+  const price = find('precio de venta', 'precio venta', 'precio_venta', 'precio');
+  const costCandidates = [
+    'ultimo costo',
+    'costo unitario',
+    'costo_unitario',
+    'costo',
+    'precio de compra',
+    'precio compra',
+  ];
   return {
+    code: find('codigo de barras', 'codigo_barras', 'barras', 'codigo', 'code', 'sku'),
     name: find('nombre', 'producto', 'descripcion'),
-    category: headers.findIndex((header) => key(header).startsWith('categoria')),
+    category: keys.findIndex((header) => header.startsWith('categoria')),
     subcategory: find('subcategoria'),
-    price: find('precio'),
-    cost: find('costo'),
+    price,
+    // El costo nunca sale de la misma columna del precio de venta.
+    cost: (() => {
+      const index = find(...costCandidates);
+      return index === price ? -1 : index;
+    })(),
     minStock: find('minimo'),
   };
 }
@@ -94,6 +118,8 @@ export function productRowsFromCsv(content: string): {
     const name = cell(line, columns.name);
     if (name === '') return [];
     const row: ProductImportRow = { name, category: cell(line, columns.category) };
+    const code = cell(line, columns.code);
+    if (code !== '') row.code = code;
     const price = parseMoney(cell(line, columns.price));
     const cost = parseMoney(cell(line, columns.cost));
     const minStock = parseMoney(cell(line, columns.minStock));

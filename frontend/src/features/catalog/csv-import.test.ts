@@ -26,7 +26,14 @@ describe('carga de productos desde CSV', () => {
     const tryTiendas =
       'Código,Nombre,Categoría,Costo,Precio de venta\n770,BIG COLA,Bebidas,"1.791","2.500"\n';
     expect(productRowsFromCsv(tryTiendas).rows).toEqual([
-      { name: 'BIG COLA', category: 'Bebidas', price: 2_500, cost: 1_791 },
+      { code: '770', name: 'BIG COLA', category: 'Bebidas', price: 2_500, cost: 1_791 },
+    ]);
+    // Con varias columnas de costo y de precio, toma el costo unitario y el precio de venta.
+    const detailed =
+      'Descripción;Nombre;Costo promedio;Costo unitario;Precio de compra;Precio de venta\n' +
+      'Gaseosa;Pepsi;1500;1600;1600;2500\n';
+    expect(productRowsFromCsv(detailed).rows).toEqual([
+      { name: 'Pepsi', category: '', price: 2_500, cost: 1_600 },
     ]);
     expect(productRowsFromCsv('Precio\n100\n').missingName).toBe(true);
   });

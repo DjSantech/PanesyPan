@@ -23,6 +23,7 @@ import { CategoryModel, ProductModel } from './catalog.models';
 const PREVIEW_CHANGES = 30;
 
 const CSV_HEADERS = [
+  'Código',
   'Nombre',
   'Categoría',
   'Subcategoría',
@@ -38,7 +39,9 @@ const CSV_HEADERS = [
 /** CSV con todos los productos; se puede editar en Excel y volver a cargar. */
 export async function exportProductsCsv(): Promise<string> {
   const [products, categories, stock, suppliers] = await Promise.all([
-    ProductModel.find().sort({ name: 1 }).lean(),
+    // Sin lean(): los productos cargados antes de los campos nuevos (subcategoría, proveedor)
+    // toman sus valores por defecto en vez de llegar vacíos.
+    ProductModel.find().sort({ name: 1 }),
     CategoryModel.find().lean(),
     InventoryItemModel.find().lean(),
     SupplierModel.find().lean(),
@@ -55,6 +58,7 @@ export async function exportProductsCsv(): Promise<string> {
     products.map((product) => {
       const item = stockOf.get(product._id.toString());
       return [
+        product.code ?? '',
         product.name,
         categoryName.get(product.categoryId.toString()) ?? '',
         product.subcategory,
@@ -71,8 +75,9 @@ export async function exportProductsCsv(): Promise<string> {
 }
 
 /**
- * Carga masiva: actualiza los productos que encuentra por nombre y, si se pide, crea los que
- * faltan. Con `dryRun` solo calcula el resultado para revisarlo antes de aplicarlo.
+ * Carga masiva: actualiza los productos que encuentra por código (o, si no, por nombre) y, si
+ * se pide, crea los que faltan. Con `dryRun` solo calcula el resultado para revisarlo antes de
+ * aplicarlo. Los almuerzos no cambian de categoría así (sus porciones van en el menú del día).
  */
 export async function importProducts(
   input: ImportProductsRequest,
@@ -80,8 +85,15 @@ export async function importProducts(
 ): Promise<ImportProductsResult> {
   const dryRun = input.dryRun ?? true;
   const createMissing = input.createMissing ?? false;
+  const updateCategory = input.updateCategory ?? false;
   const [products, categories] = await Promise.all([ProductModel.find(), CategoryModel.find()]);
   const productBySlug = new Map(products.map((product) => [product.slug, product]));
+  const productByCode = new Map(
+    products.flatMap((product) =>
+      (product.code ?? null) === null ? [] : [[product.code ?? '', product] as const],
+    ),
+  );
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
   const categoryBySlug = new Map(categories.map((category) => [category.slug, category]));
   const result: ImportProductsResult = {
     dryRun,
@@ -99,7 +111,10 @@ export async function importProducts(
   for (const [index, row] of input.rows.entries()) {
     const rowNumber = index + 2; // la fila 1 del archivo son los títulos
     const slug = slugify(row.name);
-    if (seen.has(slug)) {
+    const code = row.code ?? '';
+    // Con código, la fila se reconoce por el código (hay nombres repetidos con códigos distintos).
+    const rowKey = code === '' ? `nombre:${slug}` : `codigo:${code}`;
+    if (seen.has(rowKey)) {
       result.skipped.push({
         row: rowNumber,
         name: row.name,
@@ -107,8 +122,8 @@ export async function importProducts(
       });
       continue;
     }
-    seen.add(slug);
-    const product = productBySlug.get(slug);
+    seen.add(rowKey);
+    const product = (code === '' ? undefined : productByCode.get(code)) ?? productBySlug.get(slug);
 
     if (product === undefined) {
       const category = categoryBySlug.get(slugify(row.category ?? ''));
@@ -126,6 +141,10 @@ export async function importProducts(
           name: row.name,
           reason: `No existe la categoría "${row.category ?? ''}"`,
         });
+      } else if (code !== '' && productByCode.has(code)) {
+        result.skipped.push({ row: rowNumber, name: row.name, reason: 'Ese código ya existe' });
+      } else if (productBySlug.has(slug)) {
+        result.skipped.push({ row: rowNumber, name: row.name, reason: 'Ese nombre ya existe' });
       } else {
         result.created += 1;
         note(row.name, `Nuevo en ${category.name} a ${formatCOP(row.price)}`);
@@ -133,6 +152,7 @@ export async function importProducts(
           const created = await ProductModel.create({
             name: row.name,
             slug,
+            code: code === '' ? null : code,
             categoryId: category._id,
             subcategory: row.subcategory ?? '',
             price: row.price,
@@ -152,6 +172,30 @@ export async function importProducts(
     }
 
     const details: string[] = [];
+    if (updateCategory && (row.category ?? '') !== '') {
+      const target = categoryBySlug.get(slugify(row.category ?? ''));
+      const current = categoryById.get(product.categoryId.toString());
+      if (target === undefined) {
+        result.skipped.push({
+          row: rowNumber,
+          name: row.name,
+          reason: `No existe la categoría "${row.category ?? ''}"`,
+        });
+        continue;
+      }
+      if (!target._id.equals(product.categoryId)) {
+        if (target.kind === 'LUNCH' || current?.kind === 'LUNCH') {
+          result.skipped.push({
+            row: rowNumber,
+            name: row.name,
+            reason: 'Los almuerzos no cambian de categoría desde el archivo',
+          });
+          continue;
+        }
+        details.push(`categoría ${current?.name ?? '—'} → ${target.name}`);
+        product.categoryId = target._id;
+      }
+    }
     if (row.price !== undefined && row.price !== product.price) {
       details.push(`precio ${formatCOP(product.price)} → ${formatCOP(row.price)}`);
       product.price = row.price;
@@ -306,8 +350,7 @@ export async function bulkMoveProducts(
   }
 
   const toMove = products.filter(
-    (product) =>
-      !product.categoryId.equals(target._id) || (product.subcategory ?? '') !== subcategory,
+    (product) => !product.categoryId.equals(target._id) || product.subcategory !== subcategory,
   );
   if (toMove.length > 0) {
     await ProductModel.updateMany(
