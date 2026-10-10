@@ -17,10 +17,11 @@ import { Alert, Badge } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { catalogKeys } from '../catalog/catalog.api';
 import { inventoryKeys } from '../inventory/inventory.api';
+import { AttachReceiptButton, ReceiptThumb } from '../cash/Receipt';
 import { ApprovalDialog } from '../pos/ApprovalDialog';
 import { posKeys } from '../pos/pos.api';
 import { useApprovedAction } from '../pos/use-approved-action';
-import { purchaseKeys, voidPurchase } from './purchases.api';
+import { purchaseKeys, uploadPurchaseReceipt, voidPurchase } from './purchases.api';
 
 /** AAAA-MM-DD → DD/MM/AAAA. */
 const shortDate = (date: string): string => date.split('-').reverse().join('/');
@@ -123,6 +124,16 @@ function PurchaseDetail({ purchase, onDone }: { purchase: Purchase; onDone: () =
           {purchase.reference === '' ? '' : ` · ref. ${purchase.reference}`}
           {purchase.note === '' ? '' : ` · ${purchase.note}`}
         </p>
+        <div className="flex items-center gap-2">
+          <ReceiptThumb receipt={purchase.receipt} />
+          <AttachReceiptButton
+            hasReceipt={purchase.receipt !== null}
+            upload={(image) => uploadPurchaseReceipt(purchase.id, image)}
+            onDone={() => {
+              void queryClient.invalidateQueries({ queryKey: purchaseKeys.all });
+            }}
+          />
+        </div>
 
         {voided ? (
           <Alert tone="danger">

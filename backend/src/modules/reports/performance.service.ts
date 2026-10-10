@@ -110,8 +110,12 @@ async function computeShifts(shifts: readonly ShiftLike[]): Promise<ShiftData> {
     SaleModel.find({ 'returns.shiftId': trusted({ $in: ids }) })
       .select('returns')
       .lean(),
-    CashMovementModel.find({ shiftId: trusted({ $in: ids }) }).lean(),
-    PurchaseModel.find({ shiftId: trusted({ $in: ids }) })
+    // Lo anulado no cuenta (movimientos corregidos o compras anuladas).
+    CashMovementModel.find({
+      shiftId: trusted({ $in: ids }),
+      status: trusted({ $ne: 'VOIDED' }),
+    }).lean(),
+    PurchaseModel.find({ shiftId: trusted({ $in: ids }), status: trusted({ $ne: 'VOIDED' }) })
       .sort({ createdAt: 1 })
       .lean(),
     ProductModel.find().select('cost').lean(),
@@ -272,7 +276,9 @@ export async function getPerformanceReport(query: BusinessReportQuery): Promise<
       .select('number userName businessDate openingAmount closing openedAt')
       .sort({ openedAt: 1 })
       .lean(),
-    PurchaseModel.find({ businessDate: range }).select('businessDate total').lean(),
+    PurchaseModel.find({ businessDate: range, status: trusted({ $ne: 'VOIDED' }) })
+      .select('businessDate total')
+      .lean(),
     StockMovementModel.find({ businessDate: range, type: 'SELF_CONSUMPTION' })
       .select('businessDate productId delta')
       .lean(),

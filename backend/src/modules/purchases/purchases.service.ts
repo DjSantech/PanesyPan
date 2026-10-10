@@ -19,6 +19,7 @@ import { CashConceptModel } from '../cash/cash-config.models';
 import { ensureDefaultCashConcepts } from '../cash/cash-config.service';
 import { CashMovementModel } from '../cash/cash-movement.model';
 import { CashShiftModel } from '../cash/cash-shift.model';
+import { deleteReceipt, storeReceipt, toReceiptDto } from '../receipts/receipts.service';
 import { findOpenShift, requireOpenShift, summarizeShift } from '../cash/cash.service';
 import { ProductModel } from '../catalog/catalog.models';
 import { InventoryItemModel } from '../inventory/inventory.models';
@@ -53,6 +54,31 @@ function audit(
 
 // ── Compras ────────────────────────────────────────────────────────
 
+/** Adjunta (o reemplaza) la foto de la factura de una compra. */
+export async function setPurchaseReceipt(
+  id: string,
+  data: Buffer,
+  ctx: ActorContext,
+): Promise<Purchase> {
+  const purchase = Types.ObjectId.isValid(id) ? await PurchaseModel.findById(id) : null;
+  if (purchase === null) throw notFound('Compra');
+  const stored = await storeReceipt(data, ctx);
+  const previous = purchase.receipt ?? null;
+  purchase.receipt = stored;
+  await purchase.save();
+  if (previous !== null) await deleteReceipt(previous, ctx);
+  await audit(ctx, {
+    action: 'RECEIPT_ATTACHED',
+    entity: {
+      type: 'PURCHASE',
+      id: purchase.id,
+      label: `Compra N.º ${String(purchase.number)}`,
+    },
+    metadata: { replaced: previous !== null },
+  });
+  return toPurchaseDto(purchase);
+}
+
 export function toPurchaseDto(purchase: PurchaseDocument): Purchase {
   return {
     id: purchase.id,
@@ -80,6 +106,7 @@ export function toPurchaseDto(purchase: PurchaseDocument): Purchase {
       purchase.status === 'VOIDED' && purchase.paymentMethod === 'CASH_DRAWER'
         ? (purchase.voidCashMovementId ?? null) !== null
         : null,
+    receipt: toReceiptDto(purchase.receipt),
     createdAt: purchase.createdAt.toISOString(),
   };
 }

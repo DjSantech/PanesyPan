@@ -243,6 +243,22 @@ export const staffMemberResponseSchema = z.object({ member: staffMemberSchema })
 
 // ── Egresos, retiros e ingresos ────────────────────────────────────
 
+/** Anulado: queda el registro pero deja de contar en la caja y en los reportes. */
+export const CASH_MOVEMENT_STATUSES = ['ACTIVE', 'VOIDED'] as const;
+export type CashMovementStatus = (typeof CASH_MOVEMENT_STATUSES)[number];
+
+/** Tipos aceptados para la foto de un comprobante (el servidor revisa el tipo real). */
+export const RECEIPT_IMAGE_TYPES = ['image/webp', 'image/jpeg', 'image/png'] as const;
+export const RECEIPT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Foto del comprobante (factura, recibo) de un egreso, ingreso o compra. */
+export const receiptSchema = z.object({
+  id: z.string(),
+  /** Dirección para verla: Cloudinary o la API (con sesión). */
+  url: z.string(),
+});
+export type Receipt = z.infer<typeof receiptSchema>;
+
 export const cashMovementSchema = z.object({
   id: z.string(),
   type: z.enum(CASH_MOVEMENT_TYPES),
@@ -260,6 +276,13 @@ export const cashMovementSchema = z.object({
   approvedBy: z.string().nullable(),
   /** Proveedor al que se le pagó (solo en egresos); null si no aplica o la API aún no lo envía. */
   supplier: z.string().nullable().default(null),
+  /** Foto del comprobante (null si no tiene). */
+  receipt: receiptSchema.nullable().default(null),
+  status: z.enum(CASH_MOVEMENT_STATUSES).default('ACTIVE'),
+  voidReason: z.string().nullable().default(null),
+  voidedBy: z.string().nullable().default(null),
+  /** Lo registró una compra: se corrige anulando la compra, no aquí. */
+  fromPurchase: z.boolean().default(false),
   createdAt: z.iso.datetime(),
 });
 export type CashMovement = z.infer<typeof cashMovementSchema>;
@@ -304,6 +327,36 @@ export const createCashMovementRequestSchema = z
     message: 'Escribe el motivo (mínimo 3 caracteres)',
   });
 export type CreateCashMovementRequest = z.input<typeof createCashMovementRequestSchema>;
+
+/** Corregir un movimiento de la caja abierta (siempre con PIN de administrador). */
+export const updateCashMovementRequestSchema = z
+  .strictObject({
+    amount: z
+      .int('El monto debe ser un número entero de pesos')
+      .min(1, 'El monto debe ser mayor a cero')
+      .max(PRICE_LIMITS.max, 'El monto es demasiado alto')
+      .optional(),
+    /** Tipo de movimiento de la misma clase; null lo quita. */
+    conceptId: objectIdSchema.nullable().optional(),
+    reason: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+    approverPin: z.string().optional(),
+  })
+  .refine(
+    (value) =>
+      value.amount !== undefined || value.conceptId !== undefined || value.reason !== undefined,
+    'No hay cambios',
+  );
+export type UpdateCashMovementRequest = z.input<typeof updateCashMovementRequestSchema>;
+
+export const voidCashMovementRequestSchema = z.strictObject({
+  reason: z
+    .string()
+    .trim()
+    .min(3, 'Escribe el motivo (mínimo 3 caracteres)')
+    .max(200, 'Máximo 200 caracteres'),
+  approverPin: z.string().optional(),
+});
+export type VoidCashMovementRequest = z.input<typeof voidCashMovementRequestSchema>;
 
 // ── Cierre con arqueo ──────────────────────────────────────────────
 

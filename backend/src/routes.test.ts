@@ -88,6 +88,8 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['post', '/purchases/:id/void', 'purchases:record'],
   ['get', '/supplier-returns', 'purchases:record'],
   ['post', '/supplier-returns', 'purchases:record'],
+  ['post', '/purchases/:id/receipt', 'purchases:record'],
+  ['get', '/receipts/:id', 'session'],
 
   ['get', '/cash-concepts', 'cash:operate'],
   ['post', '/cash-concepts', 'settings:manage'],
@@ -100,6 +102,9 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['post', '/cash-shifts', 'cash:operate'],
   ['get', '/cash-shifts/current/movements', 'cash:operate'],
   ['post', '/cash-shifts/current/movements', 'cash:operate'],
+  ['post', '/cash-shifts/current/movements/:id/receipt', 'cash:operate'],
+  ['patch', '/cash-shifts/movements/:id', 'cash:operate'],
+  ['post', '/cash-shifts/movements/:id/void', 'cash:operate'],
   ['post', '/cash-shifts/current/close', 'cash:operate'],
   ['get', '/cash-shifts', 'cash:review'],
   ['get', '/cash-shifts/:id', 'cash:review'],
@@ -195,7 +200,10 @@ function allRoutes(stack: RouteLayer[]): RouteLayer[] {
 
 // ── Pruebas ──────────────────────────────────────────────────────────
 
-const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
+const app = createApp(
+  createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000', RATE_LIMIT_MAX: '5000' }),
+  silentLogger,
+);
 const errorOf = (body: unknown) => apiErrorResponseSchema.parse(body).error;
 
 let stopDatabase: (() => Promise<void>) | undefined;

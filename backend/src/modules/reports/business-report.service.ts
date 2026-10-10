@@ -132,6 +132,7 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
   );
   const movements = await CashMovementModel.find({
     shiftId: trusted({ $in: shifts.map((shift) => shift._id) }),
+    status: trusted({ $ne: 'VOIDED' }),
   }).lean();
   const expenses = new Tally();
   const payroll = new Tally();

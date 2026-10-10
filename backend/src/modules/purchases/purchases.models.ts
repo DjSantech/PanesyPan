@@ -7,6 +7,7 @@ import {
   type SupplierRefundMethod,
 } from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
+import { storedReceiptSchema, type StoredReceipt } from '../receipts/receipts.model';
 import type { PersonRef } from '../sales/sale.model';
 
 export interface PurchaseLineAttrs {
@@ -38,6 +39,8 @@ export interface PurchaseAttrs {
   voidReason?: string;
   /** Ingreso (reintegro) que devolvió el efectivo a la caja al anular, si aún estaba abierta. */
   voidCashMovementId?: Types.ObjectId | null;
+  /** Foto de la factura del proveedor. */
+  receipt?: StoredReceipt | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +86,7 @@ const purchaseSchema = new Schema<PurchaseAttrs>(
     voidedBy: { type: refSchema, default: null },
     voidReason: { type: String, default: '' },
     voidCashMovementId: { type: Schema.Types.ObjectId, ref: 'CashMovement', default: null },
+    receipt: { type: storedReceiptSchema, default: null },
   },
   { timestamps: true, strict: 'throw' },
 );

@@ -80,6 +80,15 @@ export async function createPurchase(input: CreatePurchaseRequest): Promise<Purc
   return purchase;
 }
 
+/** Sube la foto de la factura de una compra (ya reducida en el navegador). */
+export async function uploadPurchaseReceipt(id: string, image: Blob): Promise<Purchase> {
+  const { purchase } = await apiJson(`/api/v1/purchases/${id}/receipt`, purchaseResponseSchema, {
+    method: 'POST',
+    rawBody: image,
+  });
+  return purchase;
+}
+
 export async function getOrderSuggestions(signal?: AbortSignal): Promise<OrderSuggestion[]> {
   const { groups } = await apiJson(
     '/api/v1/purchases/order-suggestions',

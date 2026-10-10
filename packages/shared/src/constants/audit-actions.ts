@@ -57,6 +57,9 @@ export const AUDIT_ACTIONS = [
   'PRODUCTS_BULK_MOVED',
   'PURCHASE_VOIDED',
   'SUPPLIER_RETURN_CREATED',
+  'CASH_MOVEMENT_UPDATED',
+  'CASH_MOVEMENT_VOIDED',
+  'RECEIPT_ATTACHED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -119,6 +122,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   PRODUCTS_BULK_MOVED: 'Productos movidos de categoría',
   PURCHASE_VOIDED: 'Compra a proveedor anulada',
   SUPPLIER_RETURN_CREATED: 'Devolución a proveedor registrada',
+  CASH_MOVEMENT_UPDATED: 'Movimiento de caja corregido',
+  CASH_MOVEMENT_VOIDED: 'Movimiento de caja anulado',
+  RECEIPT_ATTACHED: 'Foto de comprobante adjuntada',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

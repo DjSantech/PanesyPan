@@ -182,6 +182,7 @@ async function movementRows(query: ExportQuery): Promise<Table> {
   const shiftById = new Map(shifts.map((shift) => [shift._id.toString(), shift]));
   const movements = await CashMovementModel.find({
     shiftId: trusted({ $in: shifts.map((shift) => shift._id) }),
+    status: trusted({ $ne: 'VOIDED' }),
   })
     .sort({ createdAt: 1 })
     .limit(MAX_ROWS)
@@ -358,6 +359,7 @@ async function cashMovementsOf(query: ExportQuery, type: 'INCOME' | 'EXPENSE') {
   const movements = await CashMovementModel.find({
     shiftId: trusted({ $in: shifts.map((shift) => shift._id) }),
     type,
+    status: trusted({ $ne: 'VOIDED' }),
   })
     .sort({ createdAt: 1 })
     .limit(MAX_ROWS)

@@ -2,12 +2,14 @@ import {
   createPurchaseRequestSchema,
   createSupplierReturnRequestSchema,
   listPurchasesQuerySchema,
+  RECEIPT_IMAGE_TYPES,
   voidPurchaseRequestSchema,
 } from '@panesypan/shared';
-import { Router, type Request, type RequestHandler } from 'express';
+import express, { Router, type Request, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
 import { getRequestMeta } from '../../lib/request-meta';
-import { parseBody, parseQuery } from '../../lib/validate';
+import { AppError } from '../../lib/errors';
+import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import type { PosContext } from '../sales/approval.service';
@@ -17,6 +19,7 @@ import {
   getOrderSuggestions,
   listPurchases,
   listSupplierReturns,
+  setPurchaseReceipt,
   voidPurchase,
 } from './purchases.service';
 
@@ -36,6 +39,7 @@ export interface PurchasesRouterDeps {
  *   POST  /purchases/:id/void         anular una compra (PIN de administrador y motivo)
  *   GET   /supplier-returns?from=&to=&supplierId=   devoluciones a proveedor de un rango
  *   POST  /supplier-returns           registrar una devolución a proveedor
+ *   POST  /purchases/:id/receipt      foto de la factura (cuerpo = la imagen, máximo 2 MB)
  */
 export function createPurchasesRouter(deps: PurchasesRouterDeps): Router {
   const { config, guards, approvalLimiter, logger } = deps;
@@ -75,6 +79,19 @@ export function createPurchasesRouter(deps: PurchasesRouterDeps): Router {
     const input = parseBody(req, createSupplierReturnRequestSchema);
     res.status(201).json({ supplierReturn: await createSupplierReturn(input, posContext(req)) });
   });
+
+  router.post(
+    '/purchases/:id/receipt',
+    ...canRecord,
+    express.raw({ type: [...RECEIPT_IMAGE_TYPES], limit: '2mb' }),
+    async (req, res) => {
+      const data: unknown = req.body;
+      if (!Buffer.isBuffer(data)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Envía la foto en formato JPG, PNG o WebP.');
+      }
+      res.json({ purchase: await setPurchaseReceipt(parseIdParam(req), data, posContext(req)) });
+    },
+  );
 
   return router;
 }

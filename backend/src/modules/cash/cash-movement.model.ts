@@ -1,5 +1,11 @@
-import { CASH_MOVEMENT_TYPES, type CashMovementType } from '@panesypan/shared';
+import {
+  CASH_MOVEMENT_STATUSES,
+  CASH_MOVEMENT_TYPES,
+  type CashMovementStatus,
+  type CashMovementType,
+} from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
+import { storedReceiptSchema, type StoredReceipt } from '../receipts/receipts.model';
 import type { PersonRef } from '../sales/sale.model';
 
 export interface CashMovementAttrs {
@@ -15,6 +21,13 @@ export interface CashMovementAttrs {
   approvedBy: PersonRef | null;
   /** Proveedor al que se le pagó (solo egresos). */
   supplier?: { id: Types.ObjectId; name: string } | null;
+  /** Foto del comprobante (factura, recibo). */
+  receipt?: StoredReceipt | null;
+  /** Anulado: se conserva el registro pero ya no cuenta en la caja ni en los reportes. */
+  status?: CashMovementStatus;
+  voidReason?: string | null;
+  voidedBy?: PersonRef | null;
+  voidedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +74,11 @@ const cashMovementSchema = new Schema<CashMovementAttrs>(
       ),
       default: null,
     },
+    receipt: { type: storedReceiptSchema, default: null },
+    status: { type: String, enum: CASH_MOVEMENT_STATUSES, default: 'ACTIVE' },
+    voidReason: { type: String, default: null },
+    voidedBy: { type: personSchema, default: null },
+    voidedAt: { type: Date, default: null },
   },
   { timestamps: true, strict: 'throw' },
 );

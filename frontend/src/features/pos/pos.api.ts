@@ -10,6 +10,8 @@ import {
   type CloseCashShiftRequest,
   type CloseSaleRequest,
   type CreateCashMovementRequest,
+  type UpdateCashMovementRequest,
+  type VoidCashMovementRequest,
   type CounterCheckoutRequest,
   type ListSalesQuery,
   type OpenCashShiftRequest,
@@ -69,6 +71,40 @@ export async function listMovements(signal?: AbortSignal): Promise<CashMovement[
 export async function createMovement(input: CreateCashMovementRequest): Promise<CashMovement> {
   const { movement } = await apiJson(
     '/api/v1/cash-shifts/current/movements',
+    cashMovementResponseSchema,
+    { method: 'POST', body: input },
+  );
+  return movement;
+}
+
+/** Sube la foto del comprobante de un movimiento (ya reducida en el navegador). */
+export async function uploadMovementReceipt(id: string, image: Blob): Promise<CashMovement> {
+  const { movement } = await apiJson(
+    `/api/v1/cash-shifts/current/movements/${id}/receipt`,
+    cashMovementResponseSchema,
+    { method: 'POST', rawBody: image },
+  );
+  return movement;
+}
+
+export async function updateMovement(
+  id: string,
+  input: UpdateCashMovementRequest,
+): Promise<CashMovement> {
+  const { movement } = await apiJson(
+    `/api/v1/cash-shifts/movements/${id}`,
+    cashMovementResponseSchema,
+    { method: 'PATCH', body: input },
+  );
+  return movement;
+}
+
+export async function voidMovement(
+  id: string,
+  input: VoidCashMovementRequest,
+): Promise<CashMovement> {
+  const { movement } = await apiJson(
+    `/api/v1/cash-shifts/movements/${id}/void`,
     cashMovementResponseSchema,
     { method: 'POST', body: input },
   );

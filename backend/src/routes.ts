@@ -14,6 +14,7 @@ import { createPublicWebRouter } from './modules/public-web/public-web.routes';
 import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
 import { notifyDashboardOnChanges } from './modules/realtime/notify-changes';
+import { createReceiptsRouter } from './modules/receipts/receipts.routes';
 import { createReportsRouter } from './modules/reports/reports.routes';
 import { createSalesRouter } from './modules/sales/sales.routes';
 import { createSettingsRouter } from './modules/settings/settings.routes';
@@ -65,6 +66,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   );
   router.use(createPurchasesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
   router.use('/inventory', createInventoryRouter(withLogger({ config: authConfig, guards })));
+  router.use('/receipts', createReceiptsRouter(guards));
   router.use('/reports', createReportsRouter(withLogger({ config: authConfig, guards })));
   router.use('/einvoices', createEInvoiceRouter(withLogger({ config: authConfig, guards })));
   router.use(createSalesRouter(withLogger({ config: authConfig, guards, approvalLimiter })));
