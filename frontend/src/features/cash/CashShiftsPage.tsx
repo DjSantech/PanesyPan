@@ -25,6 +25,7 @@ import {
   listShifts,
   shiftTitle,
 } from './cash-history.api';
+import { ShiftMovements } from './ShiftMovements';
 import { ShiftReport } from './ShiftReport';
 
 const weekAgo = (): string => {
@@ -196,6 +197,7 @@ function ShiftDetailDialog({
             <div className="flex justify-center rounded-xl border border-border bg-white p-3">
               <ShiftReport detail={detail.data} ticketWidth={ticketWidth} />
             </div>
+            <ShiftMovements movements={detail.data.movements} />
             {detail.data.shift.confirmNote === '' ? null : (
               <p className="text-sm">Nota de la revisión: {detail.data.shift.confirmNote}</p>
             )}

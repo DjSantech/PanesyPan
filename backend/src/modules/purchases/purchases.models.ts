@@ -1,5 +1,6 @@
 import { PURCHASE_PAYMENT_METHODS, type PurchasePaymentMethod } from '@panesypan/shared';
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
+import { storedReceiptSchema, type StoredReceipt } from '../receipts/receipts.model';
 import type { PersonRef } from '../sales/sale.model';
 
 export interface PurchaseLineAttrs {
@@ -24,6 +25,8 @@ export interface PurchaseAttrs {
   note: string;
   createdBy: PersonRef;
   approvedBy: PersonRef | null;
+  /** Foto de la factura del proveedor. */
+  receipt?: StoredReceipt | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,6 +67,7 @@ const purchaseSchema = new Schema<PurchaseAttrs>(
     note: { type: String, default: '' },
     createdBy: { type: refSchema, required: true },
     approvedBy: { type: refSchema, default: null },
+    receipt: { type: storedReceiptSchema, default: null },
   },
   { timestamps: true, strict: 'throw' },
 );

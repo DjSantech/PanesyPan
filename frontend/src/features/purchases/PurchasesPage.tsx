@@ -4,7 +4,7 @@ import {
   toBusinessDate,
   type OrderSuggestion,
 } from '@panesypan/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCopy, MessageCircle, Plus, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -15,8 +15,14 @@ import { Alert, Badge, Card, Skeleton } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { useCan } from '../auth/use-session';
+import { AttachReceiptButton, ReceiptThumb } from '../cash/Receipt';
 import { NewPurchaseDialog } from './NewPurchaseDialog';
-import { getOrderSuggestions, listPurchases, purchaseKeys } from './purchases.api';
+import {
+  getOrderSuggestions,
+  listPurchases,
+  purchaseKeys,
+  uploadPurchaseReceipt,
+} from './purchases.api';
 
 type Tab = 'purchases' | 'suggestions';
 
@@ -78,6 +84,7 @@ function PurchasesTab() {
   const [to, setTo] = useState(() => toBusinessDate());
   const [creating, setCreating] = useState(false);
   const validRange = from !== '' && to !== '' && from <= to;
+  const queryClient = useQueryClient();
   const purchases = useQuery({
     queryKey: purchaseKeys.list({ from, to }),
     queryFn: ({ signal }) => listPurchases({ from, to }, signal),
@@ -167,6 +174,16 @@ function PurchasesTab() {
                   {purchase.note === '' ? null : (
                     <p className="text-sm text-muted-foreground">{purchase.note}</p>
                   )}
+                  <div className="mt-1 flex items-center gap-2">
+                    <ReceiptThumb receipt={purchase.receipt} />
+                    <AttachReceiptButton
+                      hasReceipt={purchase.receipt !== null}
+                      upload={(image) => uploadPurchaseReceipt(purchase.id, image)}
+                      onDone={() => {
+                        void queryClient.invalidateQueries({ queryKey: purchaseKeys.all });
+                      }}
+                    />
+                  </div>
                 </Card>
               </li>
             ))}
