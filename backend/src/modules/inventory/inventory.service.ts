@@ -95,6 +95,7 @@ async function buildItems(products: readonly ProductDocument[]): Promise<Invento
     return {
       productId: product.id,
       name: product.name,
+      code: product.code ?? null,
       categoryName: categoryName.get(product.categoryId.toString()) ?? '',
       quantity,
       cost: product.cost ?? null,

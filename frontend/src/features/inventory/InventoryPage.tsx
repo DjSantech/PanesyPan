@@ -1,5 +1,6 @@
 import {
   formatCOP,
+  slugify,
   STOCK_MOVEMENT_LABELS,
   WASTE_REASON_LABELS,
   type InventoryItem,
@@ -13,6 +14,7 @@ import {
   EllipsisVertical,
   Flame,
   PackageOpen,
+  Search,
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -25,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/form';
 import { Alert, Badge, Card, Skeleton } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
@@ -86,6 +89,11 @@ function StockRow({
           {item.categoryName}
           {item.minStock > 0 ? ` · aviso en ${String(item.minStock)}` : ''}
         </p>
+        {tab === 'stock' && item.cost !== null ? (
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Costo {formatCOP(item.cost)} · en inventario {formatCOP(item.cost * item.quantity)}
+          </p>
+        ) : null}
       </div>
 
       {tab === 'production' ? (
@@ -238,6 +246,7 @@ export function InventoryPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('stock');
   const [onlyLow, setOnlyLow] = useState(false);
+  const [search, setSearch] = useState('');
   const [dialog, setDialog] = useState<{ mode: StockDialogMode; item: InventoryItem } | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -298,7 +307,12 @@ export function InventoryPage() {
     },
   });
 
-  const items = inventory.data?.items ?? [];
+  // Con más de mil productos se busca por nombre o código sin volver a pedir la lista.
+  const term = slugify(search);
+  const items = (inventory.data?.items ?? []).filter(
+    (item) =>
+      term === '' || slugify(item.name).includes(term) || (item.code ?? '').includes(search.trim()),
+  );
   const lowStockCount = inventory.data?.lowStockCount ?? 0;
   const totalValue = inventory.data?.totalValue ?? null;
   const withoutCost = inventory.data?.withoutCost ?? 0;
@@ -368,6 +382,23 @@ export function InventoryPage() {
         ))}
       </div>
 
+      <div className="relative mb-3 sm:w-72">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          aria-label="Buscar producto en el inventario"
+          placeholder="Buscar por nombre o código…"
+          className="pl-11"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+          }}
+        />
+      </div>
+
       {inventory.isPending ? (
         <Card aria-busy="true" aria-label="Cargando inventario">
           {Array.from({ length: 5 }, (_, index) => (
@@ -393,11 +424,19 @@ export function InventoryPage() {
       ) : items.length === 0 ? (
         <EmptyState
           icon={PackageOpen}
-          title={onlyLow ? 'Nada por agotarse' : 'Ningún producto controla inventario'}
+          title={
+            search.trim() !== ''
+              ? 'No se encontraron productos'
+              : onlyLow
+                ? 'Nada por agotarse'
+                : 'Ningún producto controla inventario'
+          }
           description={
-            onlyLow
-              ? 'Todos los productos están por encima de su mínimo.'
-              : 'Activa "Controlar inventario" en un producto del catálogo para verlo aquí.'
+            search.trim() !== ''
+              ? 'Prueba con otra búsqueda.'
+              : onlyLow
+                ? 'Todos los productos están por encima de su mínimo.'
+                : 'Activa "Controlar inventario" en un producto del catálogo para verlo aquí.'
           }
         />
       ) : (

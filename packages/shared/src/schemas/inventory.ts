@@ -56,6 +56,8 @@ const noteSchema = z.string().trim().max(200, 'La nota debe tener máximo 200 ca
 export const inventoryItemSchema = z.object({
   productId: z.string(),
   name: z.string(),
+  /** Código de barras o interno (null si no tiene o si la API aún no lo envía). */
+  code: z.string().nullable().default(null),
   categoryName: z.string(),
   quantity: z.int().nonnegative(),
   /** Costo unitario del producto (null sin costo o si quien consulta no puede verlo). */
