@@ -85,6 +85,8 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['get', '/purchases', 'purchases:record'],
   ['post', '/purchases', 'purchases:record'],
   ['get', '/purchases/order-suggestions', 'suppliers:manage'],
+  ['post', '/purchases/:id/receipt', 'purchases:record'],
+  ['get', '/receipts/:id', 'session'],
 
   ['get', '/cash-concepts', 'cash:operate'],
   ['post', '/cash-concepts', 'settings:manage'],
@@ -97,6 +99,9 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['post', '/cash-shifts', 'cash:operate'],
   ['get', '/cash-shifts/current/movements', 'cash:operate'],
   ['post', '/cash-shifts/current/movements', 'cash:operate'],
+  ['post', '/cash-shifts/current/movements/:id/receipt', 'cash:operate'],
+  ['patch', '/cash-shifts/movements/:id', 'cash:operate'],
+  ['post', '/cash-shifts/movements/:id/void', 'cash:operate'],
   ['post', '/cash-shifts/current/close', 'cash:operate'],
   ['get', '/cash-shifts', 'cash:review'],
   ['get', '/cash-shifts/:id', 'cash:review'],

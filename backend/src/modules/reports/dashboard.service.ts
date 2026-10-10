@@ -102,7 +102,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     ]),
     CashShiftModel.find({ status: 'OPEN' }).sort({ openedAt: 1 }),
     CashMovementModel.aggregate<{ _id: string; total: number }>([
-      { $match: { createdAt: { $gte: start, $lt: end } } },
+      { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'VOIDED' } } },
       { $group: { _id: '$type', total: { $sum: '$amount' } } },
     ]),
     CashShiftModel.countDocuments({

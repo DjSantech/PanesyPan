@@ -15,6 +15,9 @@ import {
   type ConfirmCashShiftRequest,
   type ListCashShiftsQuery,
   type CreateCashMovementRequest,
+  type UpdateCashMovementRequest,
+  type VoidCashMovementRequest,
+  hasPermission,
   type DenominationCount,
   type OpenCashShiftRequest,
   type PaymentMethod,
@@ -22,6 +25,8 @@ import {
 import mongoose, { mongo, trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
+import { PurchaseModel } from '../purchases/purchases.models';
+import { deleteReceipt, storeReceipt, toReceiptDto } from '../receipts/receipts.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
 import { nextSequence, SaleModel } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
@@ -93,7 +98,7 @@ export async function summarizeShift(
       .select('total discount payments')
       .session(session ?? null),
     SaleModel.countDocuments({ shiftId: shift._id, status: 'VOIDED' }).session(session ?? null),
-    CashMovementModel.find({ shiftId: shift._id })
+    CashMovementModel.find({ shiftId: shift._id, status: trusted({ $ne: 'VOIDED' }) })
       .select('type amount')
       .session(session ?? null),
     SaleModel.find({ 'returns.shiftId': shift._id })
@@ -244,7 +249,7 @@ export async function openShift(
 
 // ── Egresos, retiros e ingresos ────────────────────────────────────
 
-export function toMovementDto(movement: CashMovementDocument): CashMovement {
+export function toMovementDto(movement: CashMovementDocument, fromPurchase = false): CashMovement {
   return {
     id: movement.id,
     type: movement.type,
@@ -257,15 +262,236 @@ export function toMovementDto(movement: CashMovementDocument): CashMovement {
     createdBy: movement.createdBy.name,
     approvedBy: movement.approvedBy?.name ?? null,
     supplier: movement.supplier?.name ?? null,
+    receipt: toReceiptDto(movement.receipt),
+    status: movement.status ?? 'ACTIVE',
+    voidReason: movement.voidReason ?? null,
+    voidedBy: movement.voidedBy?.name ?? null,
+    fromPurchase,
     createdAt: movement.createdAt.toISOString(),
   };
+}
+
+/** Ids de los egresos que registraron las compras pagadas con la caja. */
+async function purchaseMovementIds(movementIds: Types.ObjectId[]): Promise<Set<string>> {
+  if (movementIds.length === 0) return new Set();
+  const purchases = await PurchaseModel.find({ cashMovementId: trusted({ $in: movementIds }) })
+    .select('cashMovementId')
+    .lean();
+  return new Set(
+    purchases.flatMap((purchase) =>
+      purchase.cashMovementId === null ? [] : [purchase.cashMovementId.toString()],
+    ),
+  );
+}
+
+async function toMovementDtos(movements: CashMovementDocument[]): Promise<CashMovement[]> {
+  const fromPurchases = await purchaseMovementIds(movements.map((movement) => movement._id));
+  return movements.map((movement) => toMovementDto(movement, fromPurchases.has(movement.id)));
 }
 
 export async function listMovements(userId: string): Promise<CashMovement[]> {
   const shift = await findOpenShift(userId);
   if (shift === null) return [];
   const movements = await CashMovementModel.find({ shiftId: shift._id }).sort({ createdAt: -1 });
-  return movements.map(toMovementDto);
+  return toMovementDtos(movements);
+}
+
+const movementNotFound = (): AppError =>
+  new AppError(404, 'NOT_FOUND', 'Movimiento de caja no encontrado');
+
+/**
+ * Movimiento que se puede tocar: de una caja abierta y de quien opera (un administrador puede
+ * con cualquier caja abierta).
+ */
+async function findMovementInOpenShift(id: string, ctx: PosContext): Promise<CashMovementDocument> {
+  const movement = Types.ObjectId.isValid(id) ? await CashMovementModel.findById(id) : null;
+  if (movement === null) throw movementNotFound();
+  const shift = await CashShiftModel.findById(movement.shiftId);
+  if (shift === null) throw movementNotFound();
+  const isOwner = shift.userId.equals(ctx.actor._id);
+  if (!isOwner && !hasPermission(ctx.actor.role, 'cash:review')) throw movementNotFound();
+  if (shift.status !== 'OPEN') {
+    throw conflict('La caja de este movimiento ya se cerró: no se puede cambiar.');
+  }
+  return movement;
+}
+
+/** Efecto de un movimiento en el efectivo del cajón: los ingresos suman, lo demás resta. */
+const cashEffect = (type: CashMovement['type'], amount: number): number =>
+  type === 'INCOME' ? amount : -amount;
+
+async function ensureEditable(movement: CashMovementDocument): Promise<void> {
+  if (movement.status === 'VOIDED') throw conflict('Este movimiento ya está anulado.');
+  if ((await purchaseMovementIds([movement._id])).size > 0) {
+    throw conflict('Este egreso lo registró una compra: para corregirlo, anula la compra.');
+  }
+}
+
+/** Adjunta (o reemplaza) la foto del comprobante de un movimiento de la caja abierta. */
+export async function setMovementReceipt(
+  id: string,
+  data: Buffer,
+  ctx: PosContext,
+): Promise<CashMovement> {
+  const movement = await findMovementInOpenShift(id, ctx);
+  const stored = await storeReceipt(data, ctx);
+  const previous = movement.receipt ?? null;
+  movement.receipt = stored;
+  await movement.save();
+  if (previous !== null) await deleteReceipt(previous, ctx);
+  await recordAudit(
+    {
+      action: 'RECEIPT_ATTACHED',
+      actor: toAuditActor(ctx.actor),
+      entity: { type: 'CASH_SHIFT', id: movement.shiftId.toString(), label: 'Movimiento de caja' },
+      metadata: { movementId: movement.id, replaced: previous !== null },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  const fromPurchase = (await purchaseMovementIds([movement._id])).size > 0;
+  return toMovementDto(movement, fromPurchase);
+}
+
+const movementSnapshot = (movement: CashMovementDocument) => ({
+  amount: movement.amount,
+  concept: movement.concept?.name ?? null,
+  reason: movement.reason,
+});
+
+/**
+ * Corrige el monto, el tipo o el detalle de un egreso, retiro o ingreso. Siempre con la
+ * autorización de un administrador y solo mientras la caja siga abierta.
+ */
+export async function updateMovement(
+  id: string,
+  input: UpdateCashMovementRequest,
+  ctx: PosContext,
+): Promise<CashMovement> {
+  const found = await findMovementInOpenShift(id, ctx);
+  await ensureEditable(found);
+
+  let concept: { id: Types.ObjectId; name: string } | null | undefined;
+  if (input.conceptId === null) concept = null;
+  else if (input.conceptId !== undefined) {
+    const active = await findActiveConcept(input.conceptId);
+    if (active.type !== found.type) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        `"${active.name}" no es un tipo de ${CASH_MOVEMENT_LABELS[found.type].toLowerCase()}.`,
+      );
+    }
+    if (active.requiresStaff && found.staff === null) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        `"${active.name}" pide la persona del personal: anula el movimiento y regístralo de nuevo.`,
+      );
+    }
+    concept = { id: active._id, name: active.name };
+  }
+  const finalConcept = concept === undefined ? found.concept : concept;
+  const finalReason = input.reason?.trim() ?? found.reason;
+  if (finalConcept === null && finalReason.length < 3) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Escribe el motivo (mínimo 3 caracteres)');
+  }
+
+  const approver = await resolveApproval(ctx, input.approverPin, 'CASH_MOVEMENT_EDIT');
+
+  const { before, after } = await mongoose.connection.transaction(async (session) => {
+    const movement = await CashMovementModel.findById(found._id).session(session);
+    if (movement === null) throw movementNotFound();
+    if (movement.status === 'VOIDED') throw conflict('Este movimiento ya está anulado.');
+    const shift = await claimOpenShift(movement.shiftId, session);
+    const previous = movementSnapshot(movement);
+    const amount = input.amount ?? movement.amount;
+    const { expectedCash } = await summarizeShift(shift, session);
+    const nextCash =
+      expectedCash - cashEffect(movement.type, movement.amount) + cashEffect(movement.type, amount);
+    if (nextCash < 0) {
+      throw conflict(
+        `Con ese monto la caja quedaría en ${formatCOP(nextCash)}: no alcanza el efectivo.`,
+      );
+    }
+    movement.amount = amount;
+    movement.concept = finalConcept;
+    movement.reason = finalReason;
+    await movement.save({ session });
+    return { before: previous, after: movement };
+  });
+
+  await recordAudit(
+    {
+      action: 'CASH_MOVEMENT_UPDATED',
+      actor: toAuditActor(ctx.actor),
+      entity: { type: 'CASH_SHIFT', id: after.shiftId.toString(), label: 'Movimiento de caja' },
+      metadata: {
+        movementId: after.id,
+        type: after.type,
+        before,
+        after: movementSnapshot(after),
+        approvedBy: approver.name,
+      },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  return toMovementDto(after);
+}
+
+/**
+ * Anula un egreso, retiro o ingreso: el registro queda (con el motivo y quién autorizó) pero
+ * deja de contar en el efectivo esperado y en los reportes.
+ */
+export async function voidMovement(
+  id: string,
+  input: VoidCashMovementRequest,
+  ctx: PosContext,
+): Promise<CashMovement> {
+  const found = await findMovementInOpenShift(id, ctx);
+  await ensureEditable(found);
+  const reason = input.reason.trim();
+  const approver = await resolveApproval(ctx, input.approverPin, 'CASH_MOVEMENT_EDIT');
+
+  const voided = await mongoose.connection.transaction(async (session) => {
+    const movement = await CashMovementModel.findById(found._id).session(session);
+    if (movement === null) throw movementNotFound();
+    if (movement.status === 'VOIDED') throw conflict('Este movimiento ya está anulado.');
+    const shift = await claimOpenShift(movement.shiftId, session);
+    const { expectedCash } = await summarizeShift(shift, session);
+    const nextCash = expectedCash - cashEffect(movement.type, movement.amount);
+    if (nextCash < 0) {
+      throw conflict(
+        `Sin este ingreso la caja quedaría en ${formatCOP(nextCash)}: no se puede anular.`,
+      );
+    }
+    movement.status = 'VOIDED';
+    movement.voidReason = reason;
+    movement.voidedBy = approver;
+    movement.voidedAt = new Date();
+    await movement.save({ session });
+    return movement;
+  });
+
+  await recordAudit(
+    {
+      action: 'CASH_MOVEMENT_VOIDED',
+      actor: toAuditActor(ctx.actor),
+      entity: { type: 'CASH_SHIFT', id: voided.shiftId.toString(), label: 'Movimiento de caja' },
+      metadata: {
+        movementId: voided.id,
+        type: voided.type,
+        before: { ...movementSnapshot(voided), status: 'ACTIVE' },
+        after: { status: 'VOIDED' },
+        reason,
+        approvedBy: approver.name,
+      },
+      meta: ctx.meta,
+    },
+    ctx.logger,
+  );
+  return toMovementDto(voided);
 }
 
 /**
@@ -464,6 +690,7 @@ export async function getShiftDetail(id: string): Promise<CashShiftDetail> {
   const movements = await CashMovementModel.find({ shiftId: shift._id }).sort({ createdAt: 1 });
   const byConcept = new Map<string, CashShiftDetail['byConcept'][number]>();
   for (const movement of movements) {
+    if (movement.status === 'VOIDED') continue;
     const name = movement.concept?.name ?? 'Sin tipo';
     const key = `${movement.type}|${name}`;
     const current = byConcept.get(key) ?? { type: movement.type, name, amount: 0, count: 0 };
@@ -475,7 +702,7 @@ export async function getShiftDetail(id: string): Promise<CashShiftDetail> {
   }
   return {
     shift: await toCashShiftDto(shift),
-    movements: movements.map(toMovementDto),
+    movements: await toMovementDtos(movements),
     byConcept: [...byConcept.values()].sort((a, b) => b.amount - a.amount),
   };
 }

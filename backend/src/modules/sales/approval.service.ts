@@ -15,7 +15,8 @@ export interface PosContext extends ActorContext {
   session: SessionDocument;
 }
 
-export type ApprovalPurpose = 'DISCOUNT' | 'VOID' | 'CANCEL_TAB' | 'EXPENSE' | 'WITHDRAWAL';
+export type ApprovalPurpose =
+  'DISCOUNT' | 'VOID' | 'CANCEL_TAB' | 'EXPENSE' | 'WITHDRAWAL' | 'CASH_MOVEMENT_EDIT';
 
 const APPROVER_ROLES = USER_ROLES.filter((role) => hasPermission(role, 'sales:void:approve'));
 

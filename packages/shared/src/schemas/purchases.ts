@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PRICE_LIMITS } from '../money/money';
+import { receiptSchema } from './cash';
 import { costSchema } from './catalog';
 import { businessDateSchema, moneySchema, objectIdSchema } from './common';
 
@@ -43,6 +44,8 @@ export const purchaseSchema = z.object({
   createdBy: z.string(),
   /** Administrador que autorizó sacar el efectivo (si hizo falta). */
   approvedBy: z.string().nullable(),
+  /** Foto de la factura del proveedor (null si no tiene). */
+  receipt: receiptSchema.nullable().default(null),
   createdAt: z.iso.datetime(),
 });
 export type Purchase = z.infer<typeof purchaseSchema>;

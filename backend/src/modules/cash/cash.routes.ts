@@ -4,9 +4,13 @@ import {
   createCashMovementRequestSchema,
   listCashShiftsQuerySchema,
   openCashShiftRequestSchema,
+  RECEIPT_IMAGE_TYPES,
+  updateCashMovementRequestSchema,
+  voidCashMovementRequestSchema,
 } from '@panesypan/shared';
-import { Router, type Request, type RequestHandler } from 'express';
+import express, { Router, type Request, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
+import { AppError } from '../../lib/errors';
 import { getRequestMeta } from '../../lib/request-meta';
 import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
@@ -22,7 +26,10 @@ import {
   listMovements,
   listShifts,
   openShift,
+  setMovementReceipt,
   suggestedOpeningAmount,
+  updateMovement,
+  voidMovement,
 } from './cash.service';
 import { notifyShiftClosed } from './close-alert';
 
@@ -40,6 +47,9 @@ export interface CashRouterDeps {
  *   POST /                    abrir caja con la base inicial
  *   GET  /current/movements   egresos y retiros de la caja abierta
  *   POST /current/movements   registrar un egreso o retiro (retiros y egresos altos: PIN de admin)
+ *   POST /current/movements/:id/receipt  foto del comprobante (cuerpo = la imagen, máx. 2 MB)
+ *   PATCH /movements/:id      corregir monto, tipo o detalle (PIN de admin, caja abierta)
+ *   POST /movements/:id/void  anular con motivo (PIN de admin, caja abierta)
  *   POST /current/close       cerrar la caja con el arqueo por denominaciones
  *   GET  /?from=&to=&userId=  historial de cajas (administrador)
  *   GET  /:id                 resumen detallado de una caja (administrador)
@@ -82,6 +92,29 @@ export function createCashRouter(deps: CashRouterDeps): Router {
   router.post('/current/movements', ...canOperate, approvalLimiter, async (req, res) => {
     const input = parseBody(req, createCashMovementRequestSchema);
     res.status(201).json({ movement: await createMovement(input, posContext(req)) });
+  });
+
+  router.post(
+    '/current/movements/:id/receipt',
+    ...canOperate,
+    express.raw({ type: [...RECEIPT_IMAGE_TYPES], limit: '2mb' }),
+    async (req, res) => {
+      const data: unknown = req.body;
+      if (!Buffer.isBuffer(data)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Envía la foto en formato JPG, PNG o WebP.');
+      }
+      res.json({ movement: await setMovementReceipt(parseIdParam(req), data, posContext(req)) });
+    },
+  );
+
+  router.patch('/movements/:id', ...canOperate, approvalLimiter, async (req, res) => {
+    const input = parseBody(req, updateCashMovementRequestSchema);
+    res.json({ movement: await updateMovement(parseIdParam(req), input, posContext(req)) });
+  });
+
+  router.post('/movements/:id/void', ...canOperate, approvalLimiter, async (req, res) => {
+    const input = parseBody(req, voidCashMovementRequestSchema);
+    res.json({ movement: await voidMovement(parseIdParam(req), input, posContext(req)) });
   });
 
   router.post('/current/close', ...canOperate, async (req, res) => {

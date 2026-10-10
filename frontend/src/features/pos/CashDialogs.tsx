@@ -17,7 +17,7 @@ import {
   type Supplier,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Lock, Minus, Plus, Truck } from 'lucide-react';
+import { Ban, Camera, CheckCircle2, Lock, Minus, Pencil, Plus, Truck } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/feedback';
@@ -28,10 +28,19 @@ import { Field, Input, NativeSelect } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
+import { resizeImage } from '@/lib/image-resize';
+import { AttachReceiptButton, ReceiptThumb } from '../cash/Receipt';
 import { useCashConcepts, useStaff } from '../settings/cash-config.api';
 import { listSuppliers, suppliersKeys } from '../suppliers/suppliers.api';
 import { ApprovalDialog } from './ApprovalDialog';
-import { closeShift, createMovement, listMovements, posKeys } from './pos.api';
+import { MovementCorrectionDialog, type CorrectionMode } from './MovementCorrection';
+import {
+  closeShift,
+  createMovement,
+  listMovements,
+  posKeys,
+  uploadMovementReceipt,
+} from './pos.api';
 import { useApprovedAction } from './use-approved-action';
 
 interface DialogProps {
@@ -56,6 +65,11 @@ export function CashPanelDialog({
   onClose,
 }: CashPanelDialogProps) {
   const { summary } = shift;
+  const queryClient = useQueryClient();
+  const [correcting, setCorrecting] = useState<{
+    movement: CashMovement;
+    mode: CorrectionMode;
+  } | null>(null);
   const movements = useQuery({
     queryKey: posKeys.movements,
     queryFn: ({ signal }) => listMovements(signal),
@@ -97,11 +111,27 @@ export function CashPanelDialog({
           ) : (
             <ul className="grid max-h-48 gap-1.5 overflow-y-auto">
               {movements.data.map((movement) => (
-                <MovementRow key={movement.id} movement={movement} />
+                <MovementRow
+                  key={movement.id}
+                  movement={movement}
+                  onCorrect={(mode) => {
+                    setCorrecting({ movement, mode });
+                  }}
+                  onReceipt={() => {
+                    void queryClient.invalidateQueries({ queryKey: posKeys.movements });
+                  }}
+                />
               ))}
             </ul>
           )}
         </div>
+        <MovementCorrectionDialog
+          movement={correcting?.movement ?? null}
+          mode={correcting?.mode ?? 'edit'}
+          onOpenChange={(next) => {
+            if (!next) setCorrecting(null);
+          }}
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={onRegister}>
@@ -116,22 +146,75 @@ export function CashPanelDialog({
   );
 }
 
-function MovementRow({ movement }: { movement: CashMovement }) {
+interface MovementRowProps {
+  movement: CashMovement;
+  onCorrect: (mode: CorrectionMode) => void;
+  onReceipt: () => void;
+}
+
+function MovementRow({ movement, onCorrect, onReceipt }: MovementRowProps) {
+  const voided = movement.status === 'VOIDED';
   return (
-    <li className="flex items-start justify-between gap-3 rounded-xl bg-muted px-3 py-2 text-sm">
-      <div className="min-w-0">
-        <p className="font-bold">
-          {CASH_MOVEMENT_LABELS[movement.type]} · {cashMovementLabel(movement)}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {formatTimeCO(new Date(movement.createdAt))} · {movement.createdBy}
-          {movement.approvedBy === null ? '' : ` · autorizó ${movement.approvedBy}`}
+    <li className="grid gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <ReceiptThumb receipt={movement.receipt} />
+        <div className="min-w-0 flex-1">
+          <p className={cn('font-bold', voided && 'line-through opacity-60')}>
+            {CASH_MOVEMENT_LABELS[movement.type]} · {cashMovementLabel(movement)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatTimeCO(new Date(movement.createdAt))} · {movement.createdBy}
+            {movement.approvedBy === null ? '' : ` · autorizó ${movement.approvedBy}`}
+          </p>
+          {voided ? (
+            <p className="text-xs font-bold text-danger">
+              Anulado{movement.voidedBy === null ? '' : ` por ${movement.voidedBy}`}
+              {movement.voidReason === null ? '' : `: ${movement.voidReason}`}
+            </p>
+          ) : null}
+        </div>
+        <p className={cn('font-extrabold tabular-nums', voided && 'line-through opacity-60')}>
+          {movement.type === 'INCOME' ? '+' : '−'}
+          {formatCOP(movement.amount)}
         </p>
       </div>
-      <p className="font-extrabold tabular-nums">
-        {movement.type === 'INCOME' ? '+' : '−'}
-        {formatCOP(movement.amount)}
-      </p>
+      {voided ? null : (
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <AttachReceiptButton
+            hasReceipt={movement.receipt !== null}
+            upload={(image) => uploadMovementReceipt(movement.id, image)}
+            onDone={onReceipt}
+          />
+          {movement.fromPurchase ? (
+            <p className="self-center text-xs text-muted-foreground">
+              Es de una compra: se corrige anulando la compra.
+            </p>
+          ) : (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onCorrect('edit');
+                }}
+              >
+                <Pencil aria-hidden="true" /> Corregir
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onCorrect('void');
+                }}
+              >
+                <Ban aria-hidden="true" /> Anular
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -174,6 +257,7 @@ function MovementForm({ onDone }: { onDone: () => void }) {
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState<MovementErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
   const options = (concepts.data ?? []).filter((concept) => concept.type === type);
   const concept = options.find((option) => option.id === conceptId) ?? null;
@@ -206,9 +290,25 @@ function MovementForm({ onDone }: { onDone: () => void }) {
       }),
     onSuccess: (movement) => {
       void queryClient.invalidateQueries({ queryKey: posKeys.shift });
-      void queryClient.invalidateQueries({ queryKey: posKeys.movements });
       toast.success(`${CASH_MOVEMENT_LABELS[movement.type]} registrado`);
       onDone();
+      // La foto se sube después de registrar: si falla, el movimiento ya quedó y se adjunta luego.
+      const refresh = () => queryClient.invalidateQueries({ queryKey: posKeys.movements });
+      if (receiptFile === null) {
+        void refresh();
+        return;
+      }
+      void resizeImage(receiptFile)
+        .then((image) => uploadMovementReceipt(movement.id, image))
+        .then(() => {
+          toast.success('Comprobante guardado');
+        })
+        .catch((error: unknown) => {
+          toast.error(`No se pudo subir la foto: ${errorMessage(error)}. Adjúntala desde Caja.`);
+        })
+        .finally(() => {
+          void refresh();
+        });
     },
     onError: (error) => {
       setFailure(errorMessage(error));
@@ -428,6 +528,27 @@ function MovementForm({ onDone }: { onDone: () => void }) {
               setReason(event.target.value);
             }}
             aria-invalid={errors.reason === undefined ? undefined : true}
+          />
+        </Field>
+        <Field id="movement-receipt" label="Foto del comprobante (opcional)">
+          <label
+            htmlFor="movement-receipt"
+            className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-border px-3 text-sm"
+          >
+            <Camera aria-hidden="true" className="size-5 shrink-0" />
+            <span className="truncate">
+              {receiptFile === null ? 'Tomar o elegir foto (factura, recibo)' : receiptFile.name}
+            </span>
+          </label>
+          <input
+            id="movement-receipt"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="sr-only"
+            onChange={(event) => {
+              setReceiptFile(event.target.files?.[0] ?? null);
+            }}
           />
         </Field>
         {failure === null ? null : <Alert tone="danger">{failure}</Alert>}

@@ -166,6 +166,7 @@ async function movementRows(query: ExportQuery): Promise<{ headers: string[]; ro
   const shiftById = new Map(shifts.map((shift) => [shift._id.toString(), shift]));
   const movements = await CashMovementModel.find({
     shiftId: trusted({ $in: shifts.map((shift) => shift._id) }),
+    status: trusted({ $ne: 'VOIDED' }),
   })
     .sort({ createdAt: 1 })
     .limit(MAX_ROWS)
