@@ -14,15 +14,23 @@ export function getDashboard(signal?: AbortSignal): Promise<DashboardSummary> {
   return apiJson('/api/v1/reports/dashboard', dashboardSummarySchema, { signal });
 }
 
-/** Pide el CSV a la API y lo guarda con el navegador. */
-export async function downloadReport(kind: ExportKind, { from, to }: ExportQuery): Promise<void> {
-  const blob = await apiDownload(`/api/v1/reports/export/${kind}?from=${from}&to=${to}`);
+/** Pide un archivo a la API y lo guarda con el navegador. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const blob = await apiDownload(path);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `panesypan-${kind}-${from}_${to}.csv`;
+  link.download = filename;
   document.body.append(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Pide el CSV a la API y lo guarda con el navegador. */
+export function downloadReport(kind: ExportKind, { from, to }: ExportQuery): Promise<void> {
+  return downloadFile(
+    `/api/v1/reports/export/${kind}?from=${from}&to=${to}`,
+    `panesypan-${kind}-${from}_${to}.csv`,
+  );
 }

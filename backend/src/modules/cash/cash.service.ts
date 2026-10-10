@@ -22,6 +22,7 @@ import {
 import mongoose, { mongo, trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
+import { getShiftReport } from '../reports/performance.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
 import { nextSequence, SaleModel } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
@@ -477,6 +478,7 @@ export async function getShiftDetail(id: string): Promise<CashShiftDetail> {
     shift: await toCashShiftDto(shift),
     movements: movements.map(toMovementDto),
     byConcept: [...byConcept.values()].sort((a, b) => b.amount - a.amount),
+    report: await getShiftReport(shift),
   };
 }
 

@@ -117,6 +117,8 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['get', '/reports/dashboard', 'reports:read'],
   ['get', '/reports/export/:kind', 'reports:read'],
   ['get', '/reports/business', 'reports:read'],
+  ['get', '/reports/performance', 'reports:read'],
+  ['get', '/reports/cash-shifts/:id/export', 'reports:read'],
 
   ['post', '/sales/checkout', 'pos:sell'],
   ['get', '/sales', 'pos:sell'],
