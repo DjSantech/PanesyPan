@@ -347,6 +347,7 @@ async function loadOrderProducts(
       id: product.id,
       _id: product._id,
       name: product.name,
+      cost: product.cost ?? null,
       isLunch: kindOf.get(product.categoryId.toString()) === 'LUNCH',
     });
   }

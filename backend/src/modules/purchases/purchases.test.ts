@@ -5,6 +5,7 @@ import {
   currentCashShiftResponseSchema,
   listCashMovementsResponseSchema,
   listPurchasesResponseSchema,
+  listSalesResponseSchema,
   orderSuggestionsResponseSchema,
   purchaseResponseSchema,
   slugify,
@@ -25,6 +26,7 @@ import { createTestEnv, silentLogger } from '../../../test/helpers';
 import { createApp } from '../../app';
 import { CategoryModel, ProductModel } from '../catalog/catalog.models';
 import { InventoryItemModel, StockMovementModel } from '../inventory/inventory.models';
+import { SaleModel } from '../sales/sale.model';
 
 const app = createApp(createTestEnv({ AUTH_RATE_LIMIT_MAX: '1000' }), silentLogger);
 const errorOf = (body: unknown) => apiErrorResponseSchema.parse(body).error;
@@ -225,5 +227,37 @@ describe('reporte del negocio', () => {
     });
     expect(report.purchasesBySupplier).toEqual([{ name: 'Surtiquesos', amount: 34_000, count: 2 }]);
     expect(report.byProduct[0]).toMatchObject({ name: 'Big Cola', quantity: 2, total: 6_000 });
+  });
+
+  it('la utilidad usa el costo del momento de la venta, aunque el costo cambie después', async () => {
+    await purchase(admin, {
+      supplierId,
+      paymentMethod: 'TRANSFER',
+      lines: [{ productId: colaId, quantity: 10, unitCost: 1_000 }],
+    }).expect(201);
+    await send(cashier, 'post', '/cash-shifts', { openingAmount: 100_000 }).expect(201);
+    await send(cashier, 'post', '/sales/checkout', {
+      clientRequestId: randomUUID(),
+      lines: [{ productId: colaId, quantity: 3 }],
+      expectedTotal: 9_000,
+      payments: [{ method: 'CASH', amount: 9_000 }],
+    }).expect(201);
+    // Una compra posterior más cara cambia el último costo, no el costo de lo ya vendido.
+    await purchase(admin, {
+      supplierId,
+      paymentMethod: 'TRANSFER',
+      lines: [{ productId: colaId, quantity: 10, unitCost: 1_500 }],
+    }).expect(201);
+
+    const sale = await SaleModel.findOne({ status: 'PAID' });
+    expect(sale?.lines[0]?.unitCost).toBe(1_000);
+    const sales = listSalesResponseSchema.parse((await cashier.agent.get('/api/v1/sales')).body);
+    expect(JSON.stringify(sales)).not.toContain('unitCost');
+
+    const today = toBusinessDate();
+    const report = businessReportSchema.parse(
+      (await admin.agent.get(`/api/v1/reports/business?from=${today}&to=${today}`)).body,
+    );
+    expect(report.costOfSales).toBe(3 * 1_000);
   });
 });

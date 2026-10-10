@@ -74,7 +74,8 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
     }
     for (const line of sale.lines) {
       const quantity = line.quantity - (returned.get(line._id.toString()) ?? 0);
-      const cost = costOf(line.productId);
+      // El costo guardado al vender; las ventas anteriores a ese dato usan el costo actual.
+      const cost = line.unitCost ?? costOf(line.productId);
       if (cost === null) unitsWithoutCost += quantity;
       else costOfSales += cost * quantity;
       const key = line.productId.toString();

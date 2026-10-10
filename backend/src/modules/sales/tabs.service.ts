@@ -52,6 +52,7 @@ function pickLine(line: SaleLineAttrs): SaleLineAttrs {
     productId: line.productId,
     name: line.name,
     unitPrice: line.unitPrice,
+    unitCost: line.unitCost ?? null,
     quantity: line.quantity,
     note: line.note,
     total: line.total,

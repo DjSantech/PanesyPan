@@ -15,6 +15,8 @@ export interface SellableProduct {
   _id: Types.ObjectId;
   name: string;
   price: number;
+  /** Último costo del producto (null sin costo): queda guardado en la línea de la venta. */
+  cost: number | null;
   isLunch: boolean;
 }
 
@@ -56,6 +58,7 @@ export async function loadSellableProducts(
       _id: product._id,
       name: product.name,
       price: product.price,
+      cost: product.cost ?? null,
       isLunch: category.kind === 'LUNCH',
     });
   }
@@ -81,6 +84,7 @@ export function buildLine(
     productId: product._id,
     name: product.name,
     unitPrice: product.price,
+    unitCost: product.cost,
     quantity,
     note: lunch === null ? note : [lunchChoiceLabel(lunch), note].filter(Boolean).join(' · '),
     total: lineTotal({ unitPrice: product.price, quantity }),

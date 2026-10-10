@@ -27,6 +27,12 @@ export interface SaleLineAttrs {
   /** Copia del nombre y del precio al momento de vender: cambiarlos después no altera la venta. */
   name: string;
   unitPrice: number;
+  /**
+   * Costo unitario del producto al momento de vender (último costo), para que la utilidad de
+   * esta venta no cambie si el costo cambia después. null sin costo; no existe en las ventas
+   * anteriores a este campo (ahí se usa el costo actual del producto).
+   */
+  unitCost?: number | null;
   quantity: number;
   note: string;
   total: number;
@@ -127,6 +133,7 @@ const lineSchema = new Schema<SaleLineAttrs>({
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   name: { type: String, required: true },
   unitPrice: money,
+  unitCost: { type: Number, default: null, min: 0 },
   quantity: { type: Number, required: true, min: 1 },
   note: { type: String, default: '' },
   total: money,
