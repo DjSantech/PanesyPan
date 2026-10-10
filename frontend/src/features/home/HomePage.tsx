@@ -1,4 +1,4 @@
-import { formatLongDateCO, hasPermission } from '@panesypan/shared';
+import { formatLongDateCO } from '@panesypan/shared';
 import {
   Activity,
   BarChart3,
@@ -123,11 +123,11 @@ const DashboardSection = lazy(() =>
 
 export function HomePage() {
   const user = useCurrentUser();
-  const isAdmin = hasPermission(user.role, 'users:manage');
+  const isAdmin = user.permissions.includes('users:manage');
   const today = formatLongDateCO(new Date());
 
   // La cajera empieza directo en el punto de venta.
-  if (!hasPermission(user.role, 'reports:read')) return <Navigate to="/vender" replace />;
+  if (!user.permissions.includes('reports:read')) return <Navigate to="/vender" replace />;
 
   return (
     <div className="grid gap-6">

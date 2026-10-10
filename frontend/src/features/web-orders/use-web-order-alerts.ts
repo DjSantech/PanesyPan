@@ -1,4 +1,3 @@
-import { hasPermission } from '@panesypan/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
@@ -57,7 +56,7 @@ function notifyBrowser(title: string): void {
  */
 export function useWebOrderAlerts(): number {
   const user = useCurrentUser();
-  const enabled = hasPermission(user.role, 'web-orders:read');
+  const enabled = user.permissions.includes('web-orders:read');
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const seen = useRef<Set<string> | null>(null);

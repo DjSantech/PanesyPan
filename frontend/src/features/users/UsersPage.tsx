@@ -14,6 +14,7 @@ import {
   Pencil,
   RotateCcw,
   Search,
+  ShieldCheck,
   UserCheck,
   UserPlus,
   Users,
@@ -37,6 +38,8 @@ import { errorMessage } from '@/lib/api-errors';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { cn, initials } from '@/lib/utils';
 import { useCurrentUser } from '../auth/use-session';
+import { profileLabel, useProfiles } from './profiles.api';
+import { AssignProfileDialog, ProfilesSection } from './ProfilesSection';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
 import { UserFormDialog } from './UserFormDialog';
 import {
@@ -100,12 +103,16 @@ const CONFIRM_TEXT: Record<
 function UserRow({
   user,
   isSelf,
+  profile,
   onEdit,
+  onProfile,
   onAction,
 }: {
   user: User;
   isSelf: boolean;
+  profile: string;
   onEdit: () => void;
+  onProfile: () => void;
   onAction: (action: ConfirmAction) => void;
 }) {
   const locked = user.lockedUntil !== null;
@@ -140,6 +147,7 @@ function UserRow({
         </p>
         <p className="text-sm break-words text-muted-foreground">
           @{user.username}
+          {` · Perfil: ${profile}`}
           {user.email === null ? '' : ` · ${user.email}`}
           {' · '}
           {user.lastLoginAt === null
@@ -156,6 +164,9 @@ function UserRow({
         <DropdownMenuContent>
           <DropdownMenuItem onSelect={onEdit}>
             <Pencil aria-hidden="true" /> Editar datos
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onProfile}>
+            <ShieldCheck aria-hidden="true" /> Cambiar perfil
           </DropdownMenuItem>
           {locked ? (
             <DropdownMenuItem
@@ -220,6 +231,8 @@ export function UsersPage() {
 
   const [form, setForm] = useState<{ open: boolean; user?: User }>({ open: false });
   const [formError, setFormError] = useState<string | null>(null);
+  const [profileFor, setProfileFor] = useState<User | null>(null);
+  const profiles = useProfiles();
   const [confirm, setConfirm] = useState<{ action: ConfirmAction; user: User } | null>(null);
   const [temporary, setTemporary] = useState<{
     name: string;
@@ -403,8 +416,12 @@ export function UsersPage() {
                 key={user.id}
                 user={user}
                 isSelf={user.id === currentUser.id}
+                profile={profileLabel(user, profiles.data)}
                 onEdit={() => {
                   openForm(user);
+                }}
+                onProfile={() => {
+                  setProfileFor(user);
                 }}
                 onAction={(action) => {
                   setConfirm({ action, user });
@@ -451,6 +468,18 @@ export function UsersPage() {
           pending={runAction.isPending}
           onConfirm={() => {
             runAction.mutate(confirm);
+          }}
+        />
+      )}
+
+      <ProfilesSection />
+
+      {profileFor === null ? null : (
+        <AssignProfileDialog
+          key={profileFor.id}
+          user={profileFor}
+          onClose={() => {
+            setProfileFor(null);
           }}
         />
       )}
