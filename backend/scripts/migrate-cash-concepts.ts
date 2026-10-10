@@ -56,20 +56,25 @@ try {
   await connectDatabase({ uri: env.MONGODB_URI, dbName: env.MONGODB_DB_NAME });
   await ensureDefaultCashConcepts();
   const concepts = await CashConceptModel.find();
-  const conceptFor = (type: CashMovementType, reason: string) => {
+  const conceptFor = (type: CashMovementType, reason: string, paidToSupplier: boolean) => {
     const text = removeAccents(reason).toLowerCase();
-    const rule = RULES.find(
-      (candidate) =>
-        candidate.type === type &&
-        (candidate.words.length === 0 || candidate.words.some((word) => text.includes(word))),
-    );
-    return concepts.find((concept) => concept.type === type && concept.name === rule?.concept);
+    // Los egresos con proveedor elegido ("Pago a Surtiquesos") son pagos a proveedor, aunque
+    // el nombre tenga palabras de otro tipo.
+    const name = paidToSupplier
+      ? 'Proveedor'
+      : RULES.find(
+          (candidate) =>
+            candidate.type === type &&
+            (candidate.words.length === 0 || candidate.words.some((word) => text.includes(word))),
+        )?.concept;
+    return concepts.find((concept) => concept.type === type && concept.name === name);
   };
 
   const pending = await CashMovementModel.find({ concept: null });
   let updated = 0;
   for (const movement of pending) {
-    const concept = conceptFor(movement.type, movement.reason);
+    const paidToSupplier = movement.type === 'EXPENSE' && (movement.supplier ?? null) !== null;
+    const concept = conceptFor(movement.type, movement.reason, paidToSupplier);
     if (concept === undefined) continue;
     console.log(`[cash-concepts] "${movement.reason}" → ${concept.name}`);
     if (apply) {

@@ -8,13 +8,16 @@ import {
   DENOMINATIONS,
   formatCOP,
   formatTimeCO,
+  isSupplierConcept,
+  slugify,
   type CashMovement,
   type CashMovementType,
   type CashShift,
   type Denomination,
+  type Supplier,
 } from '@panesypan/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Lock, Minus, Plus } from 'lucide-react';
+import { CheckCircle2, Lock, Minus, Plus, Truck } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/feedback';
@@ -26,6 +29,7 @@ import { Alert } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { useCashConcepts, useStaff } from '../settings/cash-config.api';
+import { listSuppliers, suppliersKeys } from '../suppliers/suppliers.api';
 import { ApprovalDialog } from './ApprovalDialog';
 import { closeShift, createMovement, listMovements, posKeys } from './pos.api';
 import { useApprovedAction } from './use-approved-action';
@@ -156,6 +160,7 @@ interface MovementErrors {
   reason?: string;
   concept?: string;
   staff?: string;
+  supplier?: string;
 }
 
 function MovementForm({ onDone }: { onDone: () => void }) {
@@ -173,6 +178,20 @@ function MovementForm({ onDone }: { onDone: () => void }) {
   const options = (concepts.data ?? []).filter((concept) => concept.type === type);
   const concept = options.find((option) => option.id === conceptId) ?? null;
   const needsStaff = concept?.requiresStaff === true;
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
+
+  // Con el tipo "Proveedor" (o uno parecido) se elige a quién se le paga.
+  const payingSupplier = type === 'EXPENSE' && concept !== null && isSupplierConcept(concept.name);
+  const suppliers = useQuery({
+    queryKey: suppliersKeys.list({ status: 'active' }),
+    queryFn: ({ signal }) => listSuppliers({ status: 'active' }, signal),
+    enabled: payingSupplier,
+  });
+  const term = slugify(supplierSearch);
+  const shownSuppliers = (suppliers.data ?? []).filter(
+    (item) => term === '' || slugify(item.name).includes(term),
+  );
 
   const action = useApprovedAction<CashMovement>({
     run: (pin) =>
@@ -182,10 +201,12 @@ function MovementForm({ onDone }: { onDone: () => void }) {
         reason: reason.trim(),
         ...(concept === null ? {} : { conceptId: concept.id }),
         ...(needsStaff && staffId !== '' ? { staffId } : {}),
+        ...(payingSupplier && supplier !== null ? { supplierId: supplier.id } : {}),
         ...(pin === undefined ? {} : { approverPin: pin }),
       }),
     onSuccess: (movement) => {
       void queryClient.invalidateQueries({ queryKey: posKeys.shift });
+      void queryClient.invalidateQueries({ queryKey: posKeys.movements });
       toast.success(`${CASH_MOVEMENT_LABELS[movement.type]} registrado`);
       onDone();
     },
@@ -200,6 +221,7 @@ function MovementForm({ onDone }: { onDone: () => void }) {
     const next: MovementErrors = {};
     if (options.length > 0 && concept === null) next.concept = 'Elige el tipo';
     if (needsStaff && staffId === '') next.staff = 'Elige a quién se le paga';
+    if (payingSupplier && supplier === null) next.supplier = 'Elige a quién le pagas';
     const parsed = createCashMovementRequestSchema.safeParse({
       type,
       amount: amount ?? 0,
@@ -309,6 +331,74 @@ function MovementForm({ onDone }: { onDone: () => void }) {
           </Field>
         ) : null}
 
+        {payingSupplier ? (
+          <div className="grid gap-2">
+            <p className="text-sm font-bold">¿A quién le pagas?</p>
+            {supplier === null ? (
+              <>
+                <Input
+                  type="search"
+                  aria-label="Buscar proveedor"
+                  placeholder="Buscar proveedor…"
+                  value={supplierSearch}
+                  onChange={(event) => {
+                    setSupplierSearch(event.target.value);
+                  }}
+                />
+                {suppliers.isPending ? (
+                  <Spinner label="Cargando proveedores…" />
+                ) : suppliers.isError ? (
+                  <Alert tone="danger">{errorMessage(suppliers.error)}</Alert>
+                ) : shownSuppliers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {suppliers.data.length === 0
+                      ? 'Todavía no hay proveedores: pídele al administrador que los cree en Proveedores.'
+                      : 'No se encontró ese proveedor.'}
+                  </p>
+                ) : (
+                  <ul className="grid max-h-44 gap-1.5 overflow-y-auto" aria-label="Proveedores">
+                    {shownSuppliers.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSupplier(item);
+                            setErrors({});
+                          }}
+                          className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-card px-3 text-left text-sm font-bold hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                          <Truck className="size-4 text-muted-foreground" aria-hidden="true" />
+                          {item.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary bg-primary/10 px-3 py-2">
+                <p className="flex items-center gap-2 font-extrabold text-primary">
+                  <Truck className="size-4" aria-hidden="true" /> {supplier.name}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSupplier(null);
+                  }}
+                >
+                  Cambiar
+                </Button>
+              </div>
+            )}
+            {errors.supplier === undefined ? null : (
+              <p role="alert" className="text-sm font-bold text-danger">
+                {errors.supplier}
+              </p>
+            )}
+          </div>
+        ) : null}
+
         <Field id="movement-amount" label="Monto" error={errors.amount}>
           <PriceInput
             id="movement-amount"
@@ -325,9 +415,13 @@ function MovementForm({ onDone }: { onDone: () => void }) {
         >
           <Input
             id="movement-reason"
-            maxLength={200}
+            maxLength={120}
             placeholder={
-              needsStaff ? 'Ej.: día, adelanto, quincena' : 'Ej.: carne para el almuerzo'
+              needsStaff
+                ? 'Ej.: día, adelanto, quincena'
+                : payingSupplier
+                  ? 'Ej.: factura 1234'
+                  : 'Ej.: carne para el almuerzo'
             }
             value={reason}
             onChange={(event) => {

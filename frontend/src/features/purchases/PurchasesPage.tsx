@@ -3,31 +3,22 @@ import {
   PURCHASE_PAYMENT_LABELS,
   toBusinessDate,
   type OrderSuggestion,
-  type Supplier,
 } from '@panesypan/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ClipboardCopy, MessageCircle, Plus, Truck } from 'lucide-react';
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
+import { EmptyState, ErrorState, PageHeader } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/form';
 import { Alert, Badge, Card, Skeleton } from '@/components/ui/surface';
-import { Switch } from '@/components/ui/toggles';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
 import { useCan } from '../auth/use-session';
 import { NewPurchaseDialog } from './NewPurchaseDialog';
-import {
-  createSupplier,
-  getOrderSuggestions,
-  listPurchases,
-  purchaseKeys,
-  updateSupplier,
-  useSuppliers,
-} from './purchases.api';
+import { getOrderSuggestions, listPurchases, purchaseKeys } from './purchases.api';
 
-type Tab = 'purchases' | 'suppliers' | 'suggestions';
+type Tab = 'purchases' | 'suggestions';
 
 export function PurchasesPage() {
   const canManage = useCan('suppliers:manage');
@@ -35,7 +26,6 @@ export function PurchasesPage() {
   const tabs: { value: Tab; label: string }[] = canManage
     ? [
         { value: 'purchases', label: 'Compras' },
-        { value: 'suppliers', label: 'Proveedores' },
         { value: 'suggestions', label: 'Pedido sugerido' },
       ]
     : [{ value: 'purchases', label: 'Compras' }];
@@ -72,7 +62,6 @@ export function PurchasesPage() {
         </div>
       ) : null}
       {tab === 'purchases' ? <PurchasesTab /> : null}
-      {tab === 'suppliers' ? <SuppliersTab /> : null}
       {tab === 'suggestions' ? <SuggestionsTab /> : null}
     </div>
   );
@@ -185,127 +174,6 @@ function PurchasesTab() {
         </>
       )}
       <NewPurchaseDialog open={creating} onOpenChange={setCreating} />
-    </div>
-  );
-}
-
-// ── Proveedores ────────────────────────────────────────────────────
-
-function SuppliersTab() {
-  const queryClient = useQueryClient();
-  const suppliers = useSuppliers(true);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [taxId, setTaxId] = useState('');
-  const refresh = () => queryClient.invalidateQueries({ queryKey: purchaseKeys.all });
-  const onError = (error: unknown) => {
-    toast.error(errorMessage(error));
-  };
-
-  const create = useMutation({
-    mutationFn: createSupplier,
-    onSuccess: async (supplier) => {
-      setName('');
-      setPhone('');
-      setTaxId('');
-      await refresh();
-      toast.success(`Proveedor "${supplier.name}" creado`);
-    },
-    onError,
-  });
-  const update = useMutation({
-    mutationFn: ({ id, ...input }: { id: string; isActive?: boolean; phone?: string }) =>
-      updateSupplier(id, input),
-    onSuccess: refresh,
-    onError,
-  });
-
-  const handleCreate = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (name.trim().length < 2) {
-      toast.error('El nombre debe tener al menos 2 caracteres');
-      return;
-    }
-    create.mutate({ name, phone, taxId });
-  };
-
-  return (
-    <div className="grid gap-4">
-      <form
-        className="grid gap-2 rounded-2xl bg-muted p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
-        onSubmit={handleCreate}
-      >
-        <Input
-          aria-label="Nombre del proveedor"
-          placeholder="Nombre (ej.: Surtiquesos)"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-        <Input
-          aria-label="Teléfono o WhatsApp"
-          placeholder="Teléfono / WhatsApp"
-          inputMode="tel"
-          value={phone}
-          onChange={(event) => {
-            setPhone(event.target.value);
-          }}
-        />
-        <Input
-          aria-label="NIT"
-          placeholder="NIT (opcional)"
-          value={taxId}
-          onChange={(event) => {
-            setTaxId(event.target.value);
-          }}
-        />
-        <Button type="submit" disabled={create.isPending}>
-          {create.isPending ? <Spinner /> : <Plus aria-hidden="true" />} Agregar
-        </Button>
-      </form>
-      {suppliers.isPending ? (
-        <Skeleton className="h-32" />
-      ) : suppliers.isError ? (
-        <Alert tone="danger">{errorMessage(suppliers.error)}</Alert>
-      ) : suppliers.data.length === 0 ? (
-        <EmptyState
-          icon={Truck}
-          title="Todavía no hay proveedores"
-          description="Agrega los proveedores para registrar compras y armar el pedido sugerido."
-        />
-      ) : (
-        <Card>
-          <ul className="divide-y divide-border">
-            {suppliers.data.map((supplier: Supplier) => (
-              <li
-                key={supplier.id}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3',
-                  !supplier.isActive && 'opacity-60',
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{supplier.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {[supplier.phone, supplier.taxId === '' ? '' : `NIT ${supplier.taxId}`]
-                      .filter(Boolean)
-                      .join(' · ') || 'Sin teléfono'}
-                  </p>
-                </div>
-                <Switch
-                  checked={supplier.isActive}
-                  label={`${supplier.name} activo`}
-                  disabled={update.isPending}
-                  onCheckedChange={(isActive) => {
-                    update.mutate({ id: supplier.id, isActive });
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
     </div>
   );
 }

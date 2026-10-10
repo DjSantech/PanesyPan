@@ -11,7 +11,7 @@ import { Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { InventoryItemModel } from '../inventory/inventory.models';
-import { SupplierModel } from '../purchases/purchases.models';
+import { SupplierModel } from '../suppliers/supplier.model';
 import { toCsv } from '../reports/csv';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';

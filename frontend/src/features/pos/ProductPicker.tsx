@@ -51,10 +51,18 @@ export function ProductPicker({
 
   const visible = useMemo(() => {
     const term = slugify(search);
+    const codeTerm = search.trim().toLowerCase();
     const sorted = [...products].sort(
       (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'es'),
     );
-    if (term !== '') return sorted.filter((product) => slugify(product.name).includes(term));
+    if (term !== '') {
+      // Por nombre (sin tildes) o por código: así funciona el lector de código de barras.
+      return sorted.filter(
+        (product) =>
+          slugify(product.name).includes(term) ||
+          product.code?.toLowerCase().includes(codeTerm) === true,
+      );
+    }
     if (filter === FAVORITES) return sorted.filter((product) => product.isFavorite);
     if (filter === ALL) return sorted;
     return sorted.filter((product) => product.categoryId === filter);

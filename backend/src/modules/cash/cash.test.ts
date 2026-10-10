@@ -10,6 +10,8 @@ import {
   saleResponseSchema,
   listCashConceptsResponseSchema,
   listCashMovementsResponseSchema,
+  listSuppliersResponseSchema,
+  supplierResponseSchema,
   slugify,
   staffMemberResponseSchema,
   type AuditAction,
@@ -193,6 +195,66 @@ describe('egresos y retiros', () => {
       withdrawalsTotal: 40_000,
       expectedCash: 10_000,
     });
+  });
+});
+
+describe('proveedores y pagos con la caja', () => {
+  const createSupplier = async (name: string) => {
+    const response = await send(admin, 'post', '/suppliers', {
+      name,
+      documentType: 'NIT',
+      documentNumber: '900081360',
+      phone: '3128310953',
+    });
+    expect(response.status).toBe(201);
+    return supplierResponseSchema.parse(response.body).supplier;
+  };
+
+  it('el administrador crea y archiva proveedores; la cajera solo los ve', async () => {
+    const meals = await createSupplier('Meals');
+    expect(meals).toMatchObject({ name: 'Meals', documentType: 'NIT', isActive: true });
+    expect((await send(admin, 'post', '/suppliers', { name: 'meals' })).status).toBe(409);
+    expect((await send(cashier, 'post', '/suppliers', { name: 'Otro' })).status).toBe(403);
+
+    const archived = await send(admin, 'patch', `/suppliers/${meals.id}`, { isActive: false });
+    expect(supplierResponseSchema.parse(archived.body).supplier.isActive).toBe(false);
+    const visible = listSuppliersResponseSchema.parse(
+      (await cashier.agent.get('/api/v1/suppliers')).body,
+    );
+    expect(visible.items).toHaveLength(0);
+    expect(await auditCount('SUPPLIER_CREATED')).toBe(1);
+    expect(await auditCount('SUPPLIER_UPDATED')).toBe(1);
+  });
+
+  it('un egreso queda a nombre del proveedor y no se pagan retiros ni archivados', async () => {
+    const alpina = await createSupplier('Alpina');
+    await openShift(cashier).expect(201);
+    const paid = await move(cashier, {
+      type: 'EXPENSE',
+      amount: 20_000,
+      reason: 'Pago a Alpina',
+      supplierId: alpina.id,
+    });
+    expect(paid.status).toBe(201);
+    expect(cashMovementResponseSchema.parse(paid.body).movement.supplier).toBe('Alpina');
+
+    const withdrawal = await move(cashier, {
+      type: 'WITHDRAWAL',
+      amount: 5_000,
+      reason: 'Guardar',
+      supplierId: alpina.id,
+      approverPin: ADMIN_PIN,
+    });
+    expect(withdrawal.status).toBe(400);
+
+    await send(admin, 'patch', `/suppliers/${alpina.id}`, { isActive: false });
+    const archived = await move(cashier, {
+      type: 'EXPENSE',
+      amount: 1_000,
+      reason: 'Pago a Alpina',
+      supplierId: alpina.id,
+    });
+    expect(archived.status).toBe(409);
   });
 });
 

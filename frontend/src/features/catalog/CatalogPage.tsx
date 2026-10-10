@@ -96,6 +96,9 @@ function ProductRow({
               {String(marginPercent(product.price, product.cost) ?? 0)} %
             </span>
           )}
+          {product.code === null ? null : (
+            <span className="text-xs font-semibold text-muted-foreground">Cód. {product.code}</span>
+          )}
         </p>
       </div>
       {product.isActive ? (

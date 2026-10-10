@@ -56,6 +56,7 @@ describe('POST /auth/login', () => {
       'inventory:record',
       'web-orders:read',
       'web-orders:manage',
+      'purchases:record',
     ]);
     expect(body.session.locked).toBe(false);
     expect(body.csrfToken.length).toBeGreaterThan(20);

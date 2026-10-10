@@ -2,38 +2,6 @@ import { PURCHASE_PAYMENT_METHODS, type PurchasePaymentMethod } from '@panesypan
 import { model, Schema, type HydratedDocument, type Types } from 'mongoose';
 import type { PersonRef } from '../sales/sale.model';
 
-// ── Proveedores ────────────────────────────────────────────────────
-
-export interface SupplierAttrs {
-  name: string;
-  /** Nombre en minúsculas y sin tildes, para no repetir proveedores. */
-  key: string;
-  phone: string;
-  taxId: string;
-  notes: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const supplierSchema = new Schema<SupplierAttrs>(
-  {
-    name: { type: String, required: true, trim: true },
-    key: { type: String, required: true },
-    phone: { type: String, default: '' },
-    taxId: { type: String, default: '' },
-    notes: { type: String, default: '' },
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true, strict: 'throw' },
-);
-supplierSchema.index({ key: 1 }, { unique: true });
-
-export const SupplierModel = model<SupplierAttrs>('Supplier', supplierSchema);
-export type SupplierDocument = HydratedDocument<SupplierAttrs>;
-
-// ── Compras ────────────────────────────────────────────────────────
-
 export interface PurchaseLineAttrs {
   productId: Types.ObjectId | null;
   name: string;

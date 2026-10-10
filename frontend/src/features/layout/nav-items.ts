@@ -100,6 +100,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'catalog:manage',
     mobile: false,
   },
+  {
+    to: '/proveedores',
+    label: 'Proveedores',
+    icon: Truck,
+    permission: 'suppliers:manage',
+    mobile: false,
+  },
   { to: '/usuarios', label: 'Usuarios', icon: Users, permission: 'users:manage', mobile: false },
   {
     to: '/auditoria',

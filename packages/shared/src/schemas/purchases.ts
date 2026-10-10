@@ -9,53 +9,6 @@ import { businessDateSchema, moneySchema, objectIdSchema } from './common';
  * catálogo suben su stock y quedan con el costo de esta compra (último costo).
  */
 
-// ── Proveedores ────────────────────────────────────────────────────
-
-export const supplierSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  phone: z.string(),
-  taxId: z.string(),
-  notes: z.string(),
-  isActive: z.boolean(),
-});
-export type Supplier = z.infer<typeof supplierSchema>;
-
-const supplierNameSchema = z
-  .string()
-  .trim()
-  .min(2, 'Mínimo 2 caracteres')
-  .max(80, 'Máximo 80 caracteres');
-const supplierFields = {
-  phone: z.string().trim().max(30, 'Máximo 30 caracteres'),
-  taxId: z.string().trim().max(30, 'Máximo 30 caracteres'),
-  notes: z.string().trim().max(200, 'Máximo 200 caracteres'),
-};
-
-export const createSupplierRequestSchema = z.strictObject({
-  name: supplierNameSchema,
-  phone: supplierFields.phone.default(''),
-  taxId: supplierFields.taxId.default(''),
-  notes: supplierFields.notes.default(''),
-});
-export type CreateSupplierRequest = z.input<typeof createSupplierRequestSchema>;
-
-export const updateSupplierRequestSchema = z
-  .strictObject({
-    name: supplierNameSchema.optional(),
-    phone: supplierFields.phone.optional(),
-    taxId: supplierFields.taxId.optional(),
-    notes: supplierFields.notes.optional(),
-    isActive: z.boolean().optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, 'No hay cambios');
-export type UpdateSupplierRequest = z.infer<typeof updateSupplierRequestSchema>;
-
-export const listSuppliersResponseSchema = z.object({ items: z.array(supplierSchema) });
-export const supplierResponseSchema = z.object({ supplier: supplierSchema });
-
-// ── Compras ────────────────────────────────────────────────────────
-
 export const PURCHASE_PAYMENT_METHODS = ['CASH_DRAWER', 'TRANSFER'] as const;
 export type PurchasePaymentMethod = (typeof PURCHASE_PAYMENT_METHODS)[number];
 

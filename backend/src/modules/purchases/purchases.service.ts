@@ -5,14 +5,11 @@ import {
   suggestedOrderQuantity,
   toBusinessDate,
   type CreatePurchaseRequest,
-  type CreateSupplierRequest,
   type ListPurchasesQuery,
   type OrderSuggestion,
   type Purchase,
-  type Supplier,
-  type UpdateSupplierRequest,
 } from '@panesypan/shared';
-import mongoose, { mongo, trusted, Types, type QueryFilter } from 'mongoose';
+import mongoose, { trusted, Types, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { CashConceptModel } from '../cash/cash-config.models';
@@ -25,116 +22,25 @@ import { applyPurchaseStock } from '../inventory/inventory.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
 import { nextSequence, type PersonRef } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
+import { SupplierModel } from '../suppliers/supplier.model';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import {
   PurchaseModel,
-  SupplierModel,
   type PurchaseAttrs,
   type PurchaseDocument,
   type PurchaseLineAttrs,
-  type SupplierDocument,
 } from './purchases.models';
 
 const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
 const notFound = (what: string): AppError =>
   new AppError(404, 'NOT_FOUND', `${what} no encontrado`);
-const isDuplicateKey = (error: unknown): boolean =>
-  error instanceof mongo.MongoServerError && error.code === 11000;
 
 function audit(
   ctx: ActorContext,
   entry: Omit<Parameters<typeof recordAudit>[0], 'actor' | 'meta'>,
 ) {
   return recordAudit({ ...entry, actor: toAuditActor(ctx.actor), meta: ctx.meta }, ctx.logger);
-}
-
-// ── Proveedores ────────────────────────────────────────────────────
-
-function toSupplierDto(supplier: SupplierDocument): Supplier {
-  return {
-    id: supplier.id,
-    name: supplier.name,
-    phone: supplier.phone,
-    taxId: supplier.taxId,
-    notes: supplier.notes,
-    isActive: supplier.isActive,
-  };
-}
-
-const supplierEntity = (supplier: SupplierDocument) => ({
-  type: 'SUPPLIER',
-  id: supplier.id,
-  label: supplier.name,
-});
-const duplicateSupplier = () => conflict('Ya existe un proveedor con ese nombre');
-
-export async function listSuppliers(options: { activeOnly: boolean }): Promise<Supplier[]> {
-  const suppliers = await SupplierModel.find(options.activeOnly ? { isActive: true } : {}).sort({
-    isActive: -1,
-    name: 1,
-  });
-  return suppliers.map(toSupplierDto);
-}
-
-export async function createSupplier(
-  input: CreateSupplierRequest,
-  ctx: ActorContext,
-): Promise<Supplier> {
-  let supplier: SupplierDocument;
-  try {
-    supplier = await SupplierModel.create({
-      name: input.name,
-      key: slugify(input.name),
-      phone: input.phone ?? '',
-      taxId: input.taxId ?? '',
-      notes: input.notes ?? '',
-    });
-  } catch (error) {
-    if (isDuplicateKey(error)) throw duplicateSupplier();
-    throw error;
-  }
-  await audit(ctx, { action: 'SUPPLIER_CREATED', entity: supplierEntity(supplier) });
-  return toSupplierDto(supplier);
-}
-
-export async function updateSupplier(
-  id: string,
-  input: UpdateSupplierRequest,
-  ctx: ActorContext,
-): Promise<Supplier> {
-  const supplier = Types.ObjectId.isValid(id) ? await SupplierModel.findById(id) : null;
-  if (supplier === null) throw notFound('Proveedor');
-  const changes: Record<string, { from: unknown; to: unknown }> = {};
-  if (input.name !== undefined && input.name !== supplier.name) {
-    const key = slugify(input.name);
-    if ((await SupplierModel.exists({ key, _id: trusted({ $ne: supplier._id }) })) !== null) {
-      throw duplicateSupplier();
-    }
-    changes.name = { from: supplier.name, to: input.name };
-    supplier.name = input.name;
-    supplier.key = key;
-  }
-  for (const field of ['phone', 'taxId', 'notes', 'isActive'] as const) {
-    const next = input[field];
-    if (next !== undefined && next !== supplier[field]) {
-      changes[field] = { from: supplier[field], to: next };
-      supplier.set(field, next);
-    }
-  }
-  if (Object.keys(changes).length === 0) return toSupplierDto(supplier);
-  try {
-    await supplier.save();
-  } catch (error) {
-    if (isDuplicateKey(error)) throw duplicateSupplier();
-    throw error;
-  }
-  await audit(ctx, {
-    action: 'SUPPLIER_UPDATED',
-    entity: supplierEntity(supplier),
-    metadata: { changes },
-  });
-  return toSupplierDto(supplier);
 }
 
 // ── Compras ────────────────────────────────────────────────────────
@@ -255,9 +161,11 @@ export async function createPurchase(
             amount: total,
             concept: concept === null ? null : { id: concept._id, name: concept.name },
             staff: null,
-            reason: label,
+            // El proveedor va en su propio campo: el motivo solo lleva el número de la compra.
+            reason: `Compra N.º ${String(number)}`,
             createdBy: by,
             approvedBy: approver,
+            supplier: { id: supplier._id, name: supplier.name },
           },
         ],
         { session },

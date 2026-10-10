@@ -79,6 +79,12 @@ const ADMIN_SHORTCUTS: readonly Shortcut[] = [
     icon: Soup,
   },
   {
+    to: '/proveedores',
+    title: 'Proveedores',
+    description: 'La lista de proveedores a los que se les paga desde la caja.',
+    icon: Truck,
+  },
+  {
     to: '/usuarios',
     title: 'Usuarios',
     description: 'Crea cajeras, restablece contraseñas y PIN.',

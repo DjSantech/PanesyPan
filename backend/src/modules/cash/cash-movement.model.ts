@@ -13,6 +13,8 @@ export interface CashMovementAttrs {
   reason: string;
   createdBy: PersonRef;
   approvedBy: PersonRef | null;
+  /** Proveedor al que se le pagó (solo egresos). */
+  supplier?: { id: Types.ObjectId; name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +51,16 @@ const cashMovementSchema = new Schema<CashMovementAttrs>(
     reason: { type: String, default: '' },
     createdBy: { type: personSchema, required: true },
     approvedBy: { type: personSchema, default: null },
+    supplier: {
+      type: new Schema(
+        {
+          id: { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
+          name: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
   },
   { timestamps: true, strict: 'throw' },
 );

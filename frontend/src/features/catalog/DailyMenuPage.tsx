@@ -1,7 +1,7 @@
 import {
-  formatCOP,
   formatLongDateCO,
   MENU_OPTIONS_MAX,
+  PRICE_LIMITS,
   toBusinessDate,
   type DailyMenu,
   type MenuOption,
@@ -34,12 +34,15 @@ import {
   listCategories,
   listProducts,
   saveDailyMenu,
+  updateProduct,
 } from './catalog.api';
 
 interface Offering {
   productId: string;
   name: string;
   price: number;
+  /** Precio con el que se cargó la página: si cambia, se actualiza el producto al guardar. */
+  originalPrice: number;
   enabled: boolean;
   portions: string;
   sold: number;
@@ -297,6 +300,7 @@ function MenuForm({
         productId: product.id,
         name: product.name,
         price: product.price,
+        originalPrice: product.price,
         enabled: current !== undefined,
         portions:
           current?.portions === null || current === undefined ? '' : String(current.portions),
@@ -307,10 +311,23 @@ function MenuForm({
   );
 
   const save = useMutation({
-    mutationFn: (input: UpsertDailyMenuRequest) => saveDailyMenu(date, input),
-    onSuccess: async () => {
+    mutationFn: async ({
+      menu: input,
+      prices,
+    }: {
+      menu: UpsertDailyMenuRequest;
+      prices: { id: string; price: number }[];
+    }) => {
+      // Primero los precios que se cambiaron (almuerzo, caldo…) y luego el menú.
+      for (const { id, price } of prices) await updateProduct(id, { price });
+      return saveDailyMenu(date, input);
+    },
+    onSuccess: async (_menu, { prices }) => {
       await queryClient.invalidateQueries({ queryKey: catalogKeys.dailyMenu(date) });
-      toast.success('Menú del día guardado');
+      if (prices.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: catalogKeys.all });
+      }
+      toast.success(prices.length > 0 ? 'Menú y precios guardados' : 'Menú del día guardado');
     },
   });
 
@@ -322,20 +339,30 @@ function MenuForm({
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const invalid = offerings.find((offering) => offering.price < PRICE_LIMITS.min);
+    if (invalid !== undefined) {
+      toast.error(`El precio de ${invalid.name} debe ser de mínimo $ ${String(PRICE_LIMITS.min)}`);
+      return;
+    }
     save.mutate({
-      soups: cleanOptions(soups),
-      principles: cleanOptions(principles),
-      proteins: cleanOptions(proteins),
-      drinks: cleanOptions(drinks),
-      notes,
-      isPublished,
-      offerings: offerings
-        .filter((offering) => offering.enabled)
-        .map((offering) => ({
-          productId: offering.productId,
-          portions: offering.portions.trim() === '' ? null : Number(offering.portions),
-          withChoices: offering.withChoices,
-        })),
+      prices: offerings
+        .filter((offering) => offering.price !== offering.originalPrice)
+        .map((offering) => ({ id: offering.productId, price: offering.price })),
+      menu: {
+        soups: cleanOptions(soups),
+        principles: cleanOptions(principles),
+        proteins: cleanOptions(proteins),
+        drinks: cleanOptions(drinks),
+        notes,
+        isPublished,
+        offerings: offerings
+          .filter((offering) => offering.enabled)
+          .map((offering) => ({
+            productId: offering.productId,
+            portions: offering.portions.trim() === '' ? null : Number(offering.portions),
+            withChoices: offering.withChoices,
+          })),
+      },
     });
   };
 
@@ -400,8 +427,8 @@ function MenuForm({
         <CardHeader>
           <CardTitle>Qué se vende hoy</CardTitle>
           <CardDescription>
-            Marca lo que se vende y cuántas porciones hay (vacío = sin límite). El almuerzo pide
-            proteína, principio y sopa; el caldo solo se vende directo con su propio precio.
+            Marca lo que se vende y cuántas porciones hay (vacío = sin límite). Aquí también puedes
+            cambiar el precio del almuerzo y del caldo: se actualiza al guardar el menú.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
@@ -419,11 +446,20 @@ function MenuForm({
               />
               <div className="min-w-0 flex-1">
                 <p className="font-extrabold">{offering.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatCOP(offering.price)}
-                  {offering.sold > 0 ? ` · vendidos hoy: ${String(offering.sold)}` : ''}
-                </p>
+                {offering.sold > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Vendidos hoy: {String(offering.sold)}
+                  </p>
+                ) : null}
               </div>
+              <PriceInput
+                aria-label={`Precio de ${offering.name}`}
+                className="w-32"
+                value={offering.price}
+                onValueChange={(price) => {
+                  updateOffering(index, { price: price ?? 0 });
+                }}
+              />
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Switch
                   checked={offering.withChoices}

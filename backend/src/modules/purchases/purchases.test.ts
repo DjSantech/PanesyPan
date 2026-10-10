@@ -134,7 +134,8 @@ describe('compras', () => {
       type: 'EXPENSE',
       amount: 18_000,
       conceptName: 'Proveedor',
-      reason: 'Compra N.º 1 · Surtiquesos',
+      supplier: 'Surtiquesos',
+      reason: 'Compra N.º 1',
     });
     const shift = currentCashShiftResponseSchema.parse(
       (await cashier.agent.get('/api/v1/cash-shifts/current')).body,

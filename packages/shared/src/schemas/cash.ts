@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isDenomination } from '../cash/cash-math';
 import { PAYMENT_METHODS } from '../constants/payment-methods';
 import { PRICE_LIMITS } from '../money/money';
+import { removeAccents } from '../text/text';
 import { businessDateSchema, objectIdSchema } from './common';
 
 /**
@@ -170,6 +171,11 @@ export const updateCashConceptRequestSchema = z
   .refine((value) => Object.keys(value).length > 0, 'No hay cambios');
 export type UpdateCashConceptRequest = z.infer<typeof updateCashConceptRequestSchema>;
 
+/** Los tipos de egreso de pago a proveedor ("Proveedor", "Pago a proveedor"…) piden el proveedor. */
+export function isSupplierConcept(name: string): boolean {
+  return removeAccents(name).toLowerCase().includes('proveedor');
+}
+
 export const listCashConceptsResponseSchema = z.object({ items: z.array(cashConceptSchema) });
 export const cashConceptResponseSchema = z.object({ concept: cashConceptSchema });
 
@@ -224,15 +230,23 @@ export const cashMovementSchema = z.object({
   createdBy: z.string(),
   /** Administrador que lo autorizó (si hizo falta o si lo hizo él mismo). */
   approvedBy: z.string().nullable(),
+  /** Proveedor al que se le pagó (solo en egresos); null si no aplica o la API aún no lo envía. */
+  supplier: z.string().nullable().default(null),
   createdAt: z.iso.datetime(),
 });
 export type CashMovement = z.infer<typeof cashMovementSchema>;
 
-/** Cómo se muestra un movimiento: "Nómina · Pedro (día)", o solo el motivo si no tiene tipo. */
+/**
+ * Cómo se muestra un movimiento: "Nómina · Pedro (día)" o "Proveedor · Lácteos (factura 12)";
+ * solo el motivo si no tiene tipo.
+ */
 export function cashMovementLabel(
-  movement: Pick<CashMovement, 'conceptName' | 'staffName' | 'reason'>,
+  movement: Pick<CashMovement, 'conceptName' | 'staffName' | 'reason'> &
+    Partial<Pick<CashMovement, 'supplier'>>,
 ): string {
-  const head = [movement.conceptName, movement.staffName].filter(Boolean).join(' · ');
+  const head = [movement.conceptName, movement.staffName, movement.supplier]
+    .filter(Boolean)
+    .join(' · ');
   if (head === '') return movement.reason;
   return movement.reason === '' ? head : `${head} (${movement.reason})`;
 }
@@ -251,6 +265,8 @@ export const createCashMovementRequestSchema = z
     conceptId: objectIdSchema.optional(),
     /** Persona del personal: obligatoria si el tipo es de nómina. */
     staffId: objectIdSchema.optional(),
+    /** Proveedor al que se le paga (solo egresos). */
+    supplierId: objectIdSchema.optional(),
     reason: z.string().trim().max(200, 'Máximo 200 caracteres').default(''),
     /** PIN de un administrador: obligatorio en los retiros y en los egresos sobre el tope. */
     approverPin: z.string().optional(),

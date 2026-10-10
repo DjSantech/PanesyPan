@@ -7,7 +7,7 @@
  * Sale con código 0 si todo salió bien y 1 si falló, para que el cron pueda alertar.
  */
 import { MongoClient } from 'mongodb';
-import { errorMessage, readDatabaseEnv } from './db-env';
+import { connectWithDnsFallback, errorMessage, readDatabaseEnv } from './db-env';
 
 interface KeepAliveDocument {
   _id: string;
@@ -23,7 +23,7 @@ const client = new MongoClient(uri, {
 });
 
 try {
-  await client.connect();
+  await connectWithDnsFallback(client);
   const db = client.db(dbName);
   await db.command({ ping: 1 });
   await db

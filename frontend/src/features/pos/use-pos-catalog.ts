@@ -11,6 +11,8 @@ export interface PosProduct {
   isAvailable: boolean;
   isFavorite: boolean;
   isLunch: boolean;
+  /** Código de barras o interno: la caja lo busca con el lector. */
+  code: string | null;
   /** Almuerzo del menú: al venderlo se elige proteína, principio y sopa. */
   withChoices: boolean;
   /** Foto de referencia para quien vende (null = sin foto). */
@@ -93,6 +95,7 @@ export function buildPosCatalog(
     categoryId: string;
     isAvailable: boolean;
     isFavorite: boolean;
+    code?: string | null;
     imagePath: string | null;
     sortOrder: number;
   }[],
@@ -119,6 +122,7 @@ export function buildPosCatalog(
         isAvailable: product.isAvailable,
         isFavorite: product.isFavorite,
         isLunch,
+        code: product.code ?? null,
         withChoices: isLunch && offering?.withChoices === true,
         imagePath: product.imagePath,
         portionsLeft: portionsLeftOf(offering),

@@ -25,6 +25,7 @@ import { recordAudit } from '../audit/audit.service';
 import { resolveApproval, type PosContext } from '../sales/approval.service';
 import { nextSequence, SaleModel } from '../sales/sale.model';
 import { getSettings } from '../settings/settings.service';
+import { SupplierModel } from '../suppliers/supplier.model';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import { findActiveConcept, findActiveStaffMember } from './cash-config.service';
@@ -255,6 +256,7 @@ export function toMovementDto(movement: CashMovementDocument): CashMovement {
     reason: movement.reason,
     createdBy: movement.createdBy.name,
     approvedBy: movement.approvedBy?.name ?? null,
+    supplier: movement.supplier?.name ?? null,
     createdAt: movement.createdAt.toISOString(),
   };
 }
@@ -297,6 +299,15 @@ export async function createMovement(
   const staff = input.staffId === undefined ? null : await findActiveStaffMember(input.staffId);
 
   const { maxCashierExpense } = await getSettings();
+  let supplier: { id: Types.ObjectId; name: string } | null = null;
+  if (input.supplierId !== undefined) {
+    if (input.type !== 'EXPENSE') {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Solo los egresos se pagan a un proveedor.');
+    }
+    const found = await SupplierModel.findById(input.supplierId);
+    if (found?.isActive !== true) throw conflict('Ese proveedor no está disponible');
+    supplier = { id: found._id, name: found.name };
+  }
   const needsApproval =
     input.type === 'WITHDRAWAL' || (input.type === 'EXPENSE' && input.amount > maxCashierExpense);
   const approver = needsApproval
@@ -326,6 +337,7 @@ export async function createMovement(
           reason,
           createdBy: { id: ctx.actor._id, name: ctx.actor.name },
           approvedBy: approver,
+          supplier,
         },
       ],
       { session },
@@ -346,6 +358,7 @@ export async function createMovement(
         staff: movement.staff?.name ?? null,
         note: movement.reason,
         approvedBy: approver?.name ?? null,
+        supplier: supplier?.name ?? null,
       },
       meta: ctx.meta,
     },
