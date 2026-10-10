@@ -2,6 +2,7 @@ import {
   formatCOP,
   formatLongDateCO,
   formatTimeCO,
+  listSalesQuerySchema,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
   SALE_LIMITS,
@@ -19,7 +20,7 @@ import { toast } from 'sonner';
 import { EmptyState, ErrorState, PageHeader, Spinner } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
-import { Field, Input } from '@/components/ui/form';
+import { Field, Input, NativeSelect } from '@/components/ui/form';
 import { Alert, Badge, Card, CardContent, Skeleton } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
 import { cn } from '@/lib/utils';
@@ -443,7 +444,11 @@ export function SalesPage() {
   const queryClient = useQueryClient();
   const seesAll = useCan('reports:read');
   const settings = useSettings();
-  const [date, setDate] = useState(() => toBusinessDate());
+  const [from, setFrom] = useState(() => toBusinessDate());
+  const [to, setTo] = useState(() => toBusinessDate());
+  const [method, setMethod] = useState<PaymentMethod | ''>('');
+  const [status, setStatus] = useState<'' | 'PAID' | 'VOIDED'>('');
+  const [number, setNumber] = useState('');
   const [selected, setSelected] = useState<Sale | null>(null);
 
   const shift = useQuery({
@@ -451,10 +456,20 @@ export function SalesPage() {
     queryFn: ({ signal }) => getCurrentShift(signal),
     enabled: !seesAll,
   });
-  const query = seesAll ? { date } : {};
+  const parsed = listSalesQuerySchema.safeParse({
+    ...(seesAll ? { from, to } : {}),
+    ...(method === '' ? {} : { method }),
+    ...(status === '' ? {} : { status }),
+    ...(number.trim() === '' ? {} : { number: number.trim() }),
+  });
+  const filterError = parsed.success
+    ? null
+    : (parsed.error.issues[0]?.message ?? 'Filtro inválido');
+  const query = parsed.success ? parsed.data : {};
   const sales = useQuery({
     queryKey: posKeys.sales(query),
     queryFn: ({ signal }) => listSales(query, signal),
+    enabled: parsed.success,
   });
 
   const items = sales.data ?? [];
@@ -466,25 +481,91 @@ export function SalesPage() {
         title="Ventas"
         description={
           seesAll
-            ? formatLongDateCO(new Date(`${date}T12:00:00-05:00`))
+            ? from === to
+              ? formatLongDateCO(new Date(`${from}T12:00:00-05:00`))
+              : `Del ${from} al ${to}`
             : 'Las ventas de tu caja abierta.'
         }
-        actions={
-          seesAll ? (
-            <Field id="sales-date" label="Día" className="w-44">
+      />
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        {seesAll ? (
+          <>
+            <Field id="sales-from" label="Desde" className="w-40">
               <Input
-                id="sales-date"
+                id="sales-from"
                 type="date"
-                value={date}
+                value={from}
                 max={toBusinessDate()}
                 onChange={(event) => {
-                  if (event.target.value !== '') setDate(event.target.value);
+                  if (event.target.value !== '') setFrom(event.target.value);
                 }}
               />
             </Field>
-          ) : undefined
-        }
-      />
+            <Field id="sales-to" label="Hasta" className="w-40">
+              <Input
+                id="sales-to"
+                type="date"
+                value={to}
+                max={toBusinessDate()}
+                onChange={(event) => {
+                  if (event.target.value !== '') setTo(event.target.value);
+                }}
+              />
+            </Field>
+          </>
+        ) : null}
+        <Field id="sales-method" label="Medio de pago" className="w-40">
+          <NativeSelect
+            id="sales-method"
+            value={method}
+            onChange={(event) => {
+              const value = event.target.value;
+              setMethod(
+                (PAYMENT_METHODS as readonly string[]).includes(value)
+                  ? (value as PaymentMethod)
+                  : '',
+              );
+            }}
+          >
+            <option value="">Todos</option>
+            {PAYMENT_METHODS.map((value) => (
+              <option key={value} value={value}>
+                {PAYMENT_METHOD_LABELS[value]}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field id="sales-status" label="Estado" className="w-36">
+          <NativeSelect
+            id="sales-status"
+            value={status}
+            onChange={(event) => {
+              const value = event.target.value;
+              setStatus(value === 'PAID' || value === 'VOIDED' ? value : '');
+            }}
+          >
+            <option value="">Todas</option>
+            <option value="PAID">Activas</option>
+            <option value="VOIDED">Anuladas</option>
+          </NativeSelect>
+        </Field>
+        <Field id="sales-number" label="N.º de venta" className="w-36">
+          <Input
+            id="sales-number"
+            inputMode="numeric"
+            placeholder="Buscar"
+            value={number}
+            onChange={(event) => {
+              setNumber(event.target.value);
+            }}
+          />
+        </Field>
+      </div>
+      {filterError === null ? null : (
+        <Alert tone="danger" className="mb-4">
+          {filterError}
+        </Alert>
+      )}
 
       {sales.isPending || (!seesAll && shift.isPending) ? (
         <div className="grid gap-3" aria-busy="true" aria-label="Cargando ventas">

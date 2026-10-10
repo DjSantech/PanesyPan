@@ -251,9 +251,37 @@ export function returnAmountOf(
   return Math.round(((line.total * quantity) / line.quantity) * (sale.total / sale.subtotal));
 }
 
-export const listSalesQuerySchema = z.strictObject({
-  date: businessDateSchema.optional(),
-  shiftId: objectIdSchema.optional(),
-  status: z.enum(SALE_STATUSES).optional(),
-});
+/** Máximo de días que abarca el listado de ventas por rango. */
+export const SALES_LIST_MAX_DAYS = 92;
+
+/**
+ * Filtros del listado de ventas. `date` es un solo día; `from`/`to` un rango (gana sobre `date`).
+ * `number` busca un tiquete exacto (ignora las fechas); `method`, las pagadas con ese medio.
+ */
+export const listSalesQuerySchema = z
+  .strictObject({
+    date: businessDateSchema.optional(),
+    from: businessDateSchema.optional(),
+    to: businessDateSchema.optional(),
+    shiftId: objectIdSchema.optional(),
+    status: z.enum(SALE_STATUSES).optional(),
+    method: z.enum(PAYMENT_METHODS).optional(),
+    number: z
+      .string()
+      .trim()
+      .regex(/^\d{1,9}$/, 'El número de venta son solo dígitos')
+      .optional(),
+  })
+  .refine((value) => value.from === undefined || value.to === undefined || value.from <= value.to, {
+    message: 'La fecha inicial no puede ser posterior a la final',
+    path: ['from'],
+  })
+  .refine(
+    (value) =>
+      value.from === undefined ||
+      value.to === undefined ||
+      (Date.parse(`${value.to}T00:00:00Z`) - Date.parse(`${value.from}T00:00:00Z`)) / 86_400_000 <
+        SALES_LIST_MAX_DAYS,
+    { message: `El rango máximo es de ${String(SALES_LIST_MAX_DAYS)} días`, path: ['to'] },
+  );
 export type ListSalesQuery = z.infer<typeof listSalesQuerySchema>;
