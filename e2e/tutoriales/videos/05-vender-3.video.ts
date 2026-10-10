@@ -42,17 +42,18 @@ tutorial({
     });
 
     // ── Egreso ──
-    await d.say('Si pagas algo con la plata de la caja, toca **Registrar egreso o retiro**.', {
-      voice: 'Si pagas algo con la plata de la caja, toca registrar egreso o retiro.',
-      during: () => d.tap(panel.getByRole('button', { name: 'Registrar egreso o retiro' })),
+    await d.say('Si pagas algo con la plata de la caja, toca **Egreso, retiro o ingreso**.', {
+      voice: 'Si pagas algo con la plata de la caja, toca egreso, retiro o ingreso.',
+      during: () => d.tap(panel.getByRole('button', { name: 'Egreso, retiro o ingreso' })),
     });
-    const movement = page.getByRole('dialog', { name: 'Egreso o retiro' });
-    await d.say('Un **egreso** es un gasto: hielo, gas, un domicilio. Siempre con su motivo.', {
-      voice: 'Un egreso es un gasto: hielo, gas, un domicilio. Siempre con su motivo.',
+    const movement = page.getByRole('dialog', { name: 'Egreso, retiro o ingreso' });
+    await d.say('Un **egreso** es un gasto. Elige el **tipo** (hielo, gas, nómina…) y el monto.', {
+      voice: 'Un egreso es un gasto. Elige el tipo, por ejemplo hielo, gas o nómina, y el monto.',
       during: async () => {
         await d.tap(movement.getByRole('radio', { name: 'Egreso' }));
+        await d.tap(movement.getByRole('button', { name: 'Hielo' }));
         await d.type(movement.getByLabel('Monto'), '5000');
-        await d.type(movement.getByLabel('Motivo'), 'Hielo para las bebidas');
+        await d.type(movement.getByLabel('Detalle (opcional)'), 'Para las bebidas');
       },
     });
     await d.tap(movement.getByRole('button', { name: 'Registrar egreso' }));
@@ -63,10 +64,10 @@ tutorial({
       voice: 'Un retiro es plata que se saca para guardarla.',
       during: async () => {
         await d.tap(cashButton);
-        await d.tap(panel.getByRole('button', { name: 'Registrar egreso o retiro' }));
+        await d.tap(panel.getByRole('button', { name: 'Egreso, retiro o ingreso' }));
         await d.tap(movement.getByRole('radio', { name: 'Retiro' }));
+        await d.tap(movement.getByRole('button', { name: 'Guardar en caja fuerte' }));
         await d.type(movement.getByLabel('Monto'), '50000');
-        await d.type(movement.getByLabel('Motivo'), 'Se guarda en la caja fuerte');
       },
     });
     await d.say('El retiro siempre lo autoriza un administrador con su **PIN**.', {
