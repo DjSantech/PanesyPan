@@ -340,6 +340,8 @@ export async function checkoutTab(
 /**
  * Anula una venta pagada: se devuelven las porciones y deja de contar en la caja.
  * Solo mientras la caja de la venta siga abierta (una caja cerrada no se modifica).
+ * Cualquier persona que venda puede anular sin PIN (decisión del dueño): queda en la
+ * auditoría quién anuló, el motivo y qué productos tenía la venta.
  */
 export async function voidSale(
   id: string,
@@ -352,10 +354,6 @@ export async function voidSale(
   if (shift?.status !== 'OPEN') {
     throw conflict('La caja de esta venta ya se cerró: no se puede anular.');
   }
-  if (!hasPermission(ctx.actor.role, 'sales:void:approve') && !shift.userId.equals(ctx.actor._id)) {
-    throw new AppError(403, 'FORBIDDEN', 'Solo puedes anular ventas de tu propia caja.');
-  }
-  const approver = await resolveApproval(ctx, input.approverPin, 'VOID');
 
   const voided = await runInTransaction(async (session) => {
     const doc = await findSaleOrThrow(id, session);
@@ -366,7 +364,7 @@ export async function voidSale(
     doc.closure = {
       at: new Date(),
       by: personOf(ctx.actor),
-      approvedBy: approver,
+      approvedBy: null,
       reason: input.reason,
     };
     await adjustPortions(portionChangesOf(doc.lines, -1), session);
@@ -386,7 +384,12 @@ export async function voidSale(
         saleNumber: voided.number,
         total: voided.total,
         note: input.reason,
-        approvedBy: approver.name,
+        shiftOf: shift.userId.equals(ctx.actor._id) ? 'propia' : 'otra caja',
+        lines: voided.lines.map((line) => ({
+          name: line.name,
+          quantity: line.quantity,
+          total: line.total,
+        })),
       },
       meta: ctx.meta,
     },

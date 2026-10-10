@@ -757,45 +757,30 @@ describe('anulación y consulta de ventas', () => {
     return saleOf(response.body);
   }
 
-  it('la cajera anula ventas de su caja con el PIN del administrador', async () => {
-    const sale = await sell(cashier);
-    const withoutPin = await send(cashier, 'post', `/sales/${sale.id}/void`, {
-      reason: 'Error de cobro',
-    });
-    expect(errorOf(withoutPin.body).code).toBe('APPROVAL_REQUIRED');
-
+  it('cualquier cajera anula sin PIN y queda en la auditoría con los productos', async () => {
+    const sale = await sell(otherCashier);
     const voided = saleOf(
       (
         await send(cashier, 'post', `/sales/${sale.id}/void`, {
           reason: 'Error de cobro',
-          approverPin: ADMIN_PIN,
         }).expect(200)
       ).body,
     );
     expect(voided).toMatchObject({ status: 'VOIDED', closure: { reason: 'Error de cobro' } });
 
-    const twice = await send(cashier, 'post', `/sales/${sale.id}/void`, {
-      reason: 'Otra vez',
-      approverPin: ADMIN_PIN,
-    });
+    const twice = await send(cashier, 'post', `/sales/${sale.id}/void`, { reason: 'Otra vez' });
     expect(twice.status).toBe(409);
 
-    const current = await cashier.agent.get('/api/v1/cash-shifts/current').expect(200);
+    const current = await otherCashier.agent.get('/api/v1/cash-shifts/current').expect(200);
     expect(currentCashShiftResponseSchema.parse(current.body).shift?.summary).toMatchObject({
       salesCount: 0,
       voidedCount: 1,
       expectedCash: 100_000,
     });
-    expect(await auditCount('SALE_VOIDED')).toBe(1);
-  });
-
-  it('una cajera no anula ventas de la caja de otra', async () => {
-    const sale = await sell(otherCashier);
-    const response = await send(cashier, 'post', `/sales/${sale.id}/void`, {
-      reason: 'No es mía',
-      approverPin: ADMIN_PIN,
-    });
-    expect(response.status).toBe(403);
+    const entry = await AuditLogModel.findOne({ action: 'SALE_VOIDED' }).lean();
+    expect(entry?.actor).toMatchObject({ name: 'Laura Gómez' });
+    expect(JSON.stringify(entry?.metadata)).toContain('Error de cobro');
+    expect((entry?.metadata as { lines?: unknown[] } | undefined)?.lines).toHaveLength(1);
   });
 
   it('el administrador anula sin PIN y ve las ventas del día; la cajera solo las suyas', async () => {
