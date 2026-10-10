@@ -274,11 +274,16 @@ Desde la raíz del repositorio:
 
 Scripts del backend (desde `backend/`):
 
-| Script                                | Qué hace                                                       |
-| ------------------------------------- | -------------------------------------------------------------- |
-| `npm run seed:admin`                  | Crea el primer administrador con las variables `SEED_ADMIN_*`  |
-| `npm run seed:catalog`                | Carga el catálogo inicial (categorías y productos con precios) |
-| `npm run reset:password -- <usuario>` | Genera una contraseña temporal para un usuario que la olvidó   |
+| Script                                | Qué hace                                                                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run seed:admin`                  | Crea el primer administrador con las variables `SEED_ADMIN_*`                                                                                                   |
+| `npm run seed:catalog`                | Carga el catálogo inicial (categorías y productos con precios)                                                                                                  |
+| `npm run reset:password -- <usuario>` | Genera una contraseña temporal para un usuario que la olvidó                                                                                                    |
+| `npm run catalog:report`              | Solo lectura: cuenta los productos y escribe `.local/productos-por-categoria.csv` para revisar categorías (compara con el CSV de TryTiendas si está en `docs/`) |
+| `npm run cash:concepts -- --apply`    | Les pone tipo a los egresos, retiros e ingresos que se registraron antes de que existieran los tipos (sin `--apply` solo muestra lo que haría)                  |
+| `npm run import:traitiendas`          | Carga el inventario exportado de TryTiendas (simulación; `--apply` para cargar)                                                                                 |
+
+**Carga de costos desde TryTiendas.** En TryTiendas descarga el listado de productos con código y costo, ábrelo en Excel y guárdalo como CSV. En el sistema: Catálogo → Masivo → **Cargar precios y costos (CSV)**. Los productos se reconocen por el código (si no tienen, por el nombre); revisa la vista previa con **Ver qué cambia** y luego **Aplicar cambios**. Si el archivo trae la categoría correcta, marca **Pasar los productos que ya existen a la categoría del archivo**; para corregir unos pocos a mano, usa Masivo → **Mover productos de categoría**.
 
 Cada paquete también tiene sus propios `dev`, `build`, `typecheck`, `lint` y `test`. Se pueden correr con `npm run <script>` dentro de la carpeta (`backend`, `frontend` o `packages/shared`), o desde la raíz con `pnpm --filter @panesypan/backend test`.
 
