@@ -63,6 +63,7 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['get', '/products/export', 'catalog:manage'],
   ['post', '/products/import', 'catalog:manage'],
   ['post', '/products/bulk-price', 'catalog:manage'],
+  ['post', '/products/bulk-category', 'catalog:manage'],
   ['get', '/public/images/:file', 'public'],
   ['get', '/public/catalogo', 'public'],
   ['get', '/public/menu-del-dia', 'public'],

@@ -1,17 +1,22 @@
 import {
   BULK_PRICE_ROUNDING,
+  bulkMoveProductsResultSchema,
   bulkPriceResultSchema,
   formatCOP,
   importProductsResultSchema,
+  type BulkMoveProductsRequest,
   type BulkPriceRequest,
   type BulkPriceResult,
   type Category,
   type ImportProductsRequest,
   type ImportProductsResult,
+  type Product,
   type ProductImportRow,
+  PRODUCT_BULK_MOVE_MAX,
+  SUBCATEGORY_MAX,
 } from '@panesypan/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileUp } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileUp, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/feedback';
@@ -21,7 +26,8 @@ import { Field, Input, NativeSelect } from '@/components/ui/form';
 import { Alert } from '@/components/ui/surface';
 import { apiJson } from '@/lib/api-client';
 import { errorMessage } from '@/lib/api-errors';
-import { catalogKeys } from './catalog.api';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { catalogKeys, listProducts } from './catalog.api';
 import { productRowsFromCsv } from './csv-import';
 
 const importProducts = (input: ImportProductsRequest) =>
@@ -29,6 +35,12 @@ const importProducts = (input: ImportProductsRequest) =>
 
 const bulkPrice = (input: BulkPriceRequest) =>
   apiJson('/api/v1/products/bulk-price', bulkPriceResultSchema, { method: 'POST', body: input });
+
+const moveProducts = (input: BulkMoveProductsRequest) =>
+  apiJson('/api/v1/products/bulk-category', bulkMoveProductsResultSchema, {
+    method: 'POST',
+    body: input,
+  });
 
 interface DialogProps {
   open: boolean;
@@ -288,6 +300,234 @@ export function BulkPriceDialog({
               }}
             >
               {run.isPending ? <Spinner /> : null} Aplicar
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Mover a otra categoría ─────────────────────────────────────────
+
+interface MoveProductsDialogProps extends DialogProps {
+  /** Categorías activas (las de almuerzos no se ofrecen). */
+  categories: Category[];
+}
+
+/**
+ * Corrige categorías en lote: se buscan y marcan productos (de una o de todas las categorías)
+ * y se mueven juntos a la categoría elegida. Queda en la auditoría.
+ */
+export function MoveProductsDialog({ open, onOpenChange, categories }: MoveProductsDialogProps) {
+  const queryClient = useQueryClient();
+  const standard = categories.filter((category) => category.kind !== 'LUNCH');
+  const [fromId, setFromId] = useState('');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [targetId, setTargetId] = useState(standard[0]?.id ?? '');
+  const [subcategory, setSubcategory] = useState('');
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const query = {
+    status: 'active' as const,
+    search: debouncedSearch,
+    ...(fromId === '' ? {} : { categoryId: fromId }),
+  };
+  const products = useQuery({
+    queryKey: catalogKeys.products(query),
+    queryFn: ({ signal }) => listProducts(query, signal),
+    enabled: open,
+  });
+  const lunchIds = new Set(
+    categories.filter((category) => category.kind === 'LUNCH').map((category) => category.id),
+  );
+  const shown = (products.data ?? []).filter((product) => !lunchIds.has(product.categoryId));
+  const categoryName = new Map(categories.map((category) => [category.id, category.name]));
+  const allShownSelected = shown.length > 0 && shown.every((product) => selected.has(product.id));
+
+  const toggle = (product: Product, checked: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(product.id);
+      else next.delete(product.id);
+      return next;
+    });
+  };
+  const toggleShown = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const product of shown) {
+        if (allShownSelected) next.delete(product.id);
+        else next.add(product.id);
+      }
+      return next;
+    });
+  };
+
+  const run = useMutation({
+    mutationFn: () =>
+      moveProducts({ productIds: [...selected], categoryId: targetId, subcategory }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: catalogKeys.all });
+      toast.success(
+        `${String(result.moved)} productos movidos a ${categoryName.get(targetId) ?? 'la categoría'}`,
+      );
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      setFailure(errorMessage(error));
+    },
+  });
+  const tooMany = selected.size > PRODUCT_BULK_MOVE_MAX;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title="Mover productos de categoría"
+        description="Marca los productos que quedaron en la categoría equivocada y elige a dónde van. Queda en la auditoría."
+        className="sm:max-w-xl"
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field id="move-from" label="Ver productos de">
+              <NativeSelect
+                id="move-from"
+                value={fromId}
+                onChange={(event) => {
+                  setFromId(event.target.value);
+                }}
+              >
+                <option value="">Todas las categorías</option>
+                {standard.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field id="move-search" label="Buscar">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  id="move-search"
+                  type="search"
+                  className="pl-9"
+                  placeholder="Nombre o código"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                  }}
+                />
+              </div>
+            </Field>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className={tooMany ? 'font-bold text-danger' : 'font-bold'}>
+                {String(selected.size)} marcados
+                {tooMany ? ` (máximo ${String(PRODUCT_BULK_MOVE_MAX)})` : ''}
+              </span>
+              <Button variant="ghost" size="sm" disabled={shown.length === 0} onClick={toggleShown}>
+                {allShownSelected ? 'Desmarcar los de la lista' : 'Marcar los de la lista'}
+              </Button>
+            </div>
+            {products.isPending ? (
+              <Spinner label="Cargando productos…" />
+            ) : products.isError ? (
+              <Alert tone="danger">{errorMessage(products.error)}</Alert>
+            ) : shown.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay productos con ese filtro.</p>
+            ) : (
+              <ul
+                className="grid max-h-64 gap-1 overflow-y-auto rounded-xl bg-muted p-2"
+                aria-label="Productos"
+              >
+                {shown.map((product) => (
+                  <li key={product.id}>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-card">
+                      <input
+                        type="checkbox"
+                        className="size-5 accent-primary"
+                        checked={selected.has(product.id)}
+                        onChange={(event) => {
+                          toggle(product, event.target.checked);
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-bold">{product.name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {[
+                            categoryName.get(product.categoryId),
+                            product.subcategory,
+                            product.code === null ? '' : `Cód. ${product.code}`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field id="move-target" label="Moverlos a">
+              <NativeSelect
+                id="move-target"
+                value={targetId}
+                onChange={(event) => {
+                  setTargetId(event.target.value);
+                }}
+              >
+                {standard.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field
+              id="move-subcategory"
+              label="Subcategoría (opcional)"
+              hint="Vacía: quedan sin subcategoría."
+            >
+              <Input
+                id="move-subcategory"
+                maxLength={SUBCATEGORY_MAX}
+                value={subcategory}
+                onChange={(event) => {
+                  setSubcategory(event.target.value);
+                }}
+              />
+            </Field>
+          </div>
+
+          {failure === null ? null : <Alert tone="danger">{failure}</Alert>}
+          <DialogFooter className="mt-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={selected.size === 0 || tooMany || targetId === '' || run.isPending}
+              onClick={() => {
+                setFailure(null);
+                run.mutate();
+              }}
+            >
+              {run.isPending ? <Spinner /> : null} Mover {String(selected.size)} productos
             </Button>
           </DialogFooter>
         </div>

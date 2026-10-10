@@ -343,6 +343,30 @@ export const bulkPriceResultSchema = z.object({
 });
 export type BulkPriceResult = z.infer<typeof bulkPriceResultSchema>;
 
+/** Máximo de productos que se mueven de categoría en una sola acción. */
+export const PRODUCT_BULK_MOVE_MAX = 500;
+
+/**
+ * Mover varios productos a otra categoría (para corregir lo que quedó mal al cargar el
+ * inventario). La subcategoría se reemplaza por la que se indique (vacía = sin subcategoría).
+ */
+export const bulkMoveProductsRequestSchema = z.strictObject({
+  productIds: z
+    .array(objectIdSchema)
+    .min(1, 'Elige al menos un producto')
+    .max(PRODUCT_BULK_MOVE_MAX, `Máximo ${String(PRODUCT_BULK_MOVE_MAX)} productos a la vez`),
+  categoryId: objectIdSchema,
+  subcategory: subcategorySchema.default(''),
+});
+export type BulkMoveProductsRequest = z.input<typeof bulkMoveProductsRequestSchema>;
+
+export const bulkMoveProductsResultSchema = z.object({
+  moved: z.int(),
+  /** Los que ya estaban en esa categoría con esa subcategoría. */
+  unchanged: z.int(),
+});
+export type BulkMoveProductsResult = z.infer<typeof bulkMoveProductsResultSchema>;
+
 /** Nuevo precio con el porcentaje aplicado y redondeado (nunca por debajo del mínimo). */
 export function adjustedPrice(price: number, percent: number, roundTo: number): number {
   const raw = price * (1 + percent / 100);

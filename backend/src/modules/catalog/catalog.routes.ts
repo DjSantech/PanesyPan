@@ -1,4 +1,5 @@
 import {
+  bulkMoveProductsRequestSchema,
   bulkPriceRequestSchema,
   businessDateSchema,
   createCategoryRequestSchema,
@@ -37,7 +38,12 @@ import {
   updateCategory,
   updateProduct,
 } from './catalog.service';
-import { bulkChangePrices, exportProductsCsv, importProducts } from './catalog-bulk.service';
+import {
+  bulkChangePrices,
+  bulkMoveProducts,
+  exportProductsCsv,
+  importProducts,
+} from './catalog-bulk.service';
 import { getDailyMenu, upsertDailyMenu } from './daily-menu.service';
 
 export interface CatalogRouterDeps {
@@ -120,6 +126,10 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   router.post('/products/import', ...canManage, async (req, res) => {
     const input = parseBody(req, importProductsRequestSchema);
     res.json(await importProducts(input, actorContext(req)));
+  });
+  router.post('/products/bulk-category', ...canManage, async (req, res) => {
+    const input = parseBody(req, bulkMoveProductsRequestSchema);
+    res.json(await bulkMoveProducts(input, actorContext(req)));
   });
   router.post('/products/bulk-price', ...canManage, async (req, res) => {
     const input = parseBody(req, bulkPriceRequestSchema);

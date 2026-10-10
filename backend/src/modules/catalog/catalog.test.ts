@@ -1,5 +1,6 @@
 import {
   apiErrorResponseSchema,
+  bulkMoveProductsResultSchema,
   bulkPriceResultSchema,
   categoryResponseSchema,
   dailyMenuResponseSchema,
@@ -657,5 +658,43 @@ describe('carga masiva y cambio de precios', () => {
     expect(preview.items).toEqual([expect.objectContaining({ from: 2_500, to: 2_800 })]);
     await send(admin, 'post', '/products/bulk-price', { ...body, dryRun: false }).expect(200);
     expect((await ProductModel.findOne({ slug: 'pepsi-vidrio' }))?.price).toBe(2_800);
+  });
+
+  it('mueve productos en lote a otra categoría, sin tocar los almuerzos', async () => {
+    const drinks = await CategoryModel.findOne({ slug: 'bebidas' });
+    const pepsi = await ProductModel.findOne({ slug: 'pepsi-vidrio' });
+    if (drinks === null || pepsi === null) throw new Error('Faltan datos');
+    const bakery = await createCategory('Panadería');
+    const lunch = await createCategory('Almuerzos', 'LUNCH');
+    const arepa = await createProduct('Arepa de Huevo', drinks.id);
+    const almuerzo = await createProduct('Almuerzo', lunch.id);
+
+    const move = (body: object) => send(admin, 'post', '/products/bulk-category', body);
+    await send(cashier, 'post', '/products/bulk-category', {
+      productIds: [arepa.id],
+      categoryId: bakery.id,
+    }).expect(403);
+    expect((await move({ productIds: [arepa.id], categoryId: lunch.id })).status).toBe(409);
+    expect((await move({ productIds: [almuerzo.id], categoryId: bakery.id })).status).toBe(409);
+
+    const result = bulkMoveProductsResultSchema.parse(
+      (
+        await move({
+          productIds: [arepa.id, pepsi.id],
+          categoryId: bakery.id,
+          subcategory: 'Arepas',
+        }).expect(200)
+      ).body,
+    );
+    expect(result).toEqual({ moved: 2, unchanged: 0 });
+    const moved = await ProductModel.findById(arepa.id);
+    expect(moved?.categoryId.toString()).toBe(bakery.id);
+    expect(moved?.subcategory).toBe('Arepas');
+    expect(await AuditLogModel.countDocuments({ action: 'PRODUCTS_BULK_MOVED' })).toBe(1);
+
+    const again = bulkMoveProductsResultSchema.parse(
+      (await move({ productIds: [arepa.id], categoryId: bakery.id, subcategory: 'Arepas' })).body,
+    );
+    expect(again).toEqual({ moved: 0, unchanged: 1 });
   });
 });

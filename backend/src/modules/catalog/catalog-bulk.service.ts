@@ -2,12 +2,14 @@ import {
   adjustedPrice,
   formatCOP,
   slugify,
+  type BulkMoveProductsRequest,
+  type BulkMoveProductsResult,
   type BulkPriceRequest,
   type BulkPriceResult,
   type ImportProductsRequest,
   type ImportProductsResult,
 } from '@panesypan/shared';
-import { Types } from 'mongoose';
+import { trusted, Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
 import { InventoryItemModel } from '../inventory/inventory.models';
@@ -261,4 +263,79 @@ export async function bulkChangePrices(
       to: item.to,
     })),
   };
+}
+
+/**
+ * Mueve varios productos a otra categoría (y les pone la subcategoría indicada). Los almuerzos
+ * no entran ni salen así: sus porciones se manejan en el menú del día.
+ */
+export async function bulkMoveProducts(
+  input: BulkMoveProductsRequest,
+  ctx: ActorContext,
+): Promise<BulkMoveProductsResult> {
+  const subcategory = input.subcategory ?? '';
+  const target = Types.ObjectId.isValid(input.categoryId)
+    ? await CategoryModel.findById(input.categoryId)
+    : null;
+  if (target === null) throw new AppError(404, 'NOT_FOUND', 'Categoría no encontrada');
+  if (!target.isActive) throw new AppError(409, 'CONFLICT', 'La categoría está desactivada');
+  if (target.kind === 'LUNCH') {
+    throw new AppError(
+      409,
+      'CONFLICT',
+      'A la categoría de almuerzos no se mueven productos en lote: créalos en el catálogo.',
+    );
+  }
+
+  const ids = [...new Set(input.productIds)].map((id) => new Types.ObjectId(id));
+  const [products, lunchCategories] = await Promise.all([
+    ProductModel.find({ _id: trusted({ $in: ids }) }),
+    CategoryModel.find({ kind: 'LUNCH' }).select('_id').lean(),
+  ]);
+  if (products.length !== ids.length) {
+    throw new AppError(404, 'NOT_FOUND', 'Alguno de los productos ya no existe');
+  }
+  const lunchIds = new Set(lunchCategories.map((category) => category._id.toString()));
+  const lunch = products.find((product) => lunchIds.has(product.categoryId.toString()));
+  if (lunch !== undefined) {
+    throw new AppError(
+      409,
+      'CONFLICT',
+      `"${lunch.name}" es un almuerzo: sus porciones se manejan en el menú del día y no se mueve en lote.`,
+    );
+  }
+
+  const toMove = products.filter(
+    (product) =>
+      !product.categoryId.equals(target._id) || (product.subcategory ?? '') !== subcategory,
+  );
+  if (toMove.length > 0) {
+    await ProductModel.updateMany(
+      { _id: trusted({ $in: toMove.map((product) => product._id) }) },
+      { $set: { categoryId: target._id, subcategory } },
+    );
+    const categories = await CategoryModel.find({
+      _id: trusted({ $in: [...new Set(toMove.map((product) => product.categoryId.toString()))] }),
+    }).lean();
+    const nameOf = new Map(categories.map((category) => [category._id.toString(), category.name]));
+    await recordAudit(
+      {
+        action: 'PRODUCTS_BULK_MOVED',
+        actor: toAuditActor(ctx.actor),
+        entity: { type: 'CATEGORY', id: target.id, label: target.name },
+        metadata: {
+          subcategory,
+          products: Object.fromEntries(
+            toMove.map((product) => [
+              product.name,
+              { from: nameOf.get(product.categoryId.toString()) ?? '', to: target.name },
+            ]),
+          ),
+        },
+        meta: ctx.meta,
+      },
+      ctx.logger,
+    );
+  }
+  return { moved: toMove.length, unchanged: products.length - toMove.length };
 }

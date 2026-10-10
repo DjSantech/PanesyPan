@@ -47,7 +47,7 @@ import {
   updateProduct,
   uploadProductImage,
 } from './catalog.api';
-import { BulkPriceDialog, ImportProductsDialog } from './BulkDialogs';
+import { BulkPriceDialog, ImportProductsDialog, MoveProductsDialog } from './BulkDialogs';
 import { CategoriesDialog } from './CategoriesDialog';
 import { ProductFormDialog, type ImageChange } from './ProductFormDialog';
 import { ProductThumb } from './ProductThumb';
@@ -249,7 +249,7 @@ export function CatalogPage() {
     return ordered;
   }, [products.data, categories.data]);
 
-  const [bulk, setBulk] = useState<'import' | 'price' | null>(null);
+  const [bulk, setBulk] = useState<'import' | 'price' | 'move' | null>(null);
 
   const openForm = (product?: Product) => {
     setFormError(null);
@@ -305,6 +305,13 @@ export function CatalogPage() {
                     }}
                   >
                     Cambiar precios por porcentaje
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setBulk('move');
+                    }}
+                  >
+                    Mover productos de categoría
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -505,6 +512,16 @@ export function CatalogPage() {
       ) : null}
       {canManage && bulk === 'price' ? (
         <BulkPriceDialog
+          open
+          categories={activeCategories}
+          onOpenChange={(open) => {
+            if (!open) setBulk(null);
+          }}
+        />
+      ) : null}
+
+      {canManage && bulk === 'move' ? (
+        <MoveProductsDialog
           open
           categories={activeCategories}
           onOpenChange={(open) => {
