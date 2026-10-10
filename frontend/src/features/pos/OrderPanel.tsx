@@ -8,6 +8,8 @@ export interface OrderLineView {
   name: string;
   note: string;
   unitPrice: number;
+  /** Precio normal; si es mayor que `unitPrice`, se aplicó un precio por cantidad. */
+  listPrice?: number | null;
   quantity: number;
   total: number;
   /** El producto se agotó o se archivó después de agregarlo. */
@@ -114,7 +116,9 @@ export function OrderPanel({
                   <Plus className="size-5" aria-hidden="true" />
                 </button>
                 <span className="ml-1 text-sm text-muted-foreground">
-                  {formatCOP(line.unitPrice)} c/u
+                  {(line.listPrice ?? line.unitPrice) > line.unitPrice
+                    ? `${String(line.quantity)} × ${formatCOP(line.unitPrice)} (precio por cantidad)`
+                    : `${formatCOP(line.unitPrice)} c/u`}
                 </span>
                 <button
                   type="button"

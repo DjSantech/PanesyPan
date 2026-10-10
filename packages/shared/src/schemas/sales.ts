@@ -48,6 +48,8 @@ export const saleLineSchema = z.object({
   productId: z.string(),
   name: z.string(),
   unitPrice: z.int(),
+  /** Precio normal del producto; si es mayor que `unitPrice`, se aplicó un precio por cantidad. */
+  listPrice: z.int().nullable().default(null),
   quantity: z.int(),
   /** Detalle para la cocina o el tiquete (p. ej. la proteína del almuerzo). */
   note: z.string(),

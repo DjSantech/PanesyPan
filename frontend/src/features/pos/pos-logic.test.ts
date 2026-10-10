@@ -2,6 +2,7 @@ import type { Category, DailyMenu } from '@panesypan/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { newRequestId } from '@/lib/request-id';
 import { useCartStore } from './cart.store';
+import { counterLinePrice } from './pos-logic';
 import { buildPosCatalog } from './use-pos-catalog';
 
 const category = (id: string, kind: Category['kind'], isActive = true): Category => ({
@@ -136,5 +137,15 @@ describe('newRequestId', () => {
     const first = newRequestId();
     expect(first).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
     expect(newRequestId()).not.toBe(first);
+  });
+});
+
+describe('precio por cantidad en el pedido de mostrador', () => {
+  const bread = { price: 800, priceTiers: [{ minQuantity: 12, unitPrice: 700 }] };
+
+  it('aplica la escala igual que la API para que el total esperado coincida', () => {
+    expect(counterLinePrice(bread, 11)).toEqual({ unitPrice: 800, listPrice: 800, total: 8_800 });
+    expect(counterLinePrice(bread, 12)).toEqual({ unitPrice: 700, listPrice: 800, total: 8_400 });
+    expect(counterLinePrice(undefined, 3).total).toBe(0);
   });
 });

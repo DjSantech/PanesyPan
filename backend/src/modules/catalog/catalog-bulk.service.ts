@@ -1,6 +1,8 @@
 import {
   adjustedPrice,
   formatCOP,
+  formatPriceTiers,
+  priceTiersProblem,
   slugify,
   type BulkMoveProductsRequest,
   type BulkMoveProductsResult,
@@ -18,6 +20,7 @@ import { toCsv } from '../reports/csv';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
 import { CategoryModel, ProductModel } from './catalog.models';
+import { tiersOf } from './catalog.service';
 
 /** Filas de cambios que se muestran en la vista previa. */
 const PREVIEW_CHANGES = 30;
@@ -34,6 +37,7 @@ const CSV_HEADERS = [
   'Proveedor',
   'Controla inventario',
   'Activo',
+  'Precios por cantidad',
 ];
 
 /** CSV con todos los productos; se puede editar en Excel y volver a cargar. */
@@ -69,6 +73,7 @@ export async function exportProductsCsv(): Promise<string> {
         product.supplierId === null ? '' : (supplierName.get(product.supplierId.toString()) ?? ''),
         product.trackStock ? 'Sí' : 'No',
         product.isActive ? 'Sí' : 'No',
+        formatPriceTiers(tiersOf(product)),
       ];
     }),
   );
@@ -104,6 +109,15 @@ export async function importProducts(
     changes: [],
   };
   const seen = new Set<string>();
+  /** Motivo por el que las escalas de la fila no sirven, o null. */
+  const tiersProblem = (
+    price: number,
+    tiers: readonly { minQuantity: number; unitPrice: number }[],
+    isLunch: boolean,
+  ): string | null =>
+    tiers.length > 0 && isLunch
+      ? 'Los almuerzos no tienen precio por cantidad'
+      : priceTiersProblem(price, tiers);
   const note = (name: string, detail: string) => {
     if (result.changes.length < PREVIEW_CHANGES) result.changes.push({ name, detail });
   };
@@ -141,6 +155,16 @@ export async function importProducts(
           name: row.name,
           reason: `No existe la categoría "${row.category ?? ''}"`,
         });
+      } else if (
+        tiersProblem(row.price, row.priceTiers ?? [], category.kind === 'LUNCH') !== null
+      ) {
+        result.skipped.push({
+          row: rowNumber,
+          name: row.name,
+          reason:
+            tiersProblem(row.price, row.priceTiers ?? [], category.kind === 'LUNCH') ??
+            'Precios por cantidad inválidos',
+        });
       } else if (code !== '' && productByCode.has(code)) {
         result.skipped.push({ row: rowNumber, name: row.name, reason: 'Ese código ya existe' });
       } else if (productBySlug.has(slug)) {
@@ -157,6 +181,7 @@ export async function importProducts(
             subcategory: row.subcategory ?? '',
             price: row.price,
             cost: row.cost ?? null,
+            priceTiers: row.priceTiers ?? [],
             trackStock: category.kind !== 'LUNCH',
           });
           if (row.minStock !== undefined) {
@@ -205,6 +230,20 @@ export async function importProducts(
         `costo ${product.cost === null ? '—' : formatCOP(product.cost)} → ${formatCOP(row.cost)}`,
       );
       product.cost = row.cost;
+    }
+    if (row.priceTiers !== undefined) {
+      const isLunch = categoryById.get(product.categoryId.toString())?.kind === 'LUNCH';
+      const problem = tiersProblem(product.price, row.priceTiers, isLunch);
+      if (problem !== null) {
+        result.skipped.push({ row: rowNumber, name: row.name, reason: problem });
+        continue;
+      }
+      const from = formatPriceTiers(tiersOf(product));
+      const to = formatPriceTiers(row.priceTiers);
+      if (from !== to) {
+        details.push(`precios por cantidad "${from || '—'}" → "${to || '—'}"`);
+        product.priceTiers = row.priceTiers;
+      }
     }
     if (row.subcategory !== undefined && row.subcategory !== product.subcategory) {
       details.push(`subcategoría "${row.subcategory}"`);

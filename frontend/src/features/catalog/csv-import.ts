@@ -1,4 +1,4 @@
-import { removeAccents, type ProductImportRow } from '@panesypan/shared';
+import { parsePriceTiers, removeAccents, type ProductImportRow } from '@panesypan/shared';
 
 /** Marca de orden de bytes con la que Excel guarda los CSV en UTF-8. */
 const BOM = String.fromCharCode(0xfeff);
@@ -71,9 +71,12 @@ const key = (header: string) => removeAccents(header).toLowerCase().trim();
  */
 function columnsOf(headers: readonly string[]) {
   const keys = headers.map(key);
+  const tiers = keys.findIndex((header) => header.includes('por cantidad'));
   const find = (...names: string[]) => {
     for (const name of names) {
-      const index = keys.findIndex((header) => header.includes(name));
+      const index = keys.findIndex(
+        (header, position) => position !== tiers && header.includes(name),
+      );
       if (index >= 0) return index;
     }
     return -1;
@@ -99,6 +102,8 @@ function columnsOf(headers: readonly string[]) {
       return index === price ? -1 : index;
     })(),
     minStock: find('minimo'),
+    /** "Precios por cantidad": 12:700|24:650. */
+    tiers,
   };
 }
 
@@ -109,10 +114,13 @@ const text = (value: string | undefined) => (value ?? '').trim().replace(/^'(?=[
 export function productRowsFromCsv(content: string): {
   rows: ProductImportRow[];
   missingName: boolean;
+  /** Productos cuyos precios por cantidad no se entienden (formato 12:700|24:650). */
+  badTiers: string[];
 } {
   const [headers = [], ...lines] = parseCsv(content);
   const columns = columnsOf(headers);
-  if (columns.name < 0) return { rows: [], missingName: true };
+  if (columns.name < 0) return { rows: [], missingName: true, badTiers: [] };
+  const badTiers: string[] = [];
   const cell = (line: string[], index: number) => (index < 0 ? '' : text(line[index]));
   const rows = lines.flatMap((line): ProductImportRow[] => {
     const name = cell(line, columns.name);
@@ -127,7 +135,12 @@ export function productRowsFromCsv(content: string): {
     if (price !== undefined) row.price = price;
     if (cost !== undefined) row.cost = cost;
     if (minStock !== undefined) row.minStock = minStock;
+    if (columns.tiers >= 0) {
+      const tiers = parsePriceTiers(cell(line, columns.tiers));
+      if (tiers === null) badTiers.push(name);
+      else row.priceTiers = tiers;
+    }
     return [row];
   });
-  return { rows, missingName: false };
+  return { rows, missingName: false, badTiers };
 }

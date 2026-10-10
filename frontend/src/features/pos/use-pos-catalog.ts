@@ -1,4 +1,4 @@
-import { toBusinessDate, type Category, type DailyMenu } from '@panesypan/shared';
+import { toBusinessDate, type Category, type DailyMenu, type PriceTier } from '@panesypan/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { catalogKeys, getDailyMenu, listCategories, listProducts } from '../catalog/catalog.api';
@@ -7,6 +7,8 @@ export interface PosProduct {
   id: string;
   name: string;
   price: number;
+  /** Precios por cantidad (los almuerzos no tienen). */
+  priceTiers: PriceTier[];
   categoryId: string;
   isAvailable: boolean;
   isFavorite: boolean;
@@ -92,6 +94,7 @@ export function buildPosCatalog(
     id: string;
     name: string;
     price: number;
+    priceTiers?: PriceTier[];
     categoryId: string;
     isAvailable: boolean;
     isFavorite: boolean;
@@ -118,6 +121,7 @@ export function buildPosCatalog(
         id: product.id,
         name: product.name,
         price: product.price,
+        priceTiers: isLunch ? [] : (product.priceTiers ?? []),
         categoryId: product.categoryId,
         isAvailable: product.isAvailable,
         isFavorite: product.isFavorite,

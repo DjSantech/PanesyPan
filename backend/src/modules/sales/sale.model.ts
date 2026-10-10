@@ -28,6 +28,13 @@ export interface SaleLineAttrs {
   name: string;
   unitPrice: number;
   /**
+   * Precio normal del producto al agregarlo y sus precios por cantidad: si la cantidad cambia
+   * en una cuenta abierta, el precio unitario se recalcula con ellos. No existen en las
+   * líneas anteriores a los precios por cantidad.
+   */
+  listPrice?: number | null;
+  priceTiers?: { minQuantity: number; unitPrice: number }[];
+  /**
    * Costo unitario del producto al momento de vender (último costo), para que la utilidad de
    * esta venta no cambie si el costo cambia después. null sin costo; no existe en las ventas
    * anteriores a este campo (ahí se usa el costo actual del producto).
@@ -133,6 +140,19 @@ const lineSchema = new Schema<SaleLineAttrs>({
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   name: { type: String, required: true },
   unitPrice: money,
+  listPrice: { type: Number, default: null, min: 0 },
+  priceTiers: {
+    type: [
+      new Schema(
+        {
+          minQuantity: { type: Number, required: true },
+          unitPrice: { type: Number, required: true },
+        },
+        { _id: false },
+      ),
+    ],
+    default: undefined,
+  },
   unitCost: { type: Number, default: null, min: 0 },
   quantity: { type: Number, required: true, min: 1 },
   note: { type: String, default: '' },

@@ -49,6 +49,8 @@ export interface ProductAttrs {
   price: number;
   /** Costo unitario (null sin registrar). */
   cost: number | null;
+  /** Precios por cantidad, de menor a mayor cantidad (no existe en productos anteriores). */
+  priceTiers?: { minQuantity: number; unitPrice: number }[];
   /** Subcategoría dentro de la categoría ('' = ninguna). */
   subcategory: string;
   /** Proveedor principal (pedido sugerido). */
@@ -99,6 +101,18 @@ const productSchema = new Schema<ProductAttrs>(
         validator: (value: number | null) => value === null || Number.isSafeInteger(value),
         message: 'El costo debe ser entero',
       },
+    },
+    priceTiers: {
+      type: [
+        new Schema(
+          {
+            minQuantity: { type: Number, required: true, min: 2 },
+            unitPrice: { type: Number, required: true, min: 0 },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
     },
     supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier', default: null },
     subcategory: { type: String, default: '', trim: true, maxlength: 40 },

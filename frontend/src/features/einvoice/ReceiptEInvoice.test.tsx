@@ -35,6 +35,7 @@ const sale = (einvoice: SaleEInvoice | null, customer: Sale['customer'] = null):
       productId: 'p1',
       name: 'Pan de bono',
       unitPrice: 2_000,
+      listPrice: null,
       quantity: 2,
       note: '',
       total: 4_000,
