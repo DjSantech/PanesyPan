@@ -87,13 +87,18 @@ export function ImportProductsDialog({ open, onOpenChange }: DialogProps) {
     setRows(parsed.rows);
     if (parsed.missingName) setFailure('El archivo necesita una columna "Nombre".');
     else if (parsed.rows.length === 0) setFailure('El archivo no tiene productos.');
+    else if (parsed.badTiers.length > 0) {
+      setFailure(
+        `Revisa los precios por cantidad de ${parsed.badTiers.slice(0, 5).join(', ')} (se escriben así: 12:700|24:650).`,
+      );
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         title="Cargar productos desde un archivo"
-        description="CSV de Excel con las columnas Código, Nombre, Categoría, Subcategoría, Precio, Costo y Stock mínimo (sirve el exporte de este sistema y el listado de TryTiendas guardado como CSV). Los productos se buscan por código y, si no tienen, por nombre."
+        description="CSV de Excel con las columnas Código, Nombre, Categoría, Subcategoría, Precio, Costo, Stock mínimo y Precios por cantidad (12:700|24:650) (sirve el exporte de este sistema y el listado de TryTiendas guardado como CSV). Los productos se buscan por código y, si no tienen, por nombre."
         className="sm:max-w-xl"
       >
         <div className="grid gap-4">
