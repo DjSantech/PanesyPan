@@ -4,7 +4,6 @@ import {
   discountNeedsApproval,
   discountProblem,
   formatCOP,
-  hasPermission,
   nitCheckDigit,
   settlePayments,
   type tabCheckoutRequestSchema,
@@ -17,6 +16,7 @@ import {
   type Sale,
   type SaleTotals,
 } from '@panesypan/shared';
+import { userCan } from '../profiles/effective-permissions';
 import mongoose, { mongo, trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import type { z } from 'zod';
 import { AppError } from '../../lib/errors';
@@ -519,7 +519,7 @@ export async function returnSaleItems(
  */
 export async function listSales(query: ListSalesQuery, ctx: ActorContext): Promise<Sale[]> {
   const filter: QueryFilter<SaleAttrs> = {};
-  if (hasPermission(ctx.actor.role, 'reports:read')) {
+  if (userCan(ctx.actor, 'reports:read')) {
     if (query.shiftId !== undefined) filter.shiftId = new Types.ObjectId(query.shiftId);
     else if (query.number !== undefined) {
       // El tiquete se busca en todo el historial: no depende del día elegido.
@@ -546,7 +546,7 @@ export async function listSales(query: ListSalesQuery, ctx: ActorContext): Promi
  */
 export async function getSale(id: string, ctx: ActorContext): Promise<Sale> {
   const sale = await findSaleOrThrow(id);
-  if (hasPermission(ctx.actor.role, 'reports:read') || sale.status === 'OPEN') {
+  if (userCan(ctx.actor, 'reports:read') || sale.status === 'OPEN') {
     return toSaleDto(sale);
   }
   const shift = await findOpenShift(ctx.actor.id);

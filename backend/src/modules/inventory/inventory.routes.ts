@@ -1,6 +1,5 @@
 import {
   adjustStockRequestSchema,
-  hasPermission,
   listInventoryQuerySchema,
   listMovementsQuerySchema,
   registerProductionRequestSchema,
@@ -9,6 +8,7 @@ import {
   setMinStockRequestSchema,
   type InventoryItem,
 } from '@panesypan/shared';
+import { userCan } from '../profiles/effective-permissions';
 import { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { getRequestMeta } from '../../lib/request-meta';
@@ -58,8 +58,7 @@ export function createInventoryRouter(deps: InventoryRouterDeps): Router {
   };
 
   /** El costo y el valor del inventario los ve solo quien administra el inventario. */
-  const canSeeCost = (req: Request): boolean =>
-    hasPermission(getAuth(req).user.role, 'inventory:manage');
+  const canSeeCost = (req: Request): boolean => userCan(getAuth(req).user, 'inventory:manage');
   const itemForViewer = (req: Request, item: InventoryItem): InventoryItem =>
     canSeeCost(req) ? item : { ...item, cost: null };
 

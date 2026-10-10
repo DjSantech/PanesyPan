@@ -10,6 +10,7 @@ import { createCatalogRouter } from './modules/catalog/catalog.routes';
 import { createSuppliersRouter } from './modules/suppliers/suppliers.routes';
 import { createPublicRouter } from './modules/catalog/public.routes';
 import { createPurchasesRouter } from './modules/purchases/purchases.routes';
+import { createProfilesRouter } from './modules/profiles/profiles.routes';
 import { createPublicWebRouter } from './modules/public-web/public-web.routes';
 import { createEInvoiceRouter } from './modules/einvoice/einvoice.routes';
 import { createInventoryRouter } from './modules/inventory/inventory.routes';
@@ -55,6 +56,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
     createAuthRouter(withLogger({ config: authConfig, guards, credentialsLimiter })),
   );
   router.use('/users', createUsersRouter(withLogger({ config: authConfig, guards })));
+  router.use('/profiles', createProfilesRouter(withLogger({ config: authConfig, guards })));
   router.use('/audit-logs', createAuditRouter(guards));
   router.use(createCatalogRouter(withLogger({ config: authConfig, guards })));
   router.use('/suppliers', createSuppliersRouter(withLogger({ config: authConfig, guards })));

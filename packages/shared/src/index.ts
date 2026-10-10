@@ -21,6 +21,7 @@ export * from './schemas/common';
 export * from './schemas/einvoice';
 export * from './schemas/health';
 export * from './schemas/inventory';
+export * from './schemas/profiles';
 export * from './schemas/public-web';
 export * from './schemas/purchases';
 export * from './schemas/reports';

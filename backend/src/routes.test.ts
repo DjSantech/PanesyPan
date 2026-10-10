@@ -46,6 +46,10 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['post', '/users/:id/reset-password', 'users:manage'],
   ['post', '/users/:id/reset-pin', 'users:manage'],
   ['post', '/users/:id/unlock', 'users:manage'],
+  ['patch', '/users/:id/profile', 'users:manage'],
+  ['get', '/profiles', 'users:manage'],
+  ['post', '/profiles', 'users:manage'],
+  ['patch', '/profiles/:id', 'users:manage'],
 
   ['get', '/audit-logs', 'audit:read'],
 

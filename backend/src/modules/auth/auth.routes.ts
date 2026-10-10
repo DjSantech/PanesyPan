@@ -100,9 +100,11 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
   router.get(
     '/me',
     guards.authenticate({ allowLocked: true, allowPasswordChange: true }),
-    (req, res) => {
+    async (req, res) => {
       const auth = getAuth(req);
-      res.set('Cache-Control', 'no-store').json(buildAuthResponse(auth.user, auth.session, config));
+      res
+        .set('Cache-Control', 'no-store')
+        .json(await buildAuthResponse(auth.user, auth.session, config));
     },
   );
 

@@ -1,10 +1,11 @@
-import { AUTH_POLICY, hasPermission, USER_ROLES } from '@panesypan/shared';
+import { AUTH_POLICY } from '@panesypan/shared';
 import { trusted } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { verifySecret } from '../../lib/password';
 import { recordAudit } from '../audit/audit.service';
 import { SessionModel, type SessionDocument } from '../auth/session.model';
 import { revokeSession } from '../auth/session.service';
+import { resolvePermissions, userCan } from '../profiles/effective-permissions';
 import { UserModel } from '../users/user.model';
 import { toAuditActor } from '../users/users.mapper';
 import type { ActorContext } from '../users/users.service';
@@ -16,9 +17,13 @@ export interface PosContext extends ActorContext {
 }
 
 export type ApprovalPurpose =
-  'DISCOUNT' | 'VOID' | 'CANCEL_TAB' | 'EXPENSE' | 'WITHDRAWAL' | 'PURCHASE_VOID' | 'CASH_MOVEMENT_EDIT';
-
-const APPROVER_ROLES = USER_ROLES.filter((role) => hasPermission(role, 'sales:void:approve'));
+  | 'DISCOUNT'
+  | 'VOID'
+  | 'CANCEL_TAB'
+  | 'EXPENSE'
+  | 'WITHDRAWAL'
+  | 'PURCHASE_VOID'
+  | 'CASH_MOVEMENT_EDIT';
 
 /**
  * Autorización de un administrador para anular, cancelar una mesa o dar un descuento alto.
@@ -31,7 +36,7 @@ export async function resolveApproval(
   pin: string | undefined,
   purpose: ApprovalPurpose,
 ): Promise<PersonRef> {
-  if (hasPermission(ctx.actor.role, 'sales:void:approve')) {
+  if (userCan(ctx.actor, 'sales:void:approve')) {
     return { id: ctx.actor._id, name: ctx.actor.name };
   }
   if (pin === undefined) {
@@ -42,11 +47,17 @@ export async function resolveApproval(
     );
   }
 
-  const approvers = await UserModel.find({
-    role: trusted({ $in: APPROVER_ROLES }),
+  // Autoriza quien tenga el permiso según su perfil (los administradores siempre lo tienen).
+  const candidates = await UserModel.find({
     isActive: true,
     pinHash: trusted({ $type: 'string' }),
   }).select('+pinHash');
+  const approvers = [];
+  for (const candidate of candidates) {
+    if ((await resolvePermissions(candidate)).includes('sales:void:approve')) {
+      approvers.push(candidate);
+    }
+  }
   for (const approver of approvers) {
     if (approver.pinHash !== null && (await verifySecret(approver.pinHash, pin))) {
       await SessionModel.updateOne({ _id: ctx.session._id }, { $set: { pinFailedAttempts: 0 } });

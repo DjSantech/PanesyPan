@@ -1,4 +1,4 @@
-import { BUSINESS_NAME, hasPermission, USER_ROLE_LABELS } from '@panesypan/shared';
+import { BUSINESS_NAME, USER_ROLE_LABELS } from '@panesypan/shared';
 import { CircleUser, Lock, LogOut, Monitor, Moon, Smartphone, Sun } from 'lucide-react';
 import { GitHubIcon } from '@/components/GitHubIcon';
 import { useState } from 'react';
@@ -47,7 +47,7 @@ export function AppLayout() {
   const badgeFor = (to: string): number => (to === '/pedidos-web' ? pendingWebOrders : 0);
 
   const items = NAV_ITEMS.filter(
-    (item) => item.permission === undefined || hasPermission(user.role, item.permission),
+    (item) => item.permission === undefined || user.permissions.includes(item.permission),
   );
   const mobileItems = mobileNavItems(items);
   // El punto de venta usa todo el ancho de la tablet.

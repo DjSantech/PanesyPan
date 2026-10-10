@@ -17,7 +17,6 @@ import {
   type CreateCashMovementRequest,
   type UpdateCashMovementRequest,
   type VoidCashMovementRequest,
-  hasPermission,
   type DenominationCount,
   type OpenCashShiftRequest,
   type PaymentMethod,
@@ -25,6 +24,7 @@ import {
 import mongoose, { mongo, trusted, Types, type ClientSession, type QueryFilter } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { recordAudit } from '../audit/audit.service';
+import { userCan } from '../profiles/effective-permissions';
 import { getShiftReport } from '../reports/performance.service';
 import { PurchaseModel } from '../purchases/purchases.models';
 import { deleteReceipt, storeReceipt, toReceiptDto } from '../receipts/receipts.service';
@@ -310,7 +310,7 @@ async function findMovementInOpenShift(id: string, ctx: PosContext): Promise<Cas
   const shift = await CashShiftModel.findById(movement.shiftId);
   if (shift === null) throw movementNotFound();
   const isOwner = shift.userId.equals(ctx.actor._id);
-  if (!isOwner && !hasPermission(ctx.actor.role, 'cash:review')) throw movementNotFound();
+  if (!isOwner && !userCan(ctx.actor, 'cash:review')) throw movementNotFound();
   if (shift.status !== 'OPEN') {
     throw conflict('La caja de este movimiento ya se cerró: no se puede cambiar.');
   }
