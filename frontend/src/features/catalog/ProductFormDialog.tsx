@@ -1,7 +1,11 @@
 import {
   createProductRequestSchema,
+  formatCOP,
+  formatPriceTiers,
   marginPercent,
   PRICE_LIMITS,
+  PRICE_TIERS_MAX,
+  priceTiersProblem,
   PRODUCT_CODE_MAX,
   PRODUCT_DESCRIPTION_MAX,
   SUBCATEGORY_MAX,
@@ -14,7 +18,7 @@ import {
   type UpdateProductRequest,
 } from '@panesypan/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { ImagePlus, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { Spinner } from '@/components/feedback';
 import { PriceInput } from '@/components/PriceInput';
@@ -30,8 +34,24 @@ import { useSuppliers } from '../purchases/purchases.api';
 import { catalogKeys, listProducts, productImageUrl } from './catalog.api';
 
 type Errors = Partial<
-  Record<'name' | 'categoryId' | 'price' | 'cost' | 'description' | 'code' | 'initialStock', string>
+  Record<
+    | 'name'
+    | 'categoryId'
+    | 'price'
+    | 'cost'
+    | 'priceTiers'
+    | 'description'
+    | 'code'
+    | 'initialStock',
+    string
+  >
 >;
+
+/** Escala en edición (vacía mientras se escribe). */
+interface TierDraft {
+  minQuantity: number | null;
+  unitPrice: number | null;
+}
 
 /** Qué hacer con la imagen al guardar. */
 export type ImageChange = { kind: 'keep' } | { kind: 'set'; image: Blob } | { kind: 'remove' };
@@ -80,6 +100,7 @@ export function ProductFormDialog({
   );
   const [price, setPrice] = useState<number | null>(product?.price ?? null);
   const [cost, setCost] = useState<number | null>(product?.cost ?? null);
+  const [tiers, setTiers] = useState<TierDraft[]>(product?.priceTiers ?? []);
   const [subcategory, setSubcategory] = useState(product?.subcategory ?? '');
   const allProducts = useQuery({
     queryKey: catalogKeys.products({ status: 'all' }),
@@ -152,12 +173,29 @@ export function ProductFormDialog({
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const stockInput = stockValue.trim();
+    const filledTiers = isLunch
+      ? []
+      : tiers.filter((tier) => tier.minQuantity !== null || tier.unitPrice !== null);
+    const tiersProblem = filledTiers.some(
+      (tier) => tier.minQuantity === null || tier.unitPrice === null,
+    )
+      ? 'Completa la cantidad y el precio de cada escala'
+      : price === null
+        ? null
+        : priceTiersProblem(
+            price,
+            filledTiers.map((tier) => ({
+              minQuantity: tier.minQuantity ?? 0,
+              unitPrice: tier.unitPrice ?? 0,
+            })),
+          );
     const parsed = createProductRequestSchema.safeParse({
       name,
       categoryId,
       subcategory,
       price: price ?? Number.NaN,
       cost,
+      priceTiers: filledTiers,
       description,
       code: code.trim() === '' ? null : code,
       isFavorite,
@@ -167,15 +205,17 @@ export function ProductFormDialog({
       supplierId: supplierId === '' ? null : supplierId,
       initialStock: !editing && trackStock && stockInput !== '' ? Number(stockInput) : null,
     });
-    if (!parsed.success) {
+    if (!parsed.success || tiersProblem !== null) {
       const next: Errors = {};
-      for (const issue of parsed.error.issues) {
+      if (tiersProblem !== null) next.priceTiers = tiersProblem;
+      for (const issue of parsed.success ? [] : parsed.error.issues) {
         const key = issue.path[0];
         if (
           (key === 'name' ||
             key === 'categoryId' ||
             key === 'price' ||
             key === 'cost' ||
+            key === 'priceTiers' ||
             key === 'description' ||
             key === 'code' ||
             key === 'initialStock') &&
@@ -199,6 +239,9 @@ export function ProductFormDialog({
     if (data.subcategory !== product.subcategory) changes.subcategory = data.subcategory;
     if (data.price !== product.price) changes.price = data.price;
     if (data.cost !== product.cost) changes.cost = data.cost;
+    if (formatPriceTiers(data.priceTiers) !== formatPriceTiers(product.priceTiers)) {
+      changes.priceTiers = data.priceTiers;
+    }
     if (data.description !== product.description) changes.description = data.description;
     if (data.code !== product.code) changes.code = data.code;
     if (data.isFavorite !== product.isFavorite) changes.isFavorite = data.isFavorite;
@@ -344,6 +387,88 @@ export function ProductFormDialog({
               />
             </Field>
           </div>
+
+          {isLunch ? null : (
+            <fieldset className="grid gap-2" aria-describedby="product-tiers-hint">
+              <legend className="text-sm font-bold">Precios por cantidad (opcional)</legend>
+              <p id="product-tiers-hint" className="text-sm text-muted-foreground">
+                Desde cierta cantidad, cada unidad vale menos. Ej.: desde 12 unidades, $ 700 c/u.
+              </p>
+              {tiers.map((tier, index) => (
+                <div key={index} className="flex flex-wrap items-end gap-2">
+                  <Field id={`product-tier-qty-${String(index)}`} label="Desde (unidades)">
+                    <Input
+                      id={`product-tier-qty-${String(index)}`}
+                      inputMode="numeric"
+                      className="w-28"
+                      value={tier.minQuantity === null ? '' : String(tier.minQuantity)}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/[^0-9]/g, '');
+                        setTiers(
+                          tiers.map((item, at) =>
+                            at === index
+                              ? { ...item, minQuantity: digits === '' ? null : Number(digits) }
+                              : item,
+                          ),
+                        );
+                      }}
+                    />
+                  </Field>
+                  <Field id={`product-tier-price-${String(index)}`} label="Precio c/u">
+                    <PriceInput
+                      id={`product-tier-price-${String(index)}`}
+                      value={tier.unitPrice}
+                      onValueChange={(value) => {
+                        setTiers(
+                          tiers.map((item, at) =>
+                            at === index ? { ...item, unitPrice: value } : item,
+                          ),
+                        );
+                      }}
+                    />
+                  </Field>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-danger"
+                    aria-label={`Quitar el precio por cantidad ${String(index + 1)}`}
+                    onClick={() => {
+                      setTiers(tiers.filter((_, at) => at !== index));
+                    }}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </div>
+              ))}
+              {errors.priceTiers === undefined ? null : (
+                <p className="text-sm font-semibold text-danger" role="alert">
+                  {errors.priceTiers}
+                </p>
+              )}
+              {tiers.length < PRICE_TIERS_MAX ? (
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const last = tiers.at(-1)?.minQuantity ?? null;
+                      setTiers([
+                        ...tiers,
+                        { minQuantity: last === null ? 12 : last * 2, unitPrice: null },
+                      ]);
+                    }}
+                  >
+                    <Plus aria-hidden="true" /> Agregar precio por cantidad
+                  </Button>
+                </div>
+              ) : null}
+              {price === null || tiers.length === 0 ? null : (
+                <p className="text-sm text-muted-foreground">
+                  Precio normal: {formatCOP(price)} c/u.
+                </p>
+              )}
+            </fieldset>
+          )}
 
           <Field
             id="product-code"

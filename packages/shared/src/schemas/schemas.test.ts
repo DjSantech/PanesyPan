@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatPriceTiers, parsePriceTiers, priceTiersProblem, priceTiersSchema } from './catalog';
 import { businessDateSchema, moneySchema, objectIdSchema } from './common';
 import { databaseHealthResponseSchema } from './health';
 import { counterCheckoutRequestSchema } from './sales';
@@ -97,5 +98,35 @@ describe('configuración del negocio', () => {
       updateBusinessSettingsRequestSchema.safeParse({ maxCashierDiscountPercent: 101 }).success,
     ).toBe(false);
     expect(updateBusinessSettingsRequestSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('precios por cantidad en el catálogo', () => {
+  it('lee y escribe el formato del CSV', () => {
+    expect(parsePriceTiers('24:650|12:700')).toEqual([
+      { minQuantity: 12, unitPrice: 700 },
+      { minQuantity: 24, unitPrice: 650 },
+    ]);
+    expect(parsePriceTiers('')).toEqual([]);
+    expect(parsePriceTiers('doce a 700')).toBeNull();
+    expect(formatPriceTiers([{ minQuantity: 12, unitPrice: 1_700 }])).toBe('12:1700');
+  });
+
+  it('exige cantidades crecientes y precios menores que el normal', () => {
+    expect(
+      priceTiersSchema.safeParse([
+        { minQuantity: 12, unitPrice: 700 },
+        { minQuantity: 12, unitPrice: 650 },
+      ]).success,
+    ).toBe(false);
+    expect(priceTiersSchema.safeParse([{ minQuantity: 1, unitPrice: 700 }]).success).toBe(false);
+    expect(priceTiersProblem(800, [{ minQuantity: 12, unitPrice: 800 }])).not.toBeNull();
+    expect(
+      priceTiersProblem(800, [
+        { minQuantity: 12, unitPrice: 650 },
+        { minQuantity: 24, unitPrice: 700 },
+      ]),
+    ).not.toBeNull();
+    expect(priceTiersProblem(800, [{ minQuantity: 12, unitPrice: 700 }])).toBeNull();
   });
 });

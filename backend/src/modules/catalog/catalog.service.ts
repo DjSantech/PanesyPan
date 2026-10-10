@@ -1,6 +1,9 @@
 import {
+  formatPriceTiers,
   PRODUCT_IMAGE_MAX_BYTES,
+  priceTiersProblem,
   slugify,
+  type PriceTier,
   type Category,
   type CreateCategoryRequest,
   type CreateProductRequest,
@@ -115,6 +118,28 @@ async function deleteStoredImage(image: StoredImage, ctx: ActorContext): Promise
   await ProductImageModel.deleteOne({ _id: image.id });
 }
 
+/** Copia plana de las escalas de precio (subdocumentos de Mongoose). */
+export function tiersOf(product: Pick<ProductAttrs, 'priceTiers'>): PriceTier[] {
+  return (product.priceTiers ?? []).map((tier) => ({
+    minQuantity: tier.minQuantity,
+    unitPrice: tier.unitPrice,
+  }));
+}
+
+/** Valida las escalas contra el precio normal; los almuerzos no tienen precio por cantidad. */
+export function assertPriceTiers(
+  price: number,
+  tiers: readonly PriceTier[],
+  isLunch: boolean,
+): void {
+  if (tiers.length === 0) return;
+  if (isLunch) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Los almuerzos no tienen precio por cantidad');
+  }
+  const problem = priceTiersProblem(price, tiers);
+  if (problem !== null) throw new AppError(400, 'VALIDATION_ERROR', problem);
+}
+
 export function toProductDto(product: ProductDocument): Product {
   return {
     id: product.id,
@@ -124,6 +149,7 @@ export function toProductDto(product: ProductDocument): Product {
     subcategory: product.subcategory,
     price: product.price,
     cost: product.cost ?? null,
+    priceTiers: tiersOf(product),
     supplierId: product.supplierId?.toString() ?? null,
     isAvailable: product.isAvailable,
     isFavorite: product.isFavorite,
@@ -302,6 +328,8 @@ export async function createProduct(
   if (!category.isActive) throw conflict('La categoría está desactivada');
   const slug = slugify(input.name);
   await ensureProductSlugAvailable(slug);
+  const priceTiers = input.priceTiers ?? [];
+  assertPriceTiers(input.price, priceTiers, category.kind === 'LUNCH');
 
   let product: ProductDocument;
   try {
@@ -312,6 +340,7 @@ export async function createProduct(
       subcategory: input.subcategory ?? '',
       price: input.price,
       cost: input.cost ?? null,
+      priceTiers,
       supplierId: await supplierRefOf(input.supplierId ?? null),
       isAvailable: input.isAvailable ?? true,
       isFavorite: input.isFavorite ?? false,
@@ -339,7 +368,9 @@ export async function updateProduct(
 ): Promise<Product> {
   const product = await findProductOrThrow(id);
   const changes: Record<string, { from: unknown; to: unknown }> = {};
+  let isLunch: boolean | undefined;
   const previousPrice = product.price;
+  const previousTiers = tiersOf(product);
 
   if (input.name !== undefined && input.name !== product.name) {
     const slug = slugify(input.name);
@@ -352,9 +383,27 @@ export async function updateProduct(
     const category = await findCategoryOrThrow(input.categoryId);
     changes.category = { from: product.categoryId.toString(), to: category.name };
     product.categoryId = category._id;
+    isLunch = category.kind === 'LUNCH';
   }
   if (input.price !== undefined && input.price !== product.price) {
     product.price = input.price;
+  }
+  const nextTiers = input.priceTiers ?? previousTiers;
+  // Si cambian las escalas, el precio o la categoría, las escalas deben seguir siendo válidas.
+  if (
+    input.priceTiers !== undefined ||
+    product.price !== previousPrice ||
+    changes.category !== undefined
+  ) {
+    isLunch ??= (await CategoryModel.findById(product.categoryId))?.kind === 'LUNCH';
+    assertPriceTiers(product.price, nextTiers, isLunch);
+  }
+  if (formatPriceTiers(nextTiers) !== formatPriceTiers(previousTiers)) {
+    changes.priceTiers = {
+      from: formatPriceTiers(previousTiers) || 'sin precios por cantidad',
+      to: formatPriceTiers(nextTiers) || 'sin precios por cantidad',
+    };
+    product.priceTiers = nextTiers;
   }
   if (input.subcategory !== undefined && input.subcategory !== product.subcategory) {
     changes.subcategory = { from: product.subcategory, to: input.subcategory };

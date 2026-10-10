@@ -100,6 +100,65 @@ export function marginPercent(price: number, cost: number | null): number | null
   return Math.round(((price - cost) / price) * 100);
 }
 
+/** Máximo de escalas de precio por cantidad de un producto. */
+export const PRICE_TIERS_MAX = 5;
+
+export const priceTierSchema = z.strictObject({
+  minQuantity: z
+    .int('La cantidad debe ser un número entero')
+    .min(2, 'La cantidad mínima de una escala es 2')
+    .max(10_000, 'La cantidad es demasiado alta'),
+  unitPrice: priceSchema,
+});
+
+/** Escalas de precio por cantidad, ordenadas de menor a mayor cantidad. */
+export const priceTiersSchema = z
+  .array(priceTierSchema)
+  .max(PRICE_TIERS_MAX, `Máximo ${String(PRICE_TIERS_MAX)} precios por cantidad`)
+  .refine(
+    (tiers) =>
+      tiers.every((tier, i) => i === 0 || tier.minQuantity > (tiers[i - 1]?.minQuantity ?? 0)),
+    { message: 'Las cantidades deben ir de menor a mayor, sin repetirse' },
+  );
+
+/** Motivo por el que las escalas no sirven con ese precio normal, o null si están bien. */
+export function priceTiersProblem(
+  price: number,
+  tiers: readonly { minQuantity: number; unitPrice: number }[],
+): string | null {
+  for (const [i, tier] of tiers.entries()) {
+    if (tier.unitPrice >= price) {
+      return `El precio por ${String(tier.minQuantity)} unidades debe ser menor que el precio normal`;
+    }
+    const previous = tiers[i - 1];
+    if (previous !== undefined && tier.unitPrice > previous.unitPrice) {
+      return 'A más cantidad, el precio por unidad no puede subir';
+    }
+  }
+  return null;
+}
+
+/** Texto de las escalas para el CSV: "12:700|24:650". */
+export function formatPriceTiers(
+  tiers: readonly { minQuantity: number; unitPrice: number }[],
+): string {
+  return tiers.map((tier) => `${String(tier.minQuantity)}:${String(tier.unitPrice)}`).join('|');
+}
+
+/** Lee "12:700|24:650" (acepta puntos de miles y "$"). null si el texto no tiene ese formato. */
+export function parsePriceTiers(text: string): { minQuantity: number; unitPrice: number }[] | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return [];
+  const tiers: { minQuantity: number; unitPrice: number }[] = [];
+  for (const part of trimmed.split(/[|;]/)) {
+    const match = /^\s*(\d+)\s*[:=]\s*\$?\s*([\d.,]+)\s*$/.exec(part);
+    if (match === null) return null;
+    const unitPrice = Number((match[2] ?? '').replace(/[.,]/g, ''));
+    tiers.push({ minQuantity: Number(match[1]), unitPrice });
+  }
+  return tiers.sort((a, b) => a.minQuantity - b.minQuantity);
+}
+
 export const SUBCATEGORY_MAX = 40;
 export const subcategorySchema = z
   .string()
@@ -116,6 +175,8 @@ export const productSchema = z.object({
   price: z.int(),
   /** Costo unitario; null si no se ha registrado o si quien consulta no puede verlo (cajera). */
   cost: z.int().nullable(),
+  /** Precios por cantidad (vacío = siempre el precio normal). */
+  priceTiers: z.array(z.object({ minQuantity: z.int(), unitPrice: z.int() })).default([]),
   /** Proveedor principal (para el pedido sugerido). */
   supplierId: z.string().nullable(),
   isAvailable: z.boolean(),
@@ -152,6 +213,7 @@ export const createProductRequestSchema = z.strictObject({
   subcategory: subcategorySchema.default(''),
   price: priceSchema,
   cost: costSchema.nullable().default(null),
+  priceTiers: priceTiersSchema.default([]),
   supplierId: objectIdSchema.nullable().default(null),
   isAvailable: z.boolean().default(true),
   isFavorite: z.boolean().default(false),
@@ -173,6 +235,7 @@ export const updateProductRequestSchema = z
     subcategory: subcategorySchema.optional(),
     price: priceSchema.optional(),
     cost: costSchema.nullable().optional(),
+    priceTiers: priceTiersSchema.optional(),
     supplierId: objectIdSchema.nullable().optional(),
     isFavorite: z.boolean().optional(),
     trackStock: z.boolean().optional(),
@@ -298,6 +361,8 @@ export const productImportRowSchema = z.strictObject({
   price: priceSchema.optional(),
   cost: costSchema.optional(),
   minStock: z.int().min(0).max(10_000).optional(),
+  /** Precios por cantidad; [] los quita. Sin indicar, no se tocan. */
+  priceTiers: priceTiersSchema.optional(),
 });
 export type ProductImportRow = z.input<typeof productImportRowSchema>;
 

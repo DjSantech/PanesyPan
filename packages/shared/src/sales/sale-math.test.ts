@@ -5,6 +5,7 @@ import {
   discountProblem,
   settlePayments,
   suggestedCashAmounts,
+  unitPriceFor,
 } from './sale-math';
 
 const lines = [
@@ -120,5 +121,28 @@ describe('suggestedCashAmounts', () => {
     expect(suggestedCashAmounts(12_500)).toEqual([12_500, 13_000, 15_000, 20_000, 50_000]);
     expect(suggestedCashAmounts(20_000)).toEqual([20_000, 50_000, 100_000]);
     expect(suggestedCashAmounts(0)).toEqual([]);
+  });
+});
+
+describe('precios por cantidad', () => {
+  const product = {
+    price: 800,
+    priceTiers: [
+      { minQuantity: 12, unitPrice: 700 },
+      { minQuantity: 24, unitPrice: 650 },
+    ],
+  };
+
+  it('usa la escala más alta que alcanza la cantidad', () => {
+    expect(unitPriceFor(product, 1)).toBe(800);
+    expect(unitPriceFor(product, 11)).toBe(800);
+    expect(unitPriceFor(product, 12)).toBe(700);
+    expect(unitPriceFor(product, 23)).toBe(700);
+    expect(unitPriceFor(product, 100)).toBe(650);
+  });
+
+  it('sin escalas o con una escala más cara que el precio normal, cobra el normal', () => {
+    expect(unitPriceFor({ price: 800 }, 50)).toBe(800);
+    expect(unitPriceFor({ price: 600, priceTiers: product.priceTiers }, 50)).toBe(600);
   });
 });

@@ -33,6 +33,37 @@ export function lineTotal(line: PricedLine): Money {
   return sumMoney([line.unitPrice * line.quantity]);
 }
 
+/** Precio por cantidad: desde `minQuantity` unidades en la misma línea, cada una vale `unitPrice`. */
+export interface PriceTier {
+  minQuantity: number;
+  unitPrice: Money;
+}
+
+export interface TieredPrice {
+  price: Money;
+  /** Escalas del producto (vacío o ausente = siempre el precio normal). */
+  priceTiers?: readonly PriceTier[] | null;
+}
+
+/**
+ * Escala que aplica a una cantidad: la de mayor `minQuantity` que no la supere, o null si
+ * no hay ninguna (o si su precio no es menor que el normal, p. ej. tras subir el precio).
+ */
+export function priceTierFor(product: TieredPrice, quantity: number): PriceTier | null {
+  let best: PriceTier | null = null;
+  for (const tier of product.priceTiers ?? []) {
+    if (tier.minQuantity <= quantity && (best === null || tier.minQuantity > best.minQuantity)) {
+      best = tier;
+    }
+  }
+  return best !== null && best.unitPrice < product.price ? best : null;
+}
+
+/** Precio unitario de una línea según la cantidad (el normal si no alcanza ninguna escala). */
+export function unitPriceFor(product: TieredPrice, quantity: number): Money {
+  return priceTierFor(product, quantity)?.unitPrice ?? product.price;
+}
+
 /** Valor del descuento en pesos. El porcentaje se redondea al peso más cercano. */
 export function discountAmount(subtotal: Money, discount: DiscountValue | null): Money {
   if (discount === null) return 0;
