@@ -2,10 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import {
   DASHBOARD_CHANGED_EVENT,
-  hasPermission,
   REALTIME_PATH,
   WEB_ORDERS_CHANGED_EVENT,
-  type UserRole,
 } from '@panesypan/shared';
 import type { Logger } from 'pino';
 import { Server, type Socket } from 'socket.io';
@@ -15,7 +13,8 @@ import { verifyAccessToken } from '../../lib/tokens';
 import type { AuthConfig } from '../auth/auth.config';
 import { SessionModel } from '../auth/session.model';
 import { isSessionUsable } from '../auth/session.service';
-import { UserModel } from '../users/user.model';
+import { resolvePermissions } from '../profiles/effective-permissions';
+import { UserModel, type UserDocument } from '../users/user.model';
 
 const DASHBOARD_ROOM = 'dashboard';
 const WEB_ORDERS_ROOM = 'web-orders';
@@ -62,11 +61,12 @@ export function notifyWebOrdersChanged(): void {
   pendingWebOrders.unref();
 }
 
-/** Salas a las que entra un rol según sus permisos. */
-function roomsFor(role: UserRole): string[] {
+/** Salas a las que entra un usuario según sus permisos efectivos (su perfil). */
+async function roomsFor(user: UserDocument): Promise<string[]> {
+  const permissions = await resolvePermissions(user);
   const rooms: string[] = [];
-  if (hasPermission(role, 'reports:read')) rooms.push(DASHBOARD_ROOM);
-  if (hasPermission(role, 'web-orders:read')) rooms.push(WEB_ORDERS_ROOM);
+  if (permissions.includes('reports:read')) rooms.push(DASHBOARD_ROOM);
+  if (permissions.includes('web-orders:read')) rooms.push(WEB_ORDERS_ROOM);
   return rooms;
 }
 
@@ -103,7 +103,7 @@ async function roomsOfIdentity({ userId, sessionId }: SocketIdentity): Promise<s
   }
   const user = await UserModel.findById(userId);
   if (user?.isActive !== true) return null;
-  const rooms = roomsFor(user.role);
+  const rooms = await roomsFor(user);
   return rooms.length > 0 ? rooms : null;
 }
 

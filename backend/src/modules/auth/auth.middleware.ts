@@ -1,9 +1,10 @@
-import { hasPermission, type Permission } from '@panesypan/shared';
+import type { Permission } from '@panesypan/shared';
 import type { Request, RequestHandler } from 'express';
 import { readAccessToken } from '../../lib/auth-cookies';
 import { AppError } from '../../lib/errors';
 import { UNSAFE_METHODS } from '../../lib/http';
 import { isValidCsrfToken, verifyAccessToken } from '../../lib/tokens';
+import { resolvePermissions, userCan } from '../profiles/effective-permissions';
 import { UserModel } from '../users/user.model';
 import type { AuthConfig } from './auth.config';
 import type { AuthContext } from './auth.service';
@@ -105,6 +106,8 @@ export function createAuthGuards(config: AuthConfig): AuthGuards {
         );
       }
 
+      // Permisos efectivos (perfil del usuario o el de su rol), una sola vez por petición.
+      await resolvePermissions(user);
       req.auth = { user, session };
       next();
     };
@@ -113,7 +116,7 @@ export function createAuthGuards(config: AuthConfig): AuthGuards {
     (permission: Permission): RequestHandler =>
     (req, _res, next) => {
       const { user } = getAuth(req);
-      if (!hasPermission(user.role, permission)) {
+      if (!userCan(user, permission)) {
         throw new AppError(403, 'FORBIDDEN', 'No tienes permiso para realizar esta acción.');
       }
       next();

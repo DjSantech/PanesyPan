@@ -5,6 +5,7 @@ import { EnvValidationError, loadEnv, type Env } from './config/env';
 import { createLogger } from './config/logger';
 import { authConfigFromEnv } from './modules/auth/auth.config';
 import { ensureInitialAdmin } from './modules/auth/bootstrap-admin';
+import { ensureSystemProfiles } from './modules/profiles/profiles.service';
 import { startEInvoiceWorker } from './modules/einvoice/einvoice.worker';
 import { createRealtime } from './modules/realtime/realtime';
 
@@ -38,6 +39,7 @@ try {
 
 try {
   await ensureInitialAdmin(env, logger);
+  await ensureSystemProfiles();
 } catch (error) {
   logger.fatal(
     { reason: error instanceof Error ? error.message : String(error) },

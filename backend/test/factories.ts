@@ -3,6 +3,7 @@ import {
   type AuthSessionResponse,
   type UserRole,
 } from '@panesypan/shared';
+import { ProfileModel } from '../src/modules/profiles/profile.model';
 import type { Express } from 'express';
 import request from 'supertest';
 import { hashSecret } from '../src/lib/password';
@@ -100,6 +101,7 @@ export function setCookieHeaders(response: request.Response): string[] {
 export async function resetDatabase(): Promise<void> {
   await Promise.all([
     UserModel.deleteMany({}),
+    ProfileModel.deleteMany({}),
     SessionModel.deleteMany({}),
     AuditLogModel.collection.deleteMany({}),
     CategoryModel.deleteMany({}),
@@ -123,6 +125,7 @@ export async function resetDatabase(): Promise<void> {
 export async function initModels(): Promise<void> {
   await Promise.all([
     UserModel.init(),
+    ProfileModel.init(),
     SessionModel.init(),
     AuditLogModel.init(),
     CategoryModel.init(),

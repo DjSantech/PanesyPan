@@ -19,6 +19,7 @@ import {
 } from '../../lib/tokens';
 import { recordAudit } from '../audit/audit.service';
 import { UserModel, type UserDocument } from '../users/user.model';
+import { resolvePermissions } from '../profiles/effective-permissions';
 import { toAuditActor, toSessionUser } from '../users/users.mapper';
 import type { AuthConfig } from './auth.config';
 import { SessionModel, type SessionDocument } from './session.model';
@@ -83,12 +84,13 @@ const accountLocked = (until: Date, now: Date): AppError => {
   );
 };
 
-export function buildAuthResponse(
+export async function buildAuthResponse(
   user: UserDocument,
   session: SessionDocument,
   config: AuthConfig,
   now: Date = new Date(),
-): AuthSessionResponse {
+): Promise<AuthSessionResponse> {
+  await resolvePermissions(user);
   return {
     user: toSessionUser(user),
     csrfToken: createCsrfToken(session.id, config.csrfSecret),
@@ -111,7 +113,7 @@ async function issueAuth(
     deps.config.accessTokenSecret,
   );
   const issued: IssuedAuth = {
-    response: buildAuthResponse(user, session, deps.config),
+    response: await buildAuthResponse(user, session, deps.config),
     accessToken,
     sessionExpiresAt: session.expiresAt,
   };
@@ -459,7 +461,7 @@ export async function changePassword(
     },
     deps.logger,
   );
-  return buildAuthResponse(user, auth.session, deps.config);
+  return await buildAuthResponse(user, auth.session, deps.config);
 }
 
 export async function setPin(
@@ -493,5 +495,5 @@ export async function setPin(
     { action: 'AUTH_PIN_SET', actor: toAuditActor(user), entity: userEntity(user), meta },
     deps.logger,
   );
-  return buildAuthResponse(user, auth.session, deps.config);
+  return await buildAuthResponse(user, auth.session, deps.config);
 }

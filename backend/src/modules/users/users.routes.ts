@@ -1,6 +1,7 @@
 import {
   createUserRequestSchema,
   listUsersQuerySchema,
+  setUserProfileRequestSchema,
   setUserStatusRequestSchema,
   updateUserRequestSchema,
 } from '@panesypan/shared';
@@ -8,6 +9,7 @@ import { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { getRequestMeta } from '../../lib/request-meta';
 import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
+import { setUserProfile } from '../profiles/profiles.service';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import {
@@ -31,7 +33,7 @@ export interface UsersRouterDeps {
 /**
  * /api/v1/users · solo administradores (permiso users:manage)
  *   GET / · POST / · GET /:id · PATCH /:id · PATCH /:id/status
- *   POST /:id/reset-password · POST /:id/reset-pin · POST /:id/unlock
+ *   PATCH /:id/profile · POST /:id/reset-password · POST /:id/reset-pin · POST /:id/unlock
  */
 export function createUsersRouter(deps: UsersRouterDeps): Router {
   const { config, guards, logger } = deps;
@@ -72,6 +74,11 @@ export function createUsersRouter(deps: UsersRouterDeps): Router {
   router.patch('/:id/status', async (req, res) => {
     const { isActive } = parseBody(req, setUserStatusRequestSchema);
     res.json({ user: await setUserStatus(parseIdParam(req), isActive, actorContext(req)) });
+  });
+
+  router.patch('/:id/profile', async (req, res) => {
+    const { profileId } = parseBody(req, setUserProfileRequestSchema);
+    res.json({ user: await setUserProfile(parseIdParam(req), profileId, actorContext(req)) });
   });
 
   router.post('/:id/reset-password', async (req, res) => {

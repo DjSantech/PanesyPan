@@ -8,6 +8,8 @@ export const userSchema = z.object({
   username: z.string(),
   email: z.string().nullable(),
   role: z.enum(USER_ROLES),
+  /** Perfil asignado; null usa el perfil por defecto de su rol. */
+  profileId: z.string().nullable(),
   isActive: z.boolean(),
   hasPin: z.boolean(),
   mustChangePassword: z.boolean(),

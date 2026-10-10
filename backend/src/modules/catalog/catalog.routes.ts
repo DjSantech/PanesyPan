@@ -4,7 +4,6 @@ import {
   businessDateSchema,
   createCategoryRequestSchema,
   createProductRequestSchema,
-  hasPermission,
   importProductsRequestSchema,
   listProductsQuerySchema,
   PRODUCT_IMAGE_TYPES,
@@ -15,6 +14,7 @@ import {
   upsertDailyMenuRequestSchema,
   type Product,
 } from '@panesypan/shared';
+import { userCan } from '../profiles/effective-permissions';
 import express, { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { z } from 'zod';
@@ -77,7 +77,7 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
 
   /** El costo y el margen son del administrador: la cajera recibe el producto sin costo. */
   const forViewer = (req: Request, product: Product): Product =>
-    hasPermission(getAuth(req).user.role, 'catalog:manage') ? product : { ...product, cost: null };
+    userCan(getAuth(req).user, 'catalog:manage') ? product : { ...product, cost: null };
 
   const actorContext = (req: Request): ActorContext => {
     const ctx: ActorContext = {
@@ -92,8 +92,7 @@ export function createCatalogRouter(deps: CatalogRouterDeps): Router {
   router.get('/categories', ...canRead, async (req, res) => {
     const { all } = parseQuery(req, listCategoriesQuerySchema);
     // Las categorías desactivadas solo las ve quien administra el catálogo.
-    const includeInactive =
-      all === 'true' && hasPermission(getAuth(req).user.role, 'catalog:manage');
+    const includeInactive = all === 'true' && userCan(getAuth(req).user, 'catalog:manage');
     res.json({ items: await listCategories(includeInactive) });
   });
   router.post('/categories', ...canManage, async (req, res) => {

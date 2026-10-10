@@ -1,10 +1,10 @@
 import {
   createCashConceptRequestSchema,
   createStaffMemberRequestSchema,
-  hasPermission,
   updateCashConceptRequestSchema,
   updateStaffMemberRequestSchema,
 } from '@panesypan/shared';
+import { userCan } from '../profiles/effective-permissions';
 import { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { z } from 'zod';
@@ -55,7 +55,7 @@ export function createCashConfigRouter(deps: CashConfigRouterDeps): Router {
   /** Los inactivos solo los ve quien puede administrarlos. */
   const activeOnly = (req: Request): boolean =>
     parseQuery(req, listQuerySchema).all !== 'true' ||
-    !hasPermission(getAuth(req).user.role, 'settings:manage');
+    !userCan(getAuth(req).user, 'settings:manage');
 
   router.get('/cash-concepts', ...canRead, async (req, res) => {
     res.json({ items: await listCashConcepts({ activeOnly: activeOnly(req) }) });
