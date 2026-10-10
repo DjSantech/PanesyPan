@@ -121,9 +121,13 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
   }
 
   // ── Caja: egresos, nómina, retiros, ingresos ──
+  // El egreso de una compra no es gasto (la compra se cuenta aparte) y, si la compra se anuló,
+  // el reintegro a la caja tampoco es un ingreso: se cancelan entre sí.
   const fromPurchases = new Set(
     purchases.flatMap((purchase) =>
-      purchase.cashMovementId === null ? [] : [purchase.cashMovementId.toString()],
+      [purchase.cashMovementId, purchase.voidCashMovementId ?? null].flatMap((id) =>
+        id === null ? [] : [id.toString()],
+      ),
     ),
   );
   const movements = await CashMovementModel.find({
@@ -135,9 +139,10 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
   let withdrawalsTotal = 0;
   let incomesTotal = 0;
   for (const movement of movements) {
+    if (fromPurchases.has(movement._id.toString())) continue;
     if (movement.type === 'WITHDRAWAL') withdrawalsTotal += movement.amount;
     else if (movement.type === 'INCOME') incomesTotal += movement.amount;
-    else if (!fromPurchases.has(movement._id.toString())) {
+    else {
       expensesTotal += movement.amount;
       expenses.add(movement.concept?.name ?? 'Sin tipo', movement.amount);
       if (movement.staff !== null) payroll.add(movement.staff.name, movement.amount);
@@ -148,6 +153,7 @@ export async function getBusinessReport(query: BusinessReportQuery): Promise<Bus
   const suppliers = new Tally();
   let suppliesTotal = 0;
   for (const purchase of purchases) {
+    if (purchase.status === 'VOIDED') continue;
     suppliers.add(purchase.supplier.name, purchase.total);
     for (const line of purchase.lines) if (line.productId === null) suppliesTotal += line.total;
   }

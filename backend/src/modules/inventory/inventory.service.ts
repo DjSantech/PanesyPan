@@ -488,3 +488,44 @@ export async function applyPurchaseStock(
     );
   }
 }
+
+/**
+ * Saca del stock lo que se le devuelve a un proveedor o lo que entró con una compra que se
+ * anula (solo productos que controlan inventario). Nunca deja el stock negativo: si ya no
+ * están las unidades, aborta toda la operación con un mensaje claro.
+ */
+export async function removeSupplierStock(
+  lines: readonly StockLine[],
+  type: 'PURCHASE_VOID' | 'SUPPLIER_RETURN',
+  by: { id: Types.ObjectId; name: string },
+  note: string,
+  session: ClientSession,
+): Promise<void> {
+  const ids = lines.map((line) => line.productId);
+  if (ids.length === 0) return;
+  const tracked = await ProductModel.find({
+    _id: trusted({ $in: ids }),
+    trackStock: true,
+  }).session(session);
+  for (const product of tracked) {
+    const quantity = lines
+      .filter((line) => line.productId.equals(product._id))
+      .reduce((sum, line) => sum + line.quantity, 0);
+    if (quantity === 0) continue;
+    const item = await InventoryItemModel.findOneAndUpdate(
+      { productId: product._id, quantity: trusted({ $gte: quantity }) },
+      { $inc: { quantity: -quantity } },
+      { returnDocument: 'after', session },
+    );
+    if (item === null) {
+      const current = await InventoryItemModel.findOne({ productId: product._id }).session(session);
+      throw conflict(
+        `No hay suficiente stock de "${product.name}" para sacar ${String(quantity)}: quedan ${String(current?.quantity ?? 0)}.`,
+      );
+    }
+    await insertMovement(
+      { product, type, delta: -quantity, quantityAfter: item.quantity, note, by },
+      session,
+    );
+  }
+}

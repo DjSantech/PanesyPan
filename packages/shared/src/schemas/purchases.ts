@@ -19,6 +19,15 @@ export const PURCHASE_PAYMENT_LABELS: Readonly<Record<PurchasePaymentMethod, str
 
 export const PURCHASE_LINES_MAX = 50;
 
+/** ACTIVE = vigente; VOIDED = anulada (se devolvió el stock y, si se pudo, el efectivo). */
+export const PURCHASE_STATUSES = ['ACTIVE', 'VOIDED'] as const;
+export type PurchaseStatus = (typeof PURCHASE_STATUSES)[number];
+
+export const PURCHASE_STATUS_LABELS: Readonly<Record<PurchaseStatus, string>> = {
+  ACTIVE: 'Vigente',
+  VOIDED: 'Anulada',
+};
+
 export const purchaseLineSchema = z.object({
   /** null = insumo o artículo que no está en el catálogo (no mueve stock). */
   productId: z.string().nullable(),
@@ -43,6 +52,12 @@ export const purchaseSchema = z.object({
   createdBy: z.string(),
   /** Administrador que autorizó sacar el efectivo (si hizo falta). */
   approvedBy: z.string().nullable(),
+  status: z.enum(PURCHASE_STATUSES),
+  voidedAt: z.iso.datetime().nullable(),
+  voidedBy: z.string().nullable(),
+  voidReason: z.string(),
+  /** Al anular: si el efectivo volvió a la caja (null si no se pagó con la caja). */
+  voidCashRefunded: z.boolean().nullable(),
   createdAt: z.iso.datetime(),
 });
 export type Purchase = z.infer<typeof purchaseSchema>;
@@ -102,6 +117,85 @@ export const listPurchasesResponseSchema = z.object({
   total: moneySchema,
 });
 export const purchaseResponseSchema = z.object({ purchase: purchaseSchema });
+
+export const voidPurchaseRequestSchema = z.strictObject({
+  reason: z
+    .string()
+    .trim()
+    .min(3, 'Escribe el motivo de la anulación')
+    .max(200, 'Máximo 200 caracteres'),
+  /** PIN de un administrador (si quien anula no lo es). */
+  approverPin: z.string().optional(),
+});
+export type VoidPurchaseRequest = z.input<typeof voidPurchaseRequestSchema>;
+
+// ── Devoluciones a proveedor ───────────────────────────────────────
+
+/**
+ * Mercancía que se le devuelve a un proveedor: baja el stock y el proveedor reintegra el valor
+ * en efectivo (entra a la caja abierta como un ingreso) o como saldo a favor / transferencia
+ * (no toca la caja).
+ */
+export const SUPPLIER_REFUND_METHODS = ['CASH_DRAWER', 'CREDIT'] as const;
+export type SupplierRefundMethod = (typeof SUPPLIER_REFUND_METHODS)[number];
+
+export const SUPPLIER_REFUND_LABELS: Readonly<Record<SupplierRefundMethod, string>> = {
+  CASH_DRAWER: 'Efectivo a la caja',
+  CREDIT: 'Saldo a favor o transferencia',
+};
+
+export const supplierReturnLineSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  quantity: z.int(),
+  unitCost: z.int(),
+  total: z.int(),
+});
+
+export const supplierReturnSchema = z.object({
+  id: z.string(),
+  number: z.int(),
+  businessDate: businessDateSchema,
+  supplier: z.object({ id: z.string(), name: z.string() }),
+  lines: z.array(supplierReturnLineSchema),
+  total: moneySchema,
+  refundMethod: z.enum(SUPPLIER_REFUND_METHODS),
+  note: z.string(),
+  createdBy: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type SupplierReturn = z.infer<typeof supplierReturnSchema>;
+
+export const supplierReturnLineInputSchema = z.strictObject({
+  productId: objectIdSchema,
+  quantity: z
+    .int('La cantidad debe ser un número entero')
+    .min(1, 'La cantidad debe ser al menos 1')
+    .max(10_000, 'La cantidad es demasiado alta'),
+  unitCost: costSchema,
+});
+
+export const createSupplierReturnRequestSchema = z
+  .strictObject({
+    supplierId: objectIdSchema,
+    lines: z
+      .array(supplierReturnLineInputSchema)
+      .min(1, 'Agrega al menos un producto')
+      .max(PURCHASE_LINES_MAX, `Máximo ${String(PURCHASE_LINES_MAX)} productos por devolución`),
+    refundMethod: z.enum(SUPPLIER_REFUND_METHODS),
+    note: z.string().trim().max(200, 'Máximo 200 caracteres').default(''),
+  })
+  .refine((value) => purchaseTotalOf(value.lines) <= PRICE_LIMITS.max, {
+    message: 'El total de la devolución es demasiado alto',
+    path: ['lines'],
+  });
+export type CreateSupplierReturnRequest = z.input<typeof createSupplierReturnRequestSchema>;
+
+export const listSupplierReturnsResponseSchema = z.object({
+  items: z.array(supplierReturnSchema),
+  total: moneySchema,
+});
+export const supplierReturnResponseSchema = z.object({ supplierReturn: supplierReturnSchema });
 
 /** Total de las líneas de una compra (cantidad × costo unitario). */
 export function purchaseTotalOf(lines: readonly { quantity: number; unitCost: number }[]): number {

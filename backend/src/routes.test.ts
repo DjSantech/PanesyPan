@@ -85,6 +85,9 @@ const ROUTES: readonly (readonly [Method, string, Access])[] = [
   ['get', '/purchases', 'purchases:record'],
   ['post', '/purchases', 'purchases:record'],
   ['get', '/purchases/order-suggestions', 'suppliers:manage'],
+  ['post', '/purchases/:id/void', 'purchases:record'],
+  ['get', '/supplier-returns', 'purchases:record'],
+  ['post', '/supplier-returns', 'purchases:record'],
 
   ['get', '/cash-concepts', 'cash:operate'],
   ['post', '/cash-concepts', 'settings:manage'],

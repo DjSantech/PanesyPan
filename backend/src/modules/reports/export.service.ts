@@ -1,6 +1,7 @@
 import {
   CASH_MOVEMENT_LABELS,
   PURCHASE_PAYMENT_LABELS,
+  PURCHASE_STATUS_LABELS,
   EINVOICE_STATUS_LABELS,
   formatTimeCO,
   PAYMENT_METHOD_LABELS,
@@ -234,6 +235,7 @@ async function purchaseRows(query: ExportQuery): Promise<Table> {
       'Pago',
       'Referencia',
       'Registró',
+      'Estado',
     ],
     rows: purchases.flatMap((purchase) =>
       purchase.lines.map((line) => [
@@ -248,6 +250,7 @@ async function purchaseRows(query: ExportQuery): Promise<Table> {
         PURCHASE_PAYMENT_LABELS[purchase.paymentMethod],
         purchase.reference,
         purchase.createdBy.name,
+        PURCHASE_STATUS_LABELS[purchase.status ?? 'ACTIVE'],
       ]),
     ),
   };
