@@ -15,6 +15,15 @@ import { AppLayout } from '@/features/layout/AppLayout';
 export const router = createBrowserRouter([
   { path: '/ingresar', element: <LoginPage />, errorElement: <RouteErrorBoundary /> },
   {
+    path: '/diagnostico-caja',
+    errorElement: <RouteErrorBoundary />,
+    lazy: async () => {
+      const { CashDrawerDiagnosticPage } =
+        await import('@/features/diagnostics/CashDrawerDiagnosticPage');
+      return { Component: CashDrawerDiagnosticPage };
+    },
+  },
+  {
     path: '/',
     element: <RequireAuth />,
     errorElement: <RouteErrorBoundary />,
