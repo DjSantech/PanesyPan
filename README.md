@@ -1,4 +1,4 @@
-si# Panes & Pan · Sistema POS y plataforma web
+# Panes & Pan · Sistema POS y plataforma web
 
 Punto de venta, panel administrativo y (próximamente) web pública con domicilios para **Panes & Pan**, panadería en Dosquebradas, Risaralda (Colombia).
 
