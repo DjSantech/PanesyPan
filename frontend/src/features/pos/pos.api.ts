@@ -10,6 +10,7 @@ import {
   type CloseCashShiftRequest,
   type CloseSaleRequest,
   type CreateCashMovementRequest,
+  type DrawerOpenRequest,
   type UpdateCashMovementRequest,
   type VoidCashMovementRequest,
   type CounterCheckoutRequest,
@@ -20,7 +21,7 @@ import {
   type SaleLineInput,
   type TabCheckoutRequest,
 } from '@panesypan/shared';
-import { apiJson } from '@/lib/api-client';
+import { apiJson, apiVoid } from '@/lib/api-client';
 
 export const posKeys = {
   all: ['pos'] as const,
@@ -117,6 +118,11 @@ export async function closeShift(input: CloseCashShiftRequest): Promise<CashShif
     body: input,
   });
   return shift;
+}
+
+/** Deja en la auditoría que se abrió el cajón a mano (sin venta). */
+export async function logDrawerOpen(input: DrawerOpenRequest = {}): Promise<void> {
+  await apiVoid('/api/v1/cash-shifts/drawer-open', { method: 'POST', body: input });
 }
 
 // ── Ventas ─────────────────────────────────────────────────────────

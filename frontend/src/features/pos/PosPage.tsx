@@ -15,10 +15,11 @@ import {
   Ban,
   Banknote,
   HandCoins,
+  Inbox,
   ShoppingBasket,
   Wallet,
 } from 'lucide-react';
-import { useState, type SubmitEvent } from 'react';
+import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState, Spinner } from '@/components/feedback';
@@ -28,6 +29,8 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Field, Input } from '@/components/ui/form';
 import { Alert, Card, CardContent, Skeleton } from '@/components/ui/surface';
 import { errorMessage } from '@/lib/api-errors';
+import { usePrinterConfig } from '@/lib/printer/config';
+import { isDirectPrintingConfigured, openDrawer, watchDrawer } from '@/lib/printer/printer';
 import { cn, firstName } from '@/lib/utils';
 import { useCan, useCurrentUser } from '../auth/use-session';
 import { catalogKeys } from '../catalog/catalog.api';
@@ -35,6 +38,7 @@ import { useSettings } from '../settings/settings.api';
 import { useCartStore } from './cart.store';
 import { CashPanelDialog, CloseShiftDialog, MovementDialog } from './CashDialogs';
 import { CheckoutDialog, type CheckoutPayload } from './CheckoutDialog';
+import { runAfterSale } from './direct-print';
 import { BrothDialog } from './BrothDialog';
 import { LunchDialog } from './LunchDialog';
 import { OrderPanel, type OrderLineView } from './OrderPanel';
@@ -47,6 +51,7 @@ import {
   getCurrentShift,
   getSuggestedOpening,
   listOpenTabs,
+  logDrawerOpen,
   moveTab,
   openShift,
   openTab,
@@ -193,6 +198,9 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
   const queryClient = useQueryClient();
   const canApprove = useCan('sales:void:approve');
   const canManageMenu = useCan('catalog:manage');
+  const canOperateCash = useCan('cash:operate');
+  const printerConfig = usePrinterConfig();
+  const directPrinting = isDirectPrintingConfigured(printerConfig);
   const settings = useSettings();
   const catalog = usePosCatalog();
   const tabs = useQuery({
@@ -219,6 +227,31 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
   const [cashPanelOpen, setCashPanelOpen] = useState(false);
   const [movementOpen, setMovementOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
+  const [drawerLeftOpen, setDrawerLeftOpen] = useState(false);
+  const stopDrawerWatch = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => stopDrawerWatch.current?.(), []);
+
+  const watchDrawerAfterSale = () => {
+    stopDrawerWatch.current?.();
+    setDrawerLeftOpen(false);
+    stopDrawerWatch.current = watchDrawer(setDrawerLeftOpen);
+  };
+
+  const manualDrawer = useMutation({
+    mutationFn: async () => {
+      // Primero queda en la auditoría; si no se puede registrar, el cajón no se abre.
+      await logDrawerOpen();
+      await openDrawer(printerConfig);
+    },
+    onSuccess: () => {
+      toast.success('Cajón abierto');
+      watchDrawerAfterSale();
+    },
+    onError: (error) => {
+      toast.error(`No se pudo abrir el cajón: ${errorMessage(error)}`);
+    },
+  });
 
   // Si otra cajera cobró o canceló la mesa, deja de estar seleccionada.
   const selectedTab =
@@ -353,6 +386,9 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
     setCheckoutOpen(false);
     setOrderSheet(false);
     setDoneSale(sale);
+    void runAfterSale(sale, settings.data).then((drawerOpened) => {
+      if (drawerOpened) watchDrawerAfterSale();
+    });
     if (sale.type === 'COUNTER') {
       clearCart();
     } else {
@@ -499,8 +535,26 @@ function PosWorkspace({ shift }: { shift: CashShift }) {
             >
               <HandCoins aria-hidden="true" /> Egreso
             </Button>
+            {canOperateCash && directPrinting ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={manualDrawer.isPending}
+                onClick={() => {
+                  manualDrawer.mutate();
+                }}
+              >
+                {manualDrawer.isPending ? <Spinner /> : <Inbox aria-hidden="true" />} Abrir cajón
+              </Button>
+            ) : null}
           </div>
         </div>
+
+        {drawerLeftOpen ? (
+          <Alert tone="pending">
+            ⚠ La caja quedó abierta. Ciérrala después de entregar el cambio.
+          </Alert>
+        ) : null}
 
         {staleShift ? (
           <Alert tone="pending">

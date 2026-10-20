@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { EInvoiceBadge } from '../einvoice/EInvoiceBadge';
 import { isEInvoiceInFlight } from '../einvoice/einvoice-logic';
 import { getSale, posKeys } from './pos.api';
-import { printReceipt } from './print-receipt';
+import { printTicket } from './direct-print';
 import { formatSaleNumber } from './receipt-format';
 
 /** Cuánto se espera la validación de la factura antes de dejar de consultar (2 s × 15). */
@@ -88,7 +88,7 @@ function DoneContent({
           size="lg"
           disabled={settings === undefined}
           onClick={() => {
-            if (settings !== undefined) printReceipt(sale, settings);
+            if (settings !== undefined) void printTicket(sale, settings);
           }}
         >
           <Printer aria-hidden="true" /> Imprimir tiquete
