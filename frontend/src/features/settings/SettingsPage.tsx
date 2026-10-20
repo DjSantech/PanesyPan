@@ -11,8 +11,9 @@ import {
   type UpdateBusinessSettingsRequest,
 } from '@panesypan/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save } from 'lucide-react';
+import { Printer, Save } from 'lucide-react';
 import { useState, type SubmitEvent } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState, PageHeader, Spinner } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
@@ -376,6 +377,13 @@ export function SettingsPage() {
       <PageHeader
         title="Ajustes"
         description="Datos del negocio, tiquete y reglas del punto de venta."
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/diagnostico-caja">
+              <Printer aria-hidden="true" /> Impresora y caja
+            </Link>
+          </Button>
+        }
       />
       {settings.isPending ? (
         <Skeleton className="h-96" />

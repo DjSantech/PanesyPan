@@ -1,136 +1,249 @@
-import { useState } from 'react';
+import { ArrowLeft, Inbox, Printer, RefreshCw, Save, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { CheckboxField } from '@/components/ui/toggles';
+import { Field, NativeSelect } from '@/components/ui/form';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/surface';
+import {
+  BAUD_RATES,
+  loadPrinterConfig,
+  savePrinterConfig,
+  type PrinterConfig,
+} from '@/lib/printer/config';
+import { PAPER_COLUMNS } from '@/lib/printer/escpos';
+import {
+  getDrawerStatus,
+  listTargets,
+  openDrawer,
+  printerTransport,
+  printTest,
+  requestTarget,
+  type PrinterTarget,
+} from '@/lib/printer/printer';
 
 /**
- * Página de diagnóstico (sin enlace en el menú) para comprobar si Chrome alcanza la
- * impresora de tickets por WebUSB y si la caja registradora abre con ESC/POS.
+ * Impresora y caja de ESTE equipo: elegir la impresora de tiquetes (app Android o WebUSB en
+ * Chrome), el ancho del papel y si el cajón abre solo al cobrar en efectivo. Es pública
+ * (/diagnostico-caja) para poder probar el hardware antes de iniciar sesión.
  */
 
-// Tipado mínimo de WebUSB: el proyecto no incluye los tipos del estándar.
-interface UsbEndpoint {
-  endpointNumber: number;
-  direction: 'in' | 'out';
-  type: string;
-}
-interface UsbInterface {
-  interfaceNumber: number;
-  alternate: { interfaceClass: number; endpoints: UsbEndpoint[] };
-}
-interface UsbDevice {
-  vendorId: number;
-  productId: number;
-  productName?: string;
-  manufacturerName?: string;
-  opened: boolean;
-  configuration: { interfaces: UsbInterface[] } | null;
-  open(): Promise<void>;
-  selectConfiguration(n: number): Promise<void>;
-  claimInterface(n: number): Promise<void>;
-  transferOut(endpoint: number, data: Uint8Array): Promise<unknown>;
-}
-interface Usb {
-  getDevices(): Promise<UsbDevice[]>;
-  requestDevice(options: { filters: unknown[] }): Promise<UsbDevice>;
-}
+const TRANSPORT_LABELS = {
+  native: 'App Android (USB o puerto serie)',
+  webusb: 'Chrome con WebUSB',
+} as const;
 
-const ESC = 0x1b;
-const GS = 0x1d;
-/** Pulso al cajón: pin 2 y luego pin 5 (según cómo esté cableada la caja). */
-const OPEN_DRAWER = new Uint8Array([ESC, 0x70, 0x00, 0x19, 0xfa, ESC, 0x70, 0x01, 0x19, 0xfa]);
-
-function hex(n: number) {
-  return '0x' + n.toString(16).padStart(4, '0');
-}
-
-function describe(d: UsbDevice) {
-  const name = [d.manufacturerName, d.productName].filter(Boolean).join(' ') || 'Sin nombre';
-  return `${name} (vendor ${hex(d.vendorId)}, product ${hex(d.productId)})`;
-}
-
-function ticketBytes() {
-  const text = new TextEncoder().encode(
-    'PANES & PAN\nPrueba de impresora\n' + new Date().toLocaleString('es-CO') + '\n\n\n\n',
-  );
-  return new Uint8Array([ESC, 0x40, ...text, GS, 0x56, 0x01]);
-}
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export function CashDrawerDiagnosticPage() {
-  const [device, setDevice] = useState<UsbDevice | null>(null);
+  const transport = printerTransport();
+  const [draft, setDraft] = useState<PrinterConfig>(loadPrinterConfig);
+  const [targets, setTargets] = useState<PrinterTarget[]>([]);
+  const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const usb = (navigator as Navigator & { usb?: Usb }).usb;
 
-  const add = (line: string) =>
-    setLog((l) => [...l, `${new Date().toLocaleTimeString('es-CO')}  ${line}`]);
+  const add = (line: string) => {
+    setLog((current) => [...current, `${new Date().toLocaleTimeString('es-CO')}  ${line}`]);
+  };
 
-  async function connect() {
-    if (!usb) {
-      add('❌ Este navegador no soporta WebUSB. Usa Google Chrome actualizado.');
-      return;
-    }
+  const run = async (label: string, action: () => Promise<string | undefined>) => {
+    setBusy(true);
     try {
-      const known = await usb.getDevices();
-      if (known.length) add(`Ya autorizados: ${known.map(describe).join('; ')}`);
-      const d = await usb.requestDevice({ filters: [] });
-      add(`✅ Seleccionado: ${describe(d)}`);
-      setDevice(d);
-    } catch (e) {
-      add(`❌ No se eligió dispositivo: ${(e as Error).message}`);
+      const result = await action();
+      add(`✅ ${label}${result === undefined ? '' : `: ${result}`}`);
+    } catch (error) {
+      add(`❌ ${label}: ${reason(error)}`);
+    } finally {
+      setBusy(false);
     }
-  }
+  };
 
-  async function send(data: Uint8Array, label: string) {
-    if (!device) {
-      add('Primero toca "Buscar impresora".');
-      return;
-    }
-    try {
-      if (!device.opened) await device.open();
-      if (!device.configuration) await device.selectConfiguration(1);
-      const interfaces = device.configuration?.interfaces ?? [];
-      add(
-        `Interfaces: ${interfaces
-          .map((i) => `#${String(i.interfaceNumber)} clase ${String(i.alternate.interfaceClass)}`)
-          .join(', ')}`,
-      );
-      const target = interfaces.find((i) =>
-        i.alternate.endpoints.some((ep) => ep.direction === 'out' && ep.type === 'bulk'),
-      );
-      if (!target) throw new Error('No hay un canal de salida (bulk OUT) en este dispositivo.');
-      const endpoint = target.alternate.endpoints.find(
-        (ep) => ep.direction === 'out' && ep.type === 'bulk',
-      );
-      if (!endpoint) throw new Error('No se encontró el endpoint de salida.');
-      await device.claimInterface(target.interfaceNumber).catch(() => undefined);
-      await device.transferOut(endpoint.endpointNumber, data);
-      add(
-        `✅ ${label}: enviado por interfaz #${String(target.interfaceNumber)}, endpoint ${String(endpoint.endpointNumber)}`,
-      );
-    } catch (e) {
-      add(`❌ ${label}: ${(e as Error).name} — ${(e as Error).message}`);
-    }
-  }
+  const refresh = () =>
+    run('Buscar impresoras', async () => {
+      const found = await listTargets();
+      setTargets(found);
+      return found.length === 0 ? 'no se encontró ninguna' : `${String(found.length)} encontradas`;
+    });
+
+  useEffect(() => {
+    if (transport === null) return;
+    void listTargets()
+      .then(setTargets)
+      .catch(() => undefined);
+  }, [transport]);
+
+  const authorize = () =>
+    run('Autorizar impresora', async () => {
+      const target = await requestTarget();
+      setTargets((current) => [...current.filter((t) => t.id !== target.id), target]);
+      setDraft((current) => ({ ...current, target: target.id }));
+      return target.label;
+    });
+
+  const selected = targets.find((target) => target.id === draft.target);
+  const ready = transport !== null && draft.target !== null;
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-semibold">Diagnóstico de caja registradora</h1>
-      <p className="text-muted-foreground text-sm">
-        WebUSB: {usb ? 'disponible ✅' : 'NO disponible ❌'} · {navigator.userAgent}
-      </p>
-      <div className="flex flex-col gap-2">
-        <Button size="lg" onClick={connect}>
-          1. Buscar impresora
-        </Button>
-        <Button size="lg" variant="outline" onClick={() => send(ticketBytes(), 'Imprimir prueba')}>
-          2. Imprimir prueba
-        </Button>
-        <Button size="lg" variant="outline" onClick={() => send(OPEN_DRAWER, 'Abrir caja')}>
-          3. Abrir caja
-        </Button>
-      </div>
-      <pre className="bg-muted min-h-40 rounded-md p-3 text-xs whitespace-pre-wrap">
-        {log.length
-          ? log.join('\n')
-          : 'Aquí aparecerán los resultados. Toma foto o captura y envíala.'}
+    <main className="mx-auto grid max-w-xl gap-4 p-4">
+      <Link
+        to="/configuracion"
+        className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" /> Ajustes
+      </Link>
+      <h1 className="font-display text-3xl leading-tight font-bold">Impresora y caja</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Impresora de tiquetes</CardTitle>
+          <CardDescription>
+            Conexión: {transport === null ? 'ninguna disponible' : TRANSPORT_LABELS[transport]}.
+            {transport === null
+              ? ' Abre esta página en la app del POS o en Google Chrome para imprimir directo.'
+              : ' Se guarda solo en este equipo.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <Field
+            id="printer-target"
+            label="Impresora"
+            hint={
+              selected === undefined && draft.target !== null
+                ? 'La impresora guardada no aparece ahora: revisa el cable y busca de nuevo.'
+                : 'Vacío = imprimir con el diálogo del navegador.'
+            }
+          >
+            <NativeSelect
+              id="printer-target"
+              value={draft.target ?? ''}
+              disabled={transport === null}
+              onChange={(event) => {
+                setDraft({
+                  ...draft,
+                  target: event.target.value === '' ? null : event.target.value,
+                });
+              }}
+            >
+              <option value="">Ninguna (usar el navegador)</option>
+              {draft.target !== null && selected === undefined ? (
+                <option value={draft.target}>{draft.target} (no conectada)</option>
+              ) : null}
+              {targets.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.kind === 'serial' ? 'Serie' : 'USB'} · {target.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" disabled={transport === null || busy} onClick={refresh}>
+              <RefreshCw aria-hidden="true" /> Buscar impresoras
+            </Button>
+            {transport === 'webusb' ? (
+              <Button variant="outline" disabled={busy} onClick={authorize}>
+                <Search aria-hidden="true" /> Autorizar otra
+              </Button>
+            ) : null}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id="printer-paper" label="Ancho del papel">
+              <NativeSelect
+                id="printer-paper"
+                value={draft.paperWidth}
+                onChange={(event) => {
+                  setDraft({ ...draft, paperWidth: event.target.value === '58' ? '58' : '80' });
+                }}
+              >
+                {(['80', '58'] as const).map((width) => (
+                  <option key={width} value={width}>
+                    {width} mm ({PAPER_COLUMNS[width]} columnas)
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field
+              id="printer-baud"
+              label="Velocidad (puerto serie)"
+              hint="Solo para impresoras por puerto serie."
+            >
+              <NativeSelect
+                id="printer-baud"
+                value={String(draft.baud)}
+                onChange={(event) => {
+                  setDraft({ ...draft, baud: event.target.value === '9600' ? 9600 : 115200 });
+                }}
+              >
+                {BAUD_RATES.map((baud) => (
+                  <option key={baud} value={baud}>
+                    {baud}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          </div>
+          <CheckboxField
+            id="printer-auto-open"
+            label="Abrir el cajón al cobrar en efectivo"
+            description="El cajón va conectado a la impresora."
+            checked={draft.autoOpenOnCash}
+            onCheckedChange={(checked) => {
+              setDraft({ ...draft, autoOpenOnCash: checked });
+            }}
+          />
+          <Button
+            size="lg"
+            onClick={() => {
+              add(
+                savePrinterConfig(draft)
+                  ? '✅ Configuración guardada en este equipo'
+                  : '❌ El navegador no dejó guardar (¿modo incógnito?)',
+              );
+            }}
+          >
+            <Save aria-hidden="true" /> Guardar
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Probar</CardTitle>
+          <CardDescription>
+            Usa la impresora elegida arriba, aunque aún no la guardes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-3">
+          <Button
+            variant="outline"
+            disabled={!ready || busy}
+            onClick={() => run('Imprimir prueba', () => printTest(draft).then(() => undefined))}
+          >
+            <Printer aria-hidden="true" /> Imprimir prueba
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!ready || busy}
+            onClick={() => run('Abrir cajón', () => openDrawer(draft).then(() => undefined))}
+          >
+            <Inbox aria-hidden="true" /> Abrir cajón
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!ready || busy}
+            onClick={() =>
+              run('Estado del cajón', async () => {
+                const open = await getDrawerStatus(draft);
+                return open === null ? 'la impresora no lo informa' : open ? 'abierto' : 'cerrado';
+              })
+            }
+          >
+            Leer estado
+          </Button>
+        </CardContent>
+      </Card>
+
+      <pre className="min-h-32 rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
+        {log.length > 0 ? log.join('\n') : `Aquí aparecerán los resultados. ${navigator.userAgent}`}
       </pre>
     </main>
   );
