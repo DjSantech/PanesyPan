@@ -551,3 +551,28 @@ describe('devoluciones parciales', () => {
     expect(await auditCount('SALE_RETURNED')).toBe(1);
   });
 });
+
+describe('apertura manual del cajón', () => {
+  it('queda en la auditoría con quien la hizo, el motivo y la caja abierta', async () => {
+    expect((await openShift(cashier)).status).toBe(201);
+    const response = await send(cashier, 'post', '/cash-shifts/drawer-open', {
+      reason: 'Dar cambio',
+    });
+    expect(response.status).toBe(204);
+    const log = await AuditLogModel.findOne({ action: 'CASH_DRAWER_OPENED' }).lean();
+    expect(log?.actor?.name).toBe('Laura Gómez');
+    expect(log?.metadata).toEqual({ reason: 'Dar cambio' });
+    expect(log?.entity?.type).toBe('CASH_SHIFT');
+  });
+
+  it('funciona sin caja abierta, valida el cuerpo y exige sesión', async () => {
+    expect((await send(cashier, 'post', '/cash-shifts/drawer-open', {})).status).toBe(204);
+    expect(
+      (await send(cashier, 'post', '/cash-shifts/drawer-open', { reason: 'x'.repeat(201) })).status,
+    ).toBe(400);
+    expect(
+      (await request(app).post('/api/v1/cash-shifts/drawer-open').send({})).status,
+    ).toBeGreaterThanOrEqual(401);
+    expect(await auditCount('CASH_DRAWER_OPENED')).toBe(1);
+  });
+});

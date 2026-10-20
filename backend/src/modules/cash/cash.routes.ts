@@ -2,6 +2,7 @@ import {
   closeCashShiftRequestSchema,
   confirmCashShiftRequestSchema,
   createCashMovementRequestSchema,
+  drawerOpenRequestSchema,
   listCashShiftsQuerySchema,
   openCashShiftRequestSchema,
   RECEIPT_IMAGE_TYPES,
@@ -12,11 +13,13 @@ import express, { Router, type Request, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
 import { AppError } from '../../lib/errors';
 import { getRequestMeta } from '../../lib/request-meta';
+import { recordAudit } from '../audit/audit.service';
 import { parseBody, parseIdParam, parseQuery } from '../../lib/validate';
 import type { AuthConfig } from '../auth/auth.config';
 import { getAuth, type AuthGuards } from '../auth/auth.middleware';
 import type { PosContext } from '../sales/approval.service';
 import { getSettings } from '../settings/settings.service';
+import { toAuditActor } from '../users/users.mapper';
 import {
   closeShift,
   confirmShift,
@@ -50,6 +53,7 @@ export interface CashRouterDeps {
  *   POST /current/movements/:id/receipt  foto del comprobante (cuerpo = la imagen, máx. 2 MB)
  *   PATCH /movements/:id      corregir monto, tipo o detalle (PIN de admin, caja abierta)
  *   POST /movements/:id/void  anular con motivo (PIN de admin, caja abierta)
+ *   POST /drawer-open         deja constancia de una apertura manual del cajón de dinero
  *   POST /current/close       cerrar la caja con el arqueo por denominaciones
  *   GET  /?from=&to=&userId=  historial de cajas (administrador)
  *   GET  /:id                 resumen detallado de una caja (administrador)
@@ -115,6 +119,25 @@ export function createCashRouter(deps: CashRouterDeps): Router {
   router.post('/movements/:id/void', ...canOperate, approvalLimiter, async (req, res) => {
     const input = parseBody(req, voidCashMovementRequestSchema);
     res.json({ movement: await voidMovement(parseIdParam(req), input, posContext(req)) });
+  });
+
+  router.post('/drawer-open', ...canOperate, async (req, res) => {
+    const input = parseBody(req, drawerOpenRequestSchema);
+    const ctx = posContext(req);
+    const shift = await getCurrentShift(ctx.actor.id);
+    await recordAudit(
+      {
+        action: 'CASH_DRAWER_OPENED',
+        actor: toAuditActor(ctx.actor),
+        ...(shift === null
+          ? {}
+          : { entity: { type: 'CASH_SHIFT', id: shift.id, label: shift.businessDate } }),
+        metadata: { reason: input.reason },
+        meta: ctx.meta,
+      },
+      ctx.logger,
+    );
+    res.status(204).end();
   });
 
   router.post('/current/close', ...canOperate, async (req, res) => {
