@@ -63,6 +63,7 @@ export const AUDIT_ACTIONS = [
   'PROFILE_CREATED',
   'PROFILE_UPDATED',
   'USER_PROFILE_CHANGED',
+  'CASH_DRAWER_OPENED',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -131,6 +132,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<AuditAction, string>> = {
   PROFILE_CREATED: 'Perfil de permisos creado',
   PROFILE_UPDATED: 'Perfil de permisos modificado',
   USER_PROFILE_CHANGED: 'Cambio de perfil de un usuario',
+  CASH_DRAWER_OPENED: 'Cajón de dinero abierto a mano',
 };
 
 /** Acciones que conviene resaltar como alertas de seguridad. */

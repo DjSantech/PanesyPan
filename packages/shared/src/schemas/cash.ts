@@ -161,6 +161,12 @@ export const openCashShiftRequestSchema = z.strictObject({
 });
 export type OpenCashShiftRequest = z.input<typeof openCashShiftRequestSchema>;
 
+/** Apertura manual del cajón de dinero desde el POS (sin venta): queda en la auditoría. */
+export const drawerOpenRequestSchema = z.strictObject({
+  reason: z.string().trim().max(200, 'Máximo 200 caracteres').default(''),
+});
+export type DrawerOpenRequest = z.input<typeof drawerOpenRequestSchema>;
+
 // ── Tipos de movimiento y personal ─────────────────────────────────
 
 /**
